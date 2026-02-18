@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>CRM Ventas - Multimoney Jarod Lopez</title>
+  <title>CRM Ventas - V8 (Cálculo Directo)</title>
   
   <script src="https://cdn.tailwindcss.com"></script>
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -32,7 +32,7 @@
   <script type="text/babel">
     const { useState, useEffect, useMemo } = React;
 
-    // --- 1. FIREBASE CONFIG ---
+    // --- 1. CONFIGURACIÓN FIREBASE ---
     const firebaseConfig = {
       apiKey: "AIzaSyAAETou6DhYIJJ8cxI13BU1p_l3yGPMilA",
       authDomain: "ventas-ebd49.firebaseapp.com",
@@ -45,7 +45,7 @@
     if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
 
-    // --- 2. LOGICA QUINCENAL ---
+    // --- 2. LÓGICA DE NEGOCIO ---
     
     const parseDate = (input) => {
       if (!input) return new Date();
@@ -56,40 +56,27 @@
     const money = (val) => new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 }).format(val);
     const formatDate = (input) => new Intl.DateTimeFormat('es-MX', { day: '2-digit', month: 'short', hour:'2-digit', minute:'2-digit' }).format(parseDate(input));
 
-    // Determinar si una fecha pertenece a Q1 o Q2
+    // Determinar Q1 (1-15) o Q2 (16-Fin)
     const getQuincena = (date) => date.getDate() <= 15 ? 1 : 2;
 
-    // Calcular días hábiles SOLO dentro de la quincena actual
     const getBusinessDaysQuincena = (targetDate, quincena) => {
       const year = targetDate.getFullYear();
       const month = targetDate.getMonth();
       const lastDayOfMonth = new Date(year, month + 1, 0).getDate();
       
-      // Definir inicio y fin de la quincena
       const startDay = quincena === 1 ? 1 : 16;
       const endDay = quincena === 1 ? 15 : lastDayOfMonth;
 
       let totalBusinessDays = 0;
-      let daysPassed = 0;
-      const now = new Date();
-      // Validar si estamos "dentro" de la quincena seleccionada en tiempo real
-      const isCurrentPeriod = now.getMonth() === month && now.getFullYear() === year && getQuincena(now) === quincena;
-      const currentDayNum = now.getDate();
-
+      
       for (let d = startDay; d <= endDay; d++) {
         const dateCheck = new Date(year, month, d);
         const dayOfWeek = dateCheck.getDay(); 
-        if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+        if (dayOfWeek !== 0 && dayOfWeek !== 6) { // Excluir Sábados (6) y Domingos (0)
           totalBusinessDays++;
-          if (isCurrentPeriod) {
-            if (d <= currentDayNum) daysPassed++;
-          } else if (now > dateCheck) {
-             // Si la fecha actual es mayor a esta fecha chequeada (ej: estamos en Q2, calculando Q1), ya pasó
-             daysPassed++;
-          }
         }
       }
-      return { totalBusinessDays, daysPassed, startDay, endDay };
+      return { totalBusinessDays, startDay, endDay };
     };
 
     // --- 3. COMPONENTES ---
@@ -100,12 +87,18 @@
       const dailyGoal = businessData.totalBusinessDays > 0 ? metaVal / businessData.totalBusinessDays : 0;
       const projection = [];
       let accum = 0;
+      
+      const today = new Date().getDate();
+      const isCurrentMonth = new Date().getMonth() === month && new Date().getFullYear() === year;
 
       for(let d = businessData.startDay; d <= businessData.endDay; d++){
          const date = new Date(year, month, d);
          const isWeekend = date.getDay() === 0 || date.getDay() === 6;
          if(!isWeekend) accum += dailyGoal;
-         projection.push({ day: d, isWeekend, expected: accum });
+         
+         const isToday = isCurrentMonth && d === today;
+         
+         projection.push({ day: d, isWeekend, expected: accum, isToday });
       }
 
       return (
@@ -121,11 +114,15 @@
             </div>
             <div className="flex-1 overflow-y-auto p-2">
               <table className="w-full text-sm">
-                <thead><tr className="text-left text-xs uppercase text-slate-500"><th className="p-2">Día</th><th className="p-2 text-right">Acumulado</th></tr></thead>
+                <thead><tr className="text-left text-xs uppercase text-slate-500"><th className="p-2">Día</th><th className="p-2 text-right">Acumulado Ideal</th></tr></thead>
                 <tbody>
                   {projection.map(row => (
-                    <tr key={row.day} className={`border-b ${row.isWeekend ? 'bg-slate-50 text-slate-400' : ''}`}>
-                      <td className="p-2">{row.day} {row.isWeekend && '(Fin)'}</td>
+                    <tr key={row.day} className={`border-b ${row.isWeekend ? 'bg-slate-50 text-slate-400' : ''} ${row.isToday ? 'bg-blue-100 font-bold border-l-4 border-blue-500' : ''}`}>
+                      <td className="p-2 flex items-center gap-2">
+                        {row.day} 
+                        {row.isWeekend && '(Fin)'}
+                        {row.isToday && <span className="text-[10px] bg-blue-500 text-white px-1 rounded">HOY</span>}
+                      </td>
                       <td className="p-2 text-right font-bold">{row.isWeekend ? '-' : money(row.expected)}</td>
                     </tr>
                   ))}
@@ -139,19 +136,38 @@
 
     const MetricsHeader = ({ sales, meta, businessData, onOpenPlanning }) => {
       const sold = sales.filter(s => s.estatus === 'Dispersado').reduce((acc, curr) => acc + (Number(curr.monto_dispersado) || 0), 0);
-      const percent = meta > 0 ? (sold / meta) * 100 : 0;
-      const dailyGoal = meta / businessData.totalBusinessDays || 0;
-      const deficit = sold - (dailyGoal * businessData.daysPassed);
       
+      // CÁLCULO QUIRÚRGICO: Monto Real - Meta Total
+      // Esto responde a "cuánto me falta para llegar a la meta final".
+      const deficit = sold - meta;
+      const isDeficit = deficit < 0;
+
       return (
         <div className="bg-white p-3 shadow-sm border-b flex flex-wrap gap-4 items-center justify-between">
           <div className="flex gap-6 items-center">
-             <div><p className="text-[10px] font-bold text-slate-400 uppercase">Venta Q. Real</p><p className="text-2xl font-black text-slate-800">{money(sold)}</p></div>
+             
+             {/* 1. Real Dispersado */}
+             <div>
+                <p className="text-[10px] font-bold text-slate-400 uppercase">Real Dispersado</p>
+                <p className="text-2xl font-black text-slate-800">{money(sold)}</p>
+             </div>
+             
              <div className="hidden md:block w-px h-8 bg-slate-200"></div>
-             <div><p className="text-[10px] font-bold text-slate-400 uppercase">Déficit vs Tiempo</p><p className={`font-bold ${deficit >= 0 ? 'text-green-600' : 'text-red-500'}`}>{deficit >= 0 ? '+' : ''}{money(deficit)}</p></div>
+             
+             {/* 2. Déficit REAL (Faltante para Meta) */}
+             <div>
+               <p className="text-[10px] font-bold text-slate-400 uppercase">Diferencia (Real vs Meta)</p>
+               <p className={`font-bold text-xl ${isDeficit ? 'text-red-600' : 'text-green-600'}`}>
+                 {isDeficit ? '' : '+'}{money(deficit)}
+               </p>
+               <p className="text-[9px] text-slate-400 font-mono">
+                 {isDeficit ? 'Falta para llegar' : 'Meta Superada'}
+               </p>
+             </div>
           </div>
+          
           <button onClick={onOpenPlanning} className="bg-slate-800 text-white px-3 py-1.5 rounded text-xs font-bold hover:bg-slate-700">
-            <i className="fas fa-chart-pie mr-2"></i>Meta Q.
+            <i className="fas fa-chart-pie mr-2"></i>Ver Planificación
           </button>
         </div>
       );
@@ -198,7 +214,10 @@
 
       const confirmDelete = () => {
         if(pin === '2398') deleteSale(sale.id);
-        else setError('PIN Incorrecto');
+        else {
+            setError('PIN Incorrecto');
+            setTimeout(() => setError(''), 2000);
+        }
       };
 
       return (
@@ -258,7 +277,6 @@
 
     const App = () => {
       const [currentDate, setCurrentDate] = useState(new Date());
-      // Nuevo Estado: Quincena actual (1 o 2)
       const [currentQuincena, setCurrentQuincena] = useState(new Date().getDate() <= 15 ? 1 : 2);
       
       const [allSales, setAllSales] = useState([]);
@@ -266,7 +284,6 @@
       const [isPlanningOpen, setIsPlanningOpen] = useState(false);
       const [showForm, setShowForm] = useState(false);
 
-      // Clave Única: Año-Mes-Q (ej: 2024-2-1)
       const periodKey = `${currentDate.getFullYear()}-${currentDate.getMonth()}-${currentQuincena}`;
 
       useEffect(() => {
@@ -275,7 +292,11 @@
       }, []);
 
       useEffect(() => {
-        const unsub = db.collection('metas').doc(periodKey).onSnapshot(doc => setMetaQuincenal(doc.exists ? doc.data().monto : 0));
+        const unsub = db.collection('metas').doc(periodKey).onSnapshot(doc => {
+            // FIX: Validar existencia de datos
+            if(doc.exists) setMetaQuincenal(doc.data().monto);
+            else setMetaQuincenal(0);
+        });
         return () => unsub();
       }, [periodKey]);
 
@@ -285,7 +306,6 @@
         return allSales.filter(sale => {
           if(!sale.fecha) return false;
           const d = parseDate(sale.fecha);
-          // Filtrar por Mes, Año Y QUINCENA
           return d.getMonth() === currentDate.getMonth() && 
                  d.getFullYear() === currentDate.getFullYear() &&
                  getQuincena(d) === currentQuincena;
@@ -340,7 +360,7 @@
         <div className="flex flex-col h-full bg-slate-100">
           <div className="bg-slate-900 text-white p-3 flex justify-between items-center shadow-md z-10">
             <div className="flex items-center gap-2 md:gap-4">
-              <h1 className="font-bold text-lg hidden md:block">CRM Quincenal</h1>
+              <h1 className="font-bold text-lg hidden md:block">CRM V8</h1>
               <div className="flex items-center bg-slate-800 rounded px-1">
                 <button onClick={() => changePeriod(-1)} className="p-2 hover:text-green-400"><i className="fas fa-chevron-left"></i></button>
                 <div className="flex flex-col items-center w-40">
