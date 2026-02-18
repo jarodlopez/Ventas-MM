@@ -3,29 +3,30 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>CRM Pro - Tracking & Metas</title>
+  <title>CRM Ventas - Control Total</title>
   
   <script src="https://cdn.tailwindcss.com"></script>
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-  
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
 
-  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
 
   <style>
+    /* UX Styles */
     .pipeline-scroll { scroll-snap-type: x mandatory; }
     .pipeline-col { scroll-snap-align: start; }
     ::-webkit-scrollbar { width: 6px; height: 6px; }
     ::-webkit-scrollbar-track { background: #f1f1f1; }
-    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
-    body { font-family: 'Inter', system-ui, -apple-system, sans-serif; }
+    ::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 4px; }
+    body { font-family: 'Inter', system-ui, sans-serif; }
+    .glass-modal { background: rgba(0, 0, 0, 0.5); backdrop-filter: blur(2px); }
   </style>
 </head>
-<body class="bg-gray-100 text-gray-900 h-screen flex flex-col overflow-hidden">
+<body class="bg-slate-100 text-slate-900 h-screen flex flex-col overflow-hidden">
   
   <div id="root" class="h-full flex flex-col"></div>
 
@@ -42,419 +43,378 @@
       appId: "1:907042495792:web:6827da0b73333496f6bcf5"
     };
     
-    // Inicializar solo si no existe
-    if (!firebase.apps.length) {
-       firebase.initializeApp(firebaseConfig);
-    }
+    if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
 
     // --- 2. UTILIDADES ---
-    const formatMoney = (amount) => new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 }).format(amount);
-    
-    const formatDate = (timestamp) => {
-      if (!timestamp) return '';
-      // Manejar timestamp de Firebase o fecha JS
-      const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-      return new Intl.DateTimeFormat('es-MX', { day: '2-digit', month: 'short', hour: '2-digit', minute:'2-digit' }).format(date);
-    };
+    const money = (val) => new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 }).format(val);
+    const formatDate = (date) => new Intl.DateTimeFormat('es-MX', { day: '2-digit', month: 'short', hour:'2-digit', minute:'2-digit' }).format(new Date(date));
 
-    // Cálculo de días hábiles (Lunes a Viernes)
-    const getBusinessDays = () => {
-      const now = new Date();
-      const year = now.getFullYear();
-      const month = now.getMonth();
+    // Días hábiles
+    const getBusinessDaysData = (targetDate) => {
+      const year = targetDate.getFullYear();
+      const month = targetDate.getMonth();
       const lastDay = new Date(year, month + 1, 0).getDate();
       let totalBusinessDays = 0;
-      let passedBusinessDays = 0;
-      const todayDate = now.getDate();
+      let daysPassed = 0;
+      const now = new Date();
+      const isCurrentMonth = now.getMonth() === month && now.getFullYear() === year;
+      const currentDayNum = now.getDate();
 
-      for (let day = 1; day <= lastDay; day++) {
-        const current = new Date(year, month, day);
-        const dayOfWeek = current.getDay();
-        if (dayOfWeek !== 0 && dayOfWeek !== 6) { // 0=Dom, 6=Sab
+      for (let d = 1; d <= lastDay; d++) {
+        const dateCheck = new Date(year, month, d);
+        const dayOfWeek = dateCheck.getDay(); 
+        if (dayOfWeek !== 0 && dayOfWeek !== 6) {
           totalBusinessDays++;
-          if (day <= todayDate) passedBusinessDays++;
+          if (isCurrentMonth) {
+            if (d <= currentDayNum) daysPassed++;
+          } else if (now > dateCheck) {
+             daysPassed++;
+          }
         }
       }
-      return { totalBusinessDays, passedBusinessDays };
+      return { totalBusinessDays, daysPassed };
     };
 
     // --- 3. COMPONENTES ---
 
-    // === METRICS DASHBOARD ===
-    const Dashboard = ({ sales, metaData, updateMeta }) => {
-      const { totalBusinessDays, passedBusinessDays } = getBusinessDays();
-      
-      // CORRECCIÓN: Validación segura en lugar de Optional Chaining para evitar error de sintaxis
-      const metaMensual = (metaData && metaData.monto) ? metaData.monto : 0;
-      
-      const dispersado = sales.filter(s => s.estatus === 'Dispersado')
-                              .reduce((acc, curr) => acc + Number(curr.monto_dispersado || 0), 0);
+    // === MODAL PLANIFICACIÓN ===
+    const PlanningModal = ({ isOpen, onClose, meta, setMeta, businessData, year, month }) => {
+      if (!isOpen) return null;
+      const metaVal = meta || 0;
+      const dailyGoal = businessData.totalBusinessDays > 0 ? metaVal / businessData.totalBusinessDays : 0;
+      const projection = [];
+      let accum = 0;
+      const lastDay = new Date(year, month + 1, 0).getDate();
 
-      // Cálculos Matemáticos
-      const avance = metaMensual > 0 ? (dispersado / metaMensual) * 100 : 0;
-      const metaDiaria = totalBusinessDays > 0 ? metaMensual / totalBusinessDays : 0;
-      const deberiaLlevar = metaDiaria * passedBusinessDays;
-      const deficit = dispersado - deberiaLlevar;
-      const isDeficit = deficit < 0;
-
-      const [isEditingMeta, setIsEditingMeta] = useState(false);
-      const [tempMeta, setTempMeta] = useState(metaMensual);
-
-      // Efecto para actualizar tempMeta cuando llega la data real
-      useEffect(() => {
-        setTempMeta(metaMensual);
-      }, [metaMensual]);
-
-      const saveMeta = () => {
-        updateMeta(tempMeta);
-        setIsEditingMeta(false);
-      };
+      for(let d=1; d<=lastDay; d++){
+         const date = new Date(year, month, d);
+         const isWeekend = date.getDay() === 0 || date.getDay() === 6;
+         if(!isWeekend) accum += dailyGoal;
+         projection.push({ day: d, isWeekend, expected: accum });
+      }
 
       return (
-        <div className="bg-white border-b border-gray-200 p-2 md:p-4 shadow-sm z-20 overflow-x-auto">
-          <div className="flex gap-4 min-w-max">
-            
-            {/* KPI 1: Resumen General */}
-            <div className="flex flex-col justify-center min-w-[150px]">
-              <span className="text-xs text-gray-500 uppercase font-bold">Total Dispersado</span>
-              <span className="text-2xl font-black text-gray-800">{formatMoney(dispersado)}</span>
-              <span className="text-xs text-gray-400">{sales.length} leads totales</span>
+        <div className="fixed inset-0 glass-modal z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg h-[80vh] flex flex-col overflow-hidden">
+            <div className="p-4 bg-slate-50 border-b flex justify-between items-center">
+              <h2 className="font-bold text-lg">Planificación Mensual</h2>
+              <button onClick={onClose}><i className="fas fa-times text-slate-400"></i></button>
             </div>
-
-            {/* KPI 2: Semáforo de Meta */}
-            <div className="bg-gray-50 rounded p-2 border border-gray-200 min-w-[200px] flex flex-col justify-center relative">
-              <div className="flex justify-between items-center mb-1">
-                <span className="text-[10px] font-bold uppercase text-gray-500">Meta Mensual</span>
-                {isEditingMeta ? (
-                  <div className="flex items-center gap-1">
-                    <input type="number" value={tempMeta} onChange={e => setTempMeta(e.target.value)} className="w-20 text-xs border rounded p-1" autoFocus />
-                    <button onClick={saveMeta} className="text-green-600"><i className="fas fa-check"></i></button>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-2 cursor-pointer hover:bg-gray-100 rounded px-1" onClick={() => setIsEditingMeta(true)}>
-                    <span className="text-sm font-bold">{formatMoney(metaMensual)}</span>
-                    <i className="fas fa-pencil-alt text-[10px] text-gray-400"></i>
-                  </div>
-                )}
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-1.5 mb-1">
-                <div className={`h-1.5 rounded-full ${avance >= 100 ? 'bg-green-500' : 'bg-blue-600'}`} style={{ width: `${Math.min(avance, 100)}%` }}></div>
-              </div>
-              <span className="text-[10px] text-right text-blue-600 font-bold">{avance.toFixed(1)}% Alcanzado</span>
+            <div className="p-4 bg-blue-50 border-b flex gap-2 items-center">
+               <label className="font-bold text-sm">Meta ($):</label>
+               <input type="number" value={metaVal} onChange={(e) => setMeta(Number(e.target.value))} className="border rounded px-2 py-1 font-bold w-32" />
             </div>
-
-            {/* KPI 3: Análisis Diario y Déficit */}
-            <div className={`rounded p-2 border min-w-[220px] flex flex-col justify-center ${isDeficit ? 'bg-red-50 border-red-100' : 'bg-green-50 border-green-100'}`}>
-              <div className="flex justify-between">
-                <span className="text-[10px] font-bold uppercase text-gray-500">Días Hábiles: {passedBusinessDays}/{totalBusinessDays}</span>
-                <span className="text-[10px] font-bold uppercase text-gray-500">Meta Diaria: {formatMoney(metaDiaria)}</span>
-              </div>
-              <div className="mt-1">
-                 <span className="text-[10px] block text-gray-500">Estado Actual (Vs. Tiempo):</span>
-                 <span className={`text-lg font-black ${isDeficit ? 'text-red-600' : 'text-green-600'}`}>
-                   {isDeficit ? '-' : '+'}{formatMoney(Math.abs(deficit))}
-                 </span>
-              </div>
+            <div className="flex-1 overflow-y-auto p-2">
+              <table className="w-full text-sm">
+                <thead><tr className="text-left text-xs uppercase text-slate-500"><th className="p-2">Día</th><th className="p-2 text-right">Acumulado</th></tr></thead>
+                <tbody>
+                  {projection.map(row => (
+                    <tr key={row.day} className={`border-b ${row.isWeekend ? 'bg-slate-50 text-slate-400' : ''}`}>
+                      <td className="p-2">{row.day} {row.isWeekend && '(Fin)'}</td>
+                      <td className="p-2 text-right font-bold">{row.isWeekend ? '-' : money(row.expected)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-
           </div>
         </div>
       );
     };
 
-    // === SALE CARD ===
-    const SaleCard = ({ sale, updateSale }) => {
-      const [expanded, setExpanded] = useState(false);
-      const [showHistory, setShowHistory] = useState(false);
+    // === HEADER METRICAS ===
+    const MetricsHeader = ({ sales, meta, businessData, onOpenPlanning }) => {
+      const sold = sales.filter(s => s.estatus === 'Dispersado').reduce((acc, curr) => acc + (Number(curr.monto_dispersado) || 0), 0);
+      const percent = meta > 0 ? (sold / meta) * 100 : 0;
+      const dailyGoal = meta / businessData.totalBusinessDays || 0;
+      const deficit = sold - (dailyGoal * businessData.daysPassed);
       
-      const [estatus, setEstatus] = useState(sale.estatus);
-      const [comment, setComment] = useState('');
+      return (
+        <div className="bg-white p-3 shadow-sm border-b flex flex-wrap gap-4 items-center justify-between">
+          <div className="flex gap-6 items-center">
+             <div><p className="text-[10px] font-bold text-slate-400 uppercase">Real Dispersado</p><p className="text-2xl font-black text-slate-800">{money(sold)}</p></div>
+             <div className="hidden md:block w-px h-8 bg-slate-200"></div>
+             <div><p className="text-[10px] font-bold text-slate-400 uppercase">Estado vs Meta</p><p className={`font-bold ${deficit >= 0 ? 'text-green-600' : 'text-red-500'}`}>{deficit >= 0 ? '+' : ''}{money(deficit)}</p></div>
+          </div>
+          <button onClick={onOpenPlanning} className="bg-slate-800 text-white px-3 py-1.5 rounded text-xs font-bold hover:bg-slate-700">
+            <i className="fas fa-chart-pie mr-2"></i>Metas
+          </button>
+        </div>
+      );
+    };
 
-      const handleStatusChange = (newStatus) => {
-        setEstatus(newStatus);
-        const historyItem = {
-          date: new Date(),
-          action: `Cambio de estatus: ${sale.estatus} -> ${newStatus}`,
-          user: 'Usuario'
-        };
-        
-        updateSale(sale.id, { 
-          estatus: newStatus,
-          history: firebase.firestore.FieldValue.arrayUnion(historyItem)
-        });
+    // === SALE CARD (CON LOGICA DE PIN Y DISPERSION) ===
+    const SaleCard = ({ sale, updateSale, deleteSale }) => {
+      const [showDisburseModal, setShowDisburseModal] = useState(false);
+      const [showDeleteModal, setShowDeleteModal] = useState(false);
+      const [realAmount, setRealAmount] = useState(sale.monto_preaprobado);
+      const [pin, setPin] = useState('');
+      const [error, setError] = useState('');
+      const [showHistory, setShowHistory] = useState(false);
+
+      const handleStatusChange = (e) => {
+        const newStatus = e.target.value;
+        if (newStatus === 'Dispersado') {
+           setRealAmount(sale.monto_preaprobado); // Sugerir el preaprobado
+           setShowDisburseModal(true);
+        } else {
+           // Cambio normal
+           updateSale(sale.id, { 
+             estatus: newStatus,
+             history: firebase.firestore.FieldValue.arrayUnion({
+               date: new Date().toISOString(),
+               action: `Cambio estatus: ${newStatus}`,
+               user: 'Agente'
+             })
+           });
+        }
       };
 
-      const addComment = (e) => {
-        e.preventDefault();
-        if(!comment.trim()) return;
-        
-        const historyItem = {
-          date: new Date(),
-          action: `Nota: ${comment}`,
-          type: 'comment'
-        };
+      const confirmDisbursement = () => {
+         updateSale(sale.id, {
+           estatus: 'Dispersado',
+           monto_dispersado: Number(realAmount),
+           fecha_dispersion: new Date().toISOString(),
+           history: firebase.firestore.FieldValue.arrayUnion({
+             date: new Date().toISOString(),
+             action: `DISPERSADO: ${money(realAmount)}`,
+             user: 'Agente'
+           })
+         });
+         setShowDisburseModal(false);
+      };
 
-        updateSale(sale.id, {
-          history: firebase.firestore.FieldValue.arrayUnion(historyItem)
-        });
-        setComment('');
+      const confirmDelete = () => {
+        if(pin === '2398') {
+          deleteSale(sale.id);
+        } else {
+          setError('PIN Incorrecto');
+          setTimeout(() => setError(''), 2000);
+        }
       };
 
       return (
-        <div className="bg-white p-3 rounded-lg shadow-sm border-l-4 mb-3 hover:shadow-md transition-all relative group"
-             style={{ borderLeftColor: sale.estatus === 'Dispersado' ? '#10B981' : '#3B82F6' }}>
+        <div className="bg-white p-3 rounded-lg shadow-sm border border-slate-200 mb-2 relative group hover:shadow-md transition-all">
+          <div className={`absolute left-0 top-0 bottom-0 w-1 rounded-l-lg ${sale.estatus === 'Dispersado' ? 'bg-green-500' : 'bg-blue-500'}`}></div>
           
-          {/* Header Card */}
-          <div className="flex justify-between items-start mb-2" onClick={() => setExpanded(!expanded)}>
-             <div>
-                <span className="text-[10px] text-gray-400 font-mono bg-gray-50 px-1 rounded">{sale.folio}</span>
-                <h3 className="font-bold text-gray-800 leading-tight cursor-pointer">{sale.nombre_cliente}</h3>
-                <p className="text-[10px] text-gray-400 mt-0.5"><i className="far fa-clock mr-1"></i>{formatDate(sale.fecha)}</p>
-             </div>
-             <div className="text-right">
-                <span className="block font-bold text-gray-700">{formatMoney(sale.monto_preaprobado)}</span>
-             </div>
-          </div>
+          <div className="pl-2">
+            <div className="flex justify-between items-start">
+              <span className="text-[10px] text-slate-400 font-mono">{sale.folio}</span>
+              <button onClick={() => setShowDeleteModal(true)} className="text-slate-300 hover:text-red-500 px-2"><i className="fas fa-trash-alt text-xs"></i></button>
+            </div>
+            
+            <h3 className="font-bold text-sm text-slate-800 truncate">{sale.nombre_cliente}</h3>
+            
+            <div className="flex justify-between items-end mt-1">
+               <div className="flex flex-col">
+                  <span className="text-[10px] text-slate-400">Preaprobado</span>
+                  <span className="font-bold text-slate-600 text-xs">{money(sale.monto_preaprobado)}</span>
+               </div>
+               {sale.estatus === 'Dispersado' && (
+                 <div className="flex flex-col text-right">
+                    <span className="text-[10px] text-green-600 font-bold">DISPERSADO</span>
+                    <span className="font-bold text-green-700 text-sm">{money(sale.monto_dispersado)}</span>
+                 </div>
+               )}
+            </div>
 
-          {/* Actions Bar (Contact) */}
-          <div className="flex gap-2 mb-3 border-b border-gray-100 pb-2">
-            {sale.telefono && (
-              <a href={`tel:${sale.telefono}`} className="text-gray-400 hover:text-green-600 bg-gray-50 w-6 h-6 rounded-full flex items-center justify-center transition-colors">
-                <i className="fas fa-phone text-xs"></i>
-              </a>
-            )}
-             {sale.email && (
-              <a href={`mailto:${sale.email}`} className="text-gray-400 hover:text-blue-600 bg-gray-50 w-6 h-6 rounded-full flex items-center justify-center transition-colors">
-                <i className="fas fa-envelope text-xs"></i>
-              </a>
-            )}
-            {sale.url && (
-              <a href={sale.url} target="_blank" className="text-gray-400 hover:text-purple-600 bg-gray-50 w-6 h-6 rounded-full flex items-center justify-center transition-colors">
-                <i className="fas fa-external-link-alt text-xs"></i>
-              </a>
-            )}
-          </div>
+            <div className="mt-2 flex gap-1 border-t border-slate-100 pt-2">
+               {sale.telefono && <a href={`tel:${sale.telefono}`} className="w-6 h-6 rounded bg-slate-50 flex items-center justify-center text-slate-400 hover:text-green-600"><i className="fas fa-phone text-xs"></i></a>}
+               {sale.url && <a href={sale.url} target="_blank" className="w-6 h-6 rounded bg-slate-50 flex items-center justify-center text-slate-400 hover:text-blue-600"><i className="fas fa-link text-xs"></i></a>}
+               <button onClick={() => setShowHistory(!showHistory)} className="ml-auto text-[10px] text-blue-500 underline">
+                 {showHistory ? 'Ocultar' : 'Ver Eventos'}
+               </button>
+            </div>
 
-          {/* Quick Status Change */}
-          <select 
-            value={estatus} 
-            onChange={(e) => handleStatusChange(e.target.value)}
-            className="w-full text-xs border border-gray-300 rounded p-1.5 bg-gray-50 mb-2 focus:ring-1 focus:ring-blue-500 outline-none"
-          >
-            {["Con oferta", "Acepta oferta", "Dispersado", "Rechazado", "Cancelado"].map(opt => (
-              <option key={opt} value={opt}>{opt}</option>
-            ))}
-          </select>
-          
-          {/* Footer Expandible: Historial y Notas */}
-          <button onClick={() => setShowHistory(!showHistory)} className="text-[10px] text-gray-400 hover:text-blue-600 underline w-full text-left">
-             {showHistory ? 'Ocultar bitácora' : `Ver bitácora (${sale.history ? sale.history.length : 0})`}
-          </button>
-
-          {showHistory && (
-            <div className="mt-2 bg-gray-50 p-2 rounded text-xs border border-gray-100">
-               <ul className="max-h-32 overflow-y-auto space-y-2 mb-2">
+            {showHistory && (
+              <div className="bg-slate-50 p-2 mt-2 rounded text-[10px] max-h-24 overflow-y-auto">
                  {sale.history && sale.history.slice().reverse().map((h, i) => (
-                   <li key={i} className="flex flex-col border-b border-gray-200 pb-1 last:border-0">
-                      <span className="font-bold text-[9px] text-gray-400">{formatDate(h.date)}</span>
-                      <span className="text-gray-700">{h.action}</span>
-                   </li>
+                   <div key={i} className="border-b border-slate-200 pb-1 mb-1">
+                     <span className="font-bold text-slate-500 block">{formatDate(h.date)}</span>
+                     <span>{h.action}</span>
+                   </div>
                  ))}
-               </ul>
-               <form onSubmit={addComment} className="flex gap-1">
-                 <input 
-                   type="text" 
-                   value={comment}
-                   onChange={e => setComment(e.target.value)}
-                   placeholder="Agregar nota..."
-                   className="flex-1 border rounded px-1 py-0.5 text-xs"
-                 />
-                 <button type="submit" className="bg-blue-600 text-white px-2 rounded"><i className="fas fa-paper-plane"></i></button>
-               </form>
+              </div>
+            )}
+
+            <select 
+              value={sale.estatus} 
+              onChange={handleStatusChange}
+              className="mt-2 w-full text-xs bg-slate-50 border border-slate-200 rounded p-1 outline-none focus:border-blue-500 cursor-pointer"
+            >
+               {["Con oferta", "Acepta oferta", "Dispersado", "Rechazado", "Cancelado"].map(s => (
+                 <option key={s} value={s}>{s}</option>
+               ))}
+            </select>
+          </div>
+
+          {/* MODAL DISPERSION */}
+          {showDisburseModal && (
+            <div className="fixed inset-0 glass-modal z-50 flex items-center justify-center p-4">
+              <div className="bg-white p-5 rounded-lg shadow-xl w-full max-w-sm">
+                <h3 className="font-bold text-lg mb-2 text-green-700">Confirmar Dispersión</h3>
+                <p className="text-sm text-slate-600 mb-4">Ingresa el monto final real que se dispersó al cliente.</p>
+                <label className="text-xs font-bold text-slate-500">Monto Real</label>
+                <input 
+                  type="number" 
+                  value={realAmount} 
+                  onChange={(e) => setRealAmount(e.target.value)} 
+                  className="w-full border-2 border-green-500 rounded p-2 text-xl font-bold mb-4 focus:outline-none"
+                  autoFocus
+                />
+                <div className="flex gap-2">
+                  <button onClick={confirmDisbursement} className="flex-1 bg-green-600 text-white py-2 rounded font-bold hover:bg-green-500">Confirmar</button>
+                  <button onClick={() => setShowDisburseModal(false)} className="flex-1 bg-slate-200 text-slate-700 py-2 rounded font-bold">Cancelar</button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* MODAL BORRAR */}
+          {showDeleteModal && (
+            <div className="fixed inset-0 glass-modal z-50 flex items-center justify-center p-4">
+              <div className="bg-white p-5 rounded-lg shadow-xl w-full max-w-sm border-2 border-red-100">
+                <h3 className="font-bold text-lg mb-2 text-red-600"><i className="fas fa-exclamation-triangle mr-2"></i>Eliminar Registro</h3>
+                <p className="text-sm text-slate-600 mb-4">Esta acción no se puede deshacer. Ingresa el PIN de seguridad.</p>
+                <input 
+                  type="password" 
+                  placeholder="PIN"
+                  value={pin}
+                  onChange={(e) => setPin(e.target.value)}
+                  className="w-full border p-2 rounded mb-2 text-center tracking-widest"
+                />
+                {error && <p className="text-red-500 text-xs font-bold text-center mb-2">{error}</p>}
+                <div className="flex gap-2">
+                  <button onClick={confirmDelete} className="flex-1 bg-red-600 text-white py-2 rounded font-bold hover:bg-red-500">ELIMINAR</button>
+                  <button onClick={() => {setShowDeleteModal(false); setPin(''); setError('');}} className="flex-1 bg-slate-200 text-slate-700 py-2 rounded font-bold">Cancelar</button>
+                </div>
+              </div>
             </div>
           )}
         </div>
       );
     };
 
-    // === FORMULARIO NUEVO LEAD ===
-    const SaleForm = ({ onSubmit, onCancel }) => {
-      const [formData, setFormData] = useState({
-        nombre_cliente: '',
-        monto_preaprobado: '',
-        telefono: '',
-        email: '',
-        url: '',
-        estatus: 'Con oferta'
-      });
-
-      const handleSubmit = (e) => {
-        e.preventDefault();
-        const initialHistory = [{
-          date: new Date(),
-          action: 'Lead creado',
-          user: 'Sistema'
-        }];
-
-        onSubmit({
-          ...formData,
-          monto_preaprobado: Number(formData.monto_preaprobado),
-          monto_dispersado: 0,
-          history: initialHistory
-        });
-      };
-
-      return (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-md overflow-hidden">
-            <div className="bg-gray-900 text-white p-3 flex justify-between items-center">
-              <h2 className="font-bold">Nuevo Lead</h2>
-              <button onClick={onCancel} className="text-gray-400 hover:text-white"><i className="fas fa-times"></i></button>
-            </div>
-            <form onSubmit={handleSubmit} className="p-4 flex flex-col gap-3">
-              <div>
-                <label className="text-xs font-bold text-gray-500">Datos del Cliente</label>
-                <input required type="text" placeholder="Nombre completo" className="w-full border p-2 rounded text-sm mt-1"
-                       value={formData.nombre_cliente} onChange={e => setFormData({...formData, nombre_cliente: e.target.value})} />
-              </div>
-              
-              <div className="grid grid-cols-2 gap-2">
-                 <input type="number" placeholder="Monto ($)" className="w-full border p-2 rounded text-sm"
-                        value={formData.monto_preaprobado} onChange={e => setFormData({...formData, monto_preaprobado: e.target.value})} />
-                 <input type="tel" placeholder="Teléfono" className="w-full border p-2 rounded text-sm"
-                        value={formData.telefono} onChange={e => setFormData({...formData, telefono: e.target.value})} />
-              </div>
-
-              <div className="grid grid-cols-2 gap-2">
-                 <input type="email" placeholder="Email" className="w-full border p-2 rounded text-sm"
-                        value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} />
-                 <input type="url" placeholder="URL (LinkedIn/CRM)" className="w-full border p-2 rounded text-sm"
-                        value={formData.url} onChange={e => setFormData({...formData, url: e.target.value})} />
-              </div>
-
-              <div className="pt-2 flex gap-2">
-                <button type="submit" className="flex-1 bg-green-600 text-white p-2 rounded font-bold text-sm hover:bg-green-500">Guardar</button>
-                <button type="button" onClick={onCancel} className="flex-1 bg-gray-200 text-gray-700 p-2 rounded font-bold text-sm">Cancelar</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      );
-    };
-
-    // === APP PRINCIPAL ===
+    // === MAIN APP ===
     const App = () => {
-      const [sales, setSales] = useState([]);
-      const [metaData, setMetaData] = useState({ monto: 100000 });
+      const [currentDate, setCurrentDate] = useState(new Date());
+      const [allSales, setAllSales] = useState([]);
+      const [metaMensual, setMetaMensual] = useState(0);
+      const [isPlanningOpen, setIsPlanningOpen] = useState(false);
       const [showForm, setShowForm] = useState(false);
-      const [loading, setLoading] = useState(true);
 
-      // Listener Ventas
-      useEffect(() => {
-        const unsubscribe = db.collection('sales')
-          .orderBy('fecha', 'desc')
-          .onSnapshot(snap => {
-            const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            setSales(data);
-            setLoading(false);
-          }, (error) => {
-             console.error("Error cargando ventas:", error);
-             setLoading(false);
-          });
-        return () => unsubscribe();
-      }, []);
+      const monthKey = `${currentDate.getFullYear()}-${currentDate.getMonth()}`;
 
-      // Listener Configuración (Meta Persistente)
+      // Listeners
       useEffect(() => {
-        const docRef = db.collection('config').doc('general');
-        const unsubscribe = docRef.onSnapshot(doc => {
-          if (doc.exists) setMetaData(doc.data());
-          else {
-             // Crear si no existe
-             docRef.set({ monto: 100000 });
-          }
-        }, (error) => {
-            // Si falla por permisos (primera vez), usar default sin crashear
-            console.log("Esperando inicialización de config...", error);
+        const unsub = db.collection('sales').orderBy('fecha', 'desc').onSnapshot(snap => {
+          setAllSales(snap.docs.map(d => ({id: d.id, ...d.data()})));
         });
-        return () => unsubscribe();
+        return () => unsub();
       }, []);
 
-      const addSale = async (data) => {
-        try {
-          const folio = `FOL-${Math.floor(Math.random() * 10000)}`;
-          await db.collection('sales').add({
-            ...data,
-            folio,
-            fecha: firebase.firestore.Timestamp.now(), // Fecha servidor
-            actualizado: firebase.firestore.Timestamp.now()
-          });
-          setShowForm(false);
-        } catch (err) {
-          console.error(err);
-          alert("Error al guardar. Verifica tu conexión.");
-        }
+      useEffect(() => {
+        const unsub = db.collection('metas').doc(monthKey).onSnapshot(doc => {
+          setMetaMensual(doc.exists ? doc.data().monto : 0);
+        });
+        return () => unsub();
+      }, [monthKey]);
+
+      const saveMeta = (amount) => db.collection('metas').doc(monthKey).set({ monto: amount });
+
+      const filteredSales = useMemo(() => {
+        return allSales.filter(sale => {
+          if(!sale.fecha) return false;
+          // Filtrado por fecha de creación para mantener consistencia visual en listas
+          const d = new Date(sale.fecha); // Firebase timestamp string or obj
+          return d.getMonth() === currentDate.getMonth() && d.getFullYear() === currentDate.getFullYear();
+        });
+      }, [allSales, currentDate]);
+
+      const businessData = getBusinessDaysData(currentDate);
+
+      const handleAddSale = async (e) => {
+        e.preventDefault();
+        const form = e.target;
+        await db.collection('sales').add({
+          nombre_cliente: form.client.value,
+          monto_preaprobado: Number(form.amount.value),
+          monto_dispersado: 0,
+          estatus: 'Con oferta',
+          telefono: form.phone.value,
+          url: form.url.value,
+          folio: 'FOL-' + Math.floor(Math.random()*100000),
+          fecha: new Date().toISOString(),
+          history: [{ date: new Date().toISOString(), action: 'Lead Creado', user: 'Sistema' }]
+        });
+        setShowForm(false);
       };
 
-      const updateSale = async (id, data) => {
-        try {
-          await db.collection('sales').doc(id).update({
-            ...data,
-            actualizado: firebase.firestore.Timestamp.now()
-          });
-        } catch(err) {
-           console.error("Error actualizando", err);
-        }
+      const handleUpdateSale = (id, data) => db.collection('sales').doc(id).update(data);
+      const handleDeleteSale = (id) => db.collection('sales').doc(id).delete();
+
+      const changeMonth = (offset) => {
+        const newDate = new Date(currentDate);
+        newDate.setMonth(newDate.getMonth() + offset);
+        setCurrentDate(newDate);
       };
 
-      const updateMeta = async (newAmount) => {
-        try {
-           await db.collection('config').doc('general').set({ monto: Number(newAmount) }, { merge: true });
-        } catch(err) {
-           console.error("Error guardando meta", err);
-           alert("No se pudo guardar la meta. Verifica permisos de Firebase.");
-        }
-      };
-
-      if (loading) return <div className="h-full flex items-center justify-center bg-gray-100 text-gray-500">Cargando CRM...</div>;
-
-      const estatusCols = ["Con oferta", "Acepta oferta", "Dispersado", "Rechazado", "Cancelado"];
+      const monthName = new Intl.DateTimeFormat('es-MX', { month: 'long', year: 'numeric' }).format(currentDate);
 
       return (
-        <div className="flex flex-col h-full bg-gray-100">
-          
-          {/* HEADER */}
-          <header className="bg-slate-900 text-white p-3 flex justify-between items-center shadow-md">
-            <h1 className="font-bold text-lg"><i className="fas fa-chart-line text-green-400 mr-2"></i>SalesBoard</h1>
-            <button onClick={() => setShowForm(true)} className="bg-green-600 hover:bg-green-500 px-3 py-1.5 rounded text-sm font-bold shadow transition-transform active:scale-95">
-              <i className="fas fa-plus mr-1"></i> Nuevo
+        <div className="flex flex-col h-full bg-slate-100">
+          {/* NAV */}
+          <div className="bg-slate-900 text-white p-3 flex justify-between items-center shadow-md z-10">
+            <div className="flex items-center gap-2 md:gap-4">
+              <h1 className="font-bold text-lg hidden md:block">CRM v4</h1>
+              <div className="flex items-center bg-slate-800 rounded px-1">
+                <button onClick={() => changeMonth(-1)} className="p-2 hover:text-green-400"><i className="fas fa-chevron-left"></i></button>
+                <span className="w-32 text-center text-sm font-bold capitalize select-none">{monthName}</span>
+                <button onClick={() => changeMonth(1)} className="p-2 hover:text-green-400"><i className="fas fa-chevron-right"></i></button>
+              </div>
+            </div>
+            <button onClick={() => setShowForm(true)} className="bg-green-600 px-4 py-1.5 rounded text-sm font-bold hover:bg-green-500 shadow-lg">
+              <i className="fas fa-plus mr-2"></i>Lead
             </button>
-          </header>
-
-          {/* DASHBOARD */}
-          <Dashboard sales={sales} metaData={metaData} updateMeta={updateMeta} />
-
-          {/* PIPELINE KANBAN */}
-          <div className="flex-1 overflow-x-auto p-4 flex gap-4 pipeline-scroll items-start">
-            {estatusCols.map(est => {
-               const items = sales.filter(s => s.estatus === est);
-               return (
-                 <div key={est} className="min-w-[280px] w-[280px] flex flex-col h-full bg-gray-200/50 rounded-xl border border-gray-300/60 pipeline-col">
-                    <div className="p-3 font-bold text-gray-700 text-sm flex justify-between items-center bg-gray-100/50 rounded-t-xl border-b border-gray-200">
-                      {est}
-                      <span className="bg-white px-2 py-0.5 rounded-full text-xs shadow-sm text-gray-500">{items.length}</span>
-                    </div>
-                    <div className="flex-1 overflow-y-auto p-2">
-                       {items.map(sale => <SaleCard key={sale.id} sale={sale} updateSale={updateSale} />)}
-                    </div>
-                 </div>
-               )
-            })}
           </div>
 
-          {/* MODAL */}
-          {showForm && <SaleForm onSubmit={addSale} onCancel={() => setShowForm(false)} />}
+          <MetricsHeader sales={filteredSales} meta={metaMensual} businessData={businessData} onOpenPlanning={() => setIsPlanningOpen(true)} />
+
+          <div className="flex-1 overflow-x-auto p-4 flex gap-4 pipeline-scroll items-start">
+             {["Con oferta", "Acepta oferta", "Dispersado", "Rechazado"].map(status => (
+               <div key={status} className="min-w-[280px] w-[280px] flex flex-col h-full bg-slate-200/60 rounded-xl pipeline-col border border-slate-300">
+                 <div className="p-3 font-bold text-slate-600 text-sm flex justify-between bg-slate-100 rounded-t-xl border-b border-slate-200">
+                   {status}
+                   <span className="bg-white px-2 rounded-full text-xs shadow-sm">{filteredSales.filter(s => s.estatus === status).length}</span>
+                 </div>
+                 <div className="flex-1 overflow-y-auto p-2">
+                   {filteredSales.filter(s => s.estatus === status).map(sale => (
+                     <SaleCard key={sale.id} sale={sale} updateSale={handleUpdateSale} deleteSale={handleDeleteSale} />
+                   ))}
+                 </div>
+               </div>
+             ))}
+          </div>
+
+          {/* MODAL NUEVO LEAD */}
+          {showForm && (
+            <div className="fixed inset-0 glass-modal z-50 flex items-center justify-center p-4">
+              <form onSubmit={handleAddSale} className="bg-white rounded-lg shadow-xl w-full max-w-sm p-5 space-y-4">
+                 <h2 className="font-bold text-lg">Nuevo Lead</h2>
+                 <input name="client" required placeholder="Nombre Cliente" className="w-full border p-2 rounded" />
+                 <input name="amount" type="number" required placeholder="Monto Preaprobado ($)" className="w-full border p-2 rounded" />
+                 <input name="phone" placeholder="Teléfono" className="w-full border p-2 rounded" />
+                 <input name="url" placeholder="Link (CRM/LinkedIn)" className="w-full border p-2 rounded" />
+                 <div className="flex gap-2 pt-2">
+                   <button type="submit" className="flex-1 bg-green-600 text-white py-2 rounded font-bold">Crear</button>
+                   <button type="button" onClick={() => setShowForm(false)} className="flex-1 bg-slate-200 py-2 rounded font-bold">Cancelar</button>
+                 </div>
+              </form>
+            </div>
+          )}
+
+          <PlanningModal isOpen={isPlanningOpen} onClose={() => setIsPlanningOpen(false)} meta={metaMensual} setMeta={saveMeta} businessData={businessData} year={currentDate.getFullYear()} month={currentDate.getMonth()} />
         </div>
       );
     };
@@ -464,4 +424,3 @@
   </script>
 </body>
 </html>
- 
