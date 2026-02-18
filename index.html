@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>CRM Ventas - Control Total</title>
+  <title>CRM Ventas - V5 (Recuperación de Datos)</title>
   
   <script src="https://cdn.tailwindcss.com"></script>
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -16,7 +16,6 @@
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
 
   <style>
-    /* UX Styles */
     .pipeline-scroll { scroll-snap-type: x mandatory; }
     .pipeline-col { scroll-snap-align: start; }
     ::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -46,11 +45,23 @@
     if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
 
-    // --- 2. UTILIDADES ---
-    const money = (val) => new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 }).format(val);
-    const formatDate = (date) => new Intl.DateTimeFormat('es-MX', { day: '2-digit', month: 'short', hour:'2-digit', minute:'2-digit' }).format(new Date(date));
+    // --- 2. UTILIDADES DE RECUPERACIÓN DE DATOS ---
+    
+    // ESTA ES LA FUNCIÓN CLAVE QUE ARREGLA TUS DATOS
+    const parseDate = (input) => {
+      if (!input) return new Date();
+      // Si es un Timestamp de Firestore (datos viejos) tiene el método .toDate()
+      if (input.toDate) return input.toDate();
+      // Si es un string o fecha JS (datos nuevos)
+      return new Date(input);
+    };
 
-    // Días hábiles
+    const money = (val) => new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 }).format(val);
+    const formatDate = (input) => {
+      const date = parseDate(input);
+      return new Intl.DateTimeFormat('es-MX', { day: '2-digit', month: 'short', hour:'2-digit', minute:'2-digit' }).format(date);
+    };
+
     const getBusinessDaysData = (targetDate) => {
       const year = targetDate.getFullYear();
       const month = targetDate.getMonth();
@@ -78,7 +89,6 @@
 
     // --- 3. COMPONENTES ---
 
-    // === MODAL PLANIFICACIÓN ===
     const PlanningModal = ({ isOpen, onClose, meta, setMeta, businessData, year, month }) => {
       if (!isOpen) return null;
       const metaVal = meta || 0;
@@ -123,7 +133,6 @@
       );
     };
 
-    // === HEADER METRICAS ===
     const MetricsHeader = ({ sales, meta, businessData, onOpenPlanning }) => {
       const sold = sales.filter(s => s.estatus === 'Dispersado').reduce((acc, curr) => acc + (Number(curr.monto_dispersado) || 0), 0);
       const percent = meta > 0 ? (sold / meta) * 100 : 0;
@@ -144,7 +153,6 @@
       );
     };
 
-    // === SALE CARD (CON LOGICA DE PIN Y DISPERSION) ===
     const SaleCard = ({ sale, updateSale, deleteSale }) => {
       const [showDisburseModal, setShowDisburseModal] = useState(false);
       const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -156,10 +164,9 @@
       const handleStatusChange = (e) => {
         const newStatus = e.target.value;
         if (newStatus === 'Dispersado') {
-           setRealAmount(sale.monto_preaprobado); // Sugerir el preaprobado
+           setRealAmount(sale.monto_preaprobado);
            setShowDisburseModal(true);
         } else {
-           // Cambio normal
            updateSale(sale.id, { 
              estatus: newStatus,
              history: firebase.firestore.FieldValue.arrayUnion({
@@ -190,7 +197,6 @@
           deleteSale(sale.id);
         } else {
           setError('PIN Incorrecto');
-          setTimeout(() => setError(''), 2000);
         }
       };
 
@@ -235,6 +241,7 @@
                      <span>{h.action}</span>
                    </div>
                  ))}
+                 <div className="text-xs text-gray-400 mt-2">Creado: {formatDate(sale.fecha)}</div>
               </div>
             )}
 
@@ -254,15 +261,8 @@
             <div className="fixed inset-0 glass-modal z-50 flex items-center justify-center p-4">
               <div className="bg-white p-5 rounded-lg shadow-xl w-full max-w-sm">
                 <h3 className="font-bold text-lg mb-2 text-green-700">Confirmar Dispersión</h3>
-                <p className="text-sm text-slate-600 mb-4">Ingresa el monto final real que se dispersó al cliente.</p>
-                <label className="text-xs font-bold text-slate-500">Monto Real</label>
-                <input 
-                  type="number" 
-                  value={realAmount} 
-                  onChange={(e) => setRealAmount(e.target.value)} 
-                  className="w-full border-2 border-green-500 rounded p-2 text-xl font-bold mb-4 focus:outline-none"
-                  autoFocus
-                />
+                <p className="text-sm text-slate-600 mb-4">Ingresa el monto final real.</p>
+                <input type="number" value={realAmount} onChange={(e) => setRealAmount(e.target.value)} className="w-full border-2 border-green-500 rounded p-2 text-xl font-bold mb-4 focus:outline-none" autoFocus />
                 <div className="flex gap-2">
                   <button onClick={confirmDisbursement} className="flex-1 bg-green-600 text-white py-2 rounded font-bold hover:bg-green-500">Confirmar</button>
                   <button onClick={() => setShowDisburseModal(false)} className="flex-1 bg-slate-200 text-slate-700 py-2 rounded font-bold">Cancelar</button>
@@ -276,14 +276,7 @@
             <div className="fixed inset-0 glass-modal z-50 flex items-center justify-center p-4">
               <div className="bg-white p-5 rounded-lg shadow-xl w-full max-w-sm border-2 border-red-100">
                 <h3 className="font-bold text-lg mb-2 text-red-600"><i className="fas fa-exclamation-triangle mr-2"></i>Eliminar Registro</h3>
-                <p className="text-sm text-slate-600 mb-4">Esta acción no se puede deshacer. Ingresa el PIN de seguridad.</p>
-                <input 
-                  type="password" 
-                  placeholder="PIN"
-                  value={pin}
-                  onChange={(e) => setPin(e.target.value)}
-                  className="w-full border p-2 rounded mb-2 text-center tracking-widest"
-                />
+                <input type="password" placeholder="PIN" value={pin} onChange={(e) => setPin(e.target.value)} className="w-full border p-2 rounded mb-2 text-center tracking-widest" />
                 {error && <p className="text-red-500 text-xs font-bold text-center mb-2">{error}</p>}
                 <div className="flex gap-2">
                   <button onClick={confirmDelete} className="flex-1 bg-red-600 text-white py-2 rounded font-bold hover:bg-red-500">ELIMINAR</button>
@@ -296,7 +289,6 @@
       );
     };
 
-    // === MAIN APP ===
     const App = () => {
       const [currentDate, setCurrentDate] = useState(new Date());
       const [allSales, setAllSales] = useState([]);
@@ -306,7 +298,7 @@
 
       const monthKey = `${currentDate.getFullYear()}-${currentDate.getMonth()}`;
 
-      // Listeners
+      // Listener Ventas
       useEffect(() => {
         const unsub = db.collection('sales').orderBy('fecha', 'desc').onSnapshot(snap => {
           setAllSales(snap.docs.map(d => ({id: d.id, ...d.data()})));
@@ -314,6 +306,7 @@
         return () => unsub();
       }, []);
 
+      // Listener Meta
       useEffect(() => {
         const unsub = db.collection('metas').doc(monthKey).onSnapshot(doc => {
           setMetaMensual(doc.exists ? doc.data().monto : 0);
@@ -326,8 +319,8 @@
       const filteredSales = useMemo(() => {
         return allSales.filter(sale => {
           if(!sale.fecha) return false;
-          // Filtrado por fecha de creación para mantener consistencia visual en listas
-          const d = new Date(sale.fecha); // Firebase timestamp string or obj
+          // AQUÍ SE USA LA FUNCIÓN DE RECUPERACIÓN (parseDate)
+          const d = parseDate(sale.fecha); 
           return d.getMonth() === currentDate.getMonth() && d.getFullYear() === currentDate.getFullYear();
         });
       }, [allSales, currentDate]);
@@ -345,7 +338,7 @@
           telefono: form.phone.value,
           url: form.url.value,
           folio: 'FOL-' + Math.floor(Math.random()*100000),
-          fecha: new Date().toISOString(),
+          fecha: new Date(), // Usamos Date objeto standard que Firestore convierte a Timestamp
           history: [{ date: new Date().toISOString(), action: 'Lead Creado', user: 'Sistema' }]
         });
         setShowForm(false);
@@ -364,10 +357,9 @@
 
       return (
         <div className="flex flex-col h-full bg-slate-100">
-          {/* NAV */}
           <div className="bg-slate-900 text-white p-3 flex justify-between items-center shadow-md z-10">
             <div className="flex items-center gap-2 md:gap-4">
-              <h1 className="font-bold text-lg hidden md:block">CRM v4</h1>
+              <h1 className="font-bold text-lg hidden md:block">CRM v5</h1>
               <div className="flex items-center bg-slate-800 rounded px-1">
                 <button onClick={() => changeMonth(-1)} className="p-2 hover:text-green-400"><i className="fas fa-chevron-left"></i></button>
                 <span className="w-32 text-center text-sm font-bold capitalize select-none">{monthName}</span>
@@ -397,7 +389,6 @@
              ))}
           </div>
 
-          {/* MODAL NUEVO LEAD */}
           {showForm && (
             <div className="fixed inset-0 glass-modal z-50 flex items-center justify-center p-4">
               <form onSubmit={handleAddSale} className="bg-white rounded-lg shadow-xl w-full max-w-sm p-5 space-y-4">
@@ -424,3 +415,4 @@
   </script>
 </body>
 </html>
+ 
