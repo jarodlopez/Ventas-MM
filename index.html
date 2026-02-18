@@ -8,7 +8,8 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-  <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
+  
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
@@ -41,7 +42,10 @@
       appId: "1:907042495792:web:6827da0b73333496f6bcf5"
     };
     
-    if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+    // Inicializar solo si no existe
+    if (!firebase.apps.length) {
+       firebase.initializeApp(firebaseConfig);
+    }
     const db = firebase.firestore();
 
     // --- 2. UTILIDADES ---
@@ -81,19 +85,26 @@
     const Dashboard = ({ sales, metaData, updateMeta }) => {
       const { totalBusinessDays, passedBusinessDays } = getBusinessDays();
       
-      const metaMensual = metaData?.monto || 0;
+      // CORRECCIÓN: Validación segura en lugar de Optional Chaining para evitar error de sintaxis
+      const metaMensual = (metaData && metaData.monto) ? metaData.monto : 0;
+      
       const dispersado = sales.filter(s => s.estatus === 'Dispersado')
                               .reduce((acc, curr) => acc + Number(curr.monto_dispersado || 0), 0);
 
       // Cálculos Matemáticos
       const avance = metaMensual > 0 ? (dispersado / metaMensual) * 100 : 0;
-      const metaDiaria = metaMensual / totalBusinessDays;
+      const metaDiaria = totalBusinessDays > 0 ? metaMensual / totalBusinessDays : 0;
       const deberiaLlevar = metaDiaria * passedBusinessDays;
       const deficit = dispersado - deberiaLlevar;
       const isDeficit = deficit < 0;
 
       const [isEditingMeta, setIsEditingMeta] = useState(false);
       const [tempMeta, setTempMeta] = useState(metaMensual);
+
+      // Efecto para actualizar tempMeta cuando llega la data real
+      useEffect(() => {
+        setTempMeta(metaMensual);
+      }, [metaMensual]);
 
       const saveMeta = () => {
         updateMeta(tempMeta);
@@ -157,7 +168,6 @@
       const [expanded, setExpanded] = useState(false);
       const [showHistory, setShowHistory] = useState(false);
       
-      // Estado para edición rápida
       const [estatus, setEstatus] = useState(sale.estatus);
       const [comment, setComment] = useState('');
 
@@ -166,10 +176,9 @@
         const historyItem = {
           date: new Date(),
           action: `Cambio de estatus: ${sale.estatus} -> ${newStatus}`,
-          user: 'Usuario' // Aquí iría auth user
+          user: 'Usuario'
         };
         
-        // Actualizamos tracking y estatus
         updateSale(sale.id, { 
           estatus: newStatus,
           history: firebase.firestore.FieldValue.arrayUnion(historyItem)
@@ -282,7 +291,6 @@
 
       const handleSubmit = (e) => {
         e.preventDefault();
-        // Crear historial inicial
         const initialHistory = [{
           date: new Date(),
           action: 'Lead creado',
@@ -350,6 +358,9 @@
             const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             setSales(data);
             setLoading(false);
+          }, (error) => {
+             console.error("Error cargando ventas:", error);
+             setLoading(false);
           });
         return () => unsubscribe();
       }, []);
@@ -359,7 +370,13 @@
         const docRef = db.collection('config').doc('general');
         const unsubscribe = docRef.onSnapshot(doc => {
           if (doc.exists) setMetaData(doc.data());
-          else docRef.set({ monto: 100000 }); // Valor por defecto si no existe
+          else {
+             // Crear si no existe
+             docRef.set({ monto: 100000 });
+          }
+        }, (error) => {
+            // Si falla por permisos (primera vez), usar default sin crashear
+            console.log("Esperando inicialización de config...", error);
         });
         return () => unsubscribe();
       }, []);
@@ -376,19 +393,28 @@
           setShowForm(false);
         } catch (err) {
           console.error(err);
-          alert("Error al guardar");
+          alert("Error al guardar. Verifica tu conexión.");
         }
       };
 
       const updateSale = async (id, data) => {
-        await db.collection('sales').doc(id).update({
-          ...data,
-          actualizado: firebase.firestore.Timestamp.now()
-        });
+        try {
+          await db.collection('sales').doc(id).update({
+            ...data,
+            actualizado: firebase.firestore.Timestamp.now()
+          });
+        } catch(err) {
+           console.error("Error actualizando", err);
+        }
       };
 
       const updateMeta = async (newAmount) => {
-        await db.collection('config').doc('general').set({ monto: Number(newAmount) }, { merge: true });
+        try {
+           await db.collection('config').doc('general').set({ monto: Number(newAmount) }, { merge: true });
+        } catch(err) {
+           console.error("Error guardando meta", err);
+           alert("No se pudo guardar la meta. Verifica permisos de Firebase.");
+        }
       };
 
       if (loading) return <div className="h-full flex items-center justify-center bg-gray-100 text-gray-500">Cargando CRM...</div>;
