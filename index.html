@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>CRM Ventas - V8 (Cálculo Directo)</title>
+  <title>CRM Ventas - V9 (Dashboard Pro)</title>
   
   <script src="https://cdn.tailwindcss.com"></script>
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -56,7 +56,6 @@
     const money = (val) => new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 }).format(val);
     const formatDate = (input) => new Intl.DateTimeFormat('es-MX', { day: '2-digit', month: 'short', hour:'2-digit', minute:'2-digit' }).format(parseDate(input));
 
-    // Determinar Q1 (1-15) o Q2 (16-Fin)
     const getQuincena = (date) => date.getDate() <= 15 ? 1 : 2;
 
     const getBusinessDaysQuincena = (targetDate, quincena) => {
@@ -68,15 +67,28 @@
       const endDay = quincena === 1 ? 15 : lastDayOfMonth;
 
       let totalBusinessDays = 0;
+      let remainingDays = 0;
       
+      // Ajuste para contar días restantes correctamente
+      const today = new Date();
+      const currentDay = today.getDate();
+      const isCurrentMonth = today.getMonth() === month && today.getFullYear() === year;
+
       for (let d = startDay; d <= endDay; d++) {
         const dateCheck = new Date(year, month, d);
         const dayOfWeek = dateCheck.getDay(); 
-        if (dayOfWeek !== 0 && dayOfWeek !== 6) { // Excluir Sábados (6) y Domingos (0)
+        if (dayOfWeek !== 0 && dayOfWeek !== 6) { 
           totalBusinessDays++;
+          // Si es el mes actual, y el día es mayor o igual a hoy, cuenta como restante
+          if (isCurrentMonth && d >= currentDay) {
+             remainingDays++;
+          } else if (!isCurrentMonth && new Date() < dateCheck) {
+             // Si estamos viendo una quincena futura
+             remainingDays++;
+          }
         }
       }
-      return { totalBusinessDays, startDay, endDay };
+      return { totalBusinessDays, remainingDays, startDay, endDay };
     };
 
     // --- 3. COMPONENTES ---
@@ -95,9 +107,7 @@
          const date = new Date(year, month, d);
          const isWeekend = date.getDay() === 0 || date.getDay() === 6;
          if(!isWeekend) accum += dailyGoal;
-         
          const isToday = isCurrentMonth && d === today;
-         
          projection.push({ day: d, isWeekend, expected: accum, isToday });
       }
 
@@ -135,38 +145,59 @@
     };
 
     const MetricsHeader = ({ sales, meta, businessData, onOpenPlanning }) => {
+      // 1. Lo que ya vendí
       const sold = sales.filter(s => s.estatus === 'Dispersado').reduce((acc, curr) => acc + (Number(curr.monto_dispersado) || 0), 0);
       
-      // CÁLCULO QUIRÚRGICO: Monto Real - Meta Total
-      // Esto responde a "cuánto me falta para llegar a la meta final".
+      // 2. Lo que está "Caliente" (Potencial inmediato para cerrar)
+      const hotMoney = sales.filter(s => s.estatus === 'Acepta oferta').reduce((acc, curr) => acc + (Number(curr.monto_preaprobado) || 0), 0);
+      
+      // 3. Déficit
       const deficit = sold - meta;
       const isDeficit = deficit < 0;
 
       return (
-        <div className="bg-white p-3 shadow-sm border-b flex flex-wrap gap-4 items-center justify-between">
-          <div className="flex gap-6 items-center">
+        <div className="bg-white p-3 shadow-sm border-b flex flex-wrap gap-6 items-center justify-between">
+          <div className="flex gap-6 items-center flex-1">
              
-             {/* 1. Real Dispersado */}
+             {/* BLOQUE 1: REALIDAD */}
              <div>
                 <p className="text-[10px] font-bold text-slate-400 uppercase">Real Dispersado</p>
                 <p className="text-2xl font-black text-slate-800">{money(sold)}</p>
              </div>
              
-             <div className="hidden md:block w-px h-8 bg-slate-200"></div>
+             <div className="hidden md:block w-px h-10 bg-slate-200"></div>
              
-             {/* 2. Déficit REAL (Faltante para Meta) */}
+             {/* BLOQUE 2: META (DÉFICIT) */}
              <div>
-               <p className="text-[10px] font-bold text-slate-400 uppercase">Diferencia (Real vs Meta)</p>
+               <p className="text-[10px] font-bold text-slate-400 uppercase">Diferencia vs Meta</p>
                <p className={`font-bold text-xl ${isDeficit ? 'text-red-600' : 'text-green-600'}`}>
                  {isDeficit ? '' : '+'}{money(deficit)}
                </p>
-               <p className="text-[9px] text-slate-400 font-mono">
-                 {isDeficit ? 'Falta para llegar' : 'Meta Superada'}
-               </p>
              </div>
+
+             {/* BLOQUE 3 (NUEVO): POTENCIAL (Visible solo en PC/Tablet) */}
+             <div className="hidden md:block w-px h-10 bg-slate-200"></div>
+             
+             <div className="hidden md:block">
+               <p className="text-[10px] font-bold text-purple-500 uppercase flex items-center gap-1">
+                 <i className="fas fa-fire"></i> Potencial "Caliente"
+               </p>
+               <p className="text-xl font-bold text-purple-700">{money(hotMoney)}</p>
+               <p className="text-[9px] text-slate-400">En estatus "Acepta Oferta"</p>
+             </div>
+
+             <div className="hidden md:block w-px h-10 bg-slate-200"></div>
+
+             {/* BLOQUE 4 (NUEVO): TIEMPO (Visible solo en PC/Tablet) */}
+             <div className="hidden md:block">
+               <p className="text-[10px] font-bold text-slate-400 uppercase">Tiempo Restante</p>
+               <p className="text-xl font-bold text-slate-700">{businessData.remainingDays} días</p>
+               <p className="text-[9px] text-slate-400">Días hábiles cierre Q.</p>
+             </div>
+
           </div>
           
-          <button onClick={onOpenPlanning} className="bg-slate-800 text-white px-3 py-1.5 rounded text-xs font-bold hover:bg-slate-700">
+          <button onClick={onOpenPlanning} className="bg-slate-800 text-white px-4 py-2 rounded text-xs font-bold hover:bg-slate-700 shadow-lg transition-transform hover:scale-105">
             <i className="fas fa-chart-pie mr-2"></i>Ver Planificación
           </button>
         </div>
@@ -214,10 +245,7 @@
 
       const confirmDelete = () => {
         if(pin === '2398') deleteSale(sale.id);
-        else {
-            setError('PIN Incorrecto');
-            setTimeout(() => setError(''), 2000);
-        }
+        else { setError('PIN Incorrecto'); setTimeout(() => setError(''), 2000); }
       };
 
       return (
@@ -293,7 +321,6 @@
 
       useEffect(() => {
         const unsub = db.collection('metas').doc(periodKey).onSnapshot(doc => {
-            // FIX: Validar existencia de datos
             if(doc.exists) setMetaQuincenal(doc.data().monto);
             else setMetaQuincenal(0);
         });
@@ -360,7 +387,7 @@
         <div className="flex flex-col h-full bg-slate-100">
           <div className="bg-slate-900 text-white p-3 flex justify-between items-center shadow-md z-10">
             <div className="flex items-center gap-2 md:gap-4">
-              <h1 className="font-bold text-lg hidden md:block">CRM V8</h1>
+              <h1 className="font-bold text-lg hidden md:block">CRM V9</h1>
               <div className="flex items-center bg-slate-800 rounded px-1">
                 <button onClick={() => changePeriod(-1)} className="p-2 hover:text-green-400"><i className="fas fa-chevron-left"></i></button>
                 <div className="flex flex-col items-center w-40">
