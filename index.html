@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>CRM Ventas - V5 (Recuperación de Datos)</title>
+  <title>CRM Ventas - V6 Quincenal</title>
   
   <script src="https://cdn.tailwindcss.com"></script>
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -32,7 +32,7 @@
   <script type="text/babel">
     const { useState, useEffect, useMemo } = React;
 
-    // --- 1. CONFIGURACIÓN FIREBASE ---
+    // --- 1. FIREBASE CONFIG ---
     const firebaseConfig = {
       apiKey: "AIzaSyAAETou6DhYIJJ8cxI13BU1p_l3yGPMilA",
       authDomain: "ventas-ebd49.firebaseapp.com",
@@ -45,59 +45,63 @@
     if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
 
-    // --- 2. UTILIDADES DE RECUPERACIÓN DE DATOS ---
+    // --- 2. LOGICA QUINCENAL ---
     
-    // ESTA ES LA FUNCIÓN CLAVE QUE ARREGLA TUS DATOS
     const parseDate = (input) => {
       if (!input) return new Date();
-      // Si es un Timestamp de Firestore (datos viejos) tiene el método .toDate()
       if (input.toDate) return input.toDate();
-      // Si es un string o fecha JS (datos nuevos)
       return new Date(input);
     };
 
     const money = (val) => new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 }).format(val);
-    const formatDate = (input) => {
-      const date = parseDate(input);
-      return new Intl.DateTimeFormat('es-MX', { day: '2-digit', month: 'short', hour:'2-digit', minute:'2-digit' }).format(date);
-    };
+    const formatDate = (input) => new Intl.DateTimeFormat('es-MX', { day: '2-digit', month: 'short', hour:'2-digit', minute:'2-digit' }).format(parseDate(input));
 
-    const getBusinessDaysData = (targetDate) => {
+    // Determinar si una fecha pertenece a Q1 o Q2
+    const getQuincena = (date) => date.getDate() <= 15 ? 1 : 2;
+
+    // Calcular días hábiles SOLO dentro de la quincena actual
+    const getBusinessDaysQuincena = (targetDate, quincena) => {
       const year = targetDate.getFullYear();
       const month = targetDate.getMonth();
-      const lastDay = new Date(year, month + 1, 0).getDate();
+      const lastDayOfMonth = new Date(year, month + 1, 0).getDate();
+      
+      // Definir inicio y fin de la quincena
+      const startDay = quincena === 1 ? 1 : 16;
+      const endDay = quincena === 1 ? 15 : lastDayOfMonth;
+
       let totalBusinessDays = 0;
       let daysPassed = 0;
       const now = new Date();
-      const isCurrentMonth = now.getMonth() === month && now.getFullYear() === year;
+      // Validar si estamos "dentro" de la quincena seleccionada en tiempo real
+      const isCurrentPeriod = now.getMonth() === month && now.getFullYear() === year && getQuincena(now) === quincena;
       const currentDayNum = now.getDate();
 
-      for (let d = 1; d <= lastDay; d++) {
+      for (let d = startDay; d <= endDay; d++) {
         const dateCheck = new Date(year, month, d);
         const dayOfWeek = dateCheck.getDay(); 
         if (dayOfWeek !== 0 && dayOfWeek !== 6) {
           totalBusinessDays++;
-          if (isCurrentMonth) {
+          if (isCurrentPeriod) {
             if (d <= currentDayNum) daysPassed++;
           } else if (now > dateCheck) {
+             // Si la fecha actual es mayor a esta fecha chequeada (ej: estamos en Q2, calculando Q1), ya pasó
              daysPassed++;
           }
         }
       }
-      return { totalBusinessDays, daysPassed };
+      return { totalBusinessDays, daysPassed, startDay, endDay };
     };
 
     // --- 3. COMPONENTES ---
 
-    const PlanningModal = ({ isOpen, onClose, meta, setMeta, businessData, year, month }) => {
+    const PlanningModal = ({ isOpen, onClose, meta, setMeta, businessData, year, month, quincena }) => {
       if (!isOpen) return null;
       const metaVal = meta || 0;
       const dailyGoal = businessData.totalBusinessDays > 0 ? metaVal / businessData.totalBusinessDays : 0;
       const projection = [];
       let accum = 0;
-      const lastDay = new Date(year, month + 1, 0).getDate();
 
-      for(let d=1; d<=lastDay; d++){
+      for(let d = businessData.startDay; d <= businessData.endDay; d++){
          const date = new Date(year, month, d);
          const isWeekend = date.getDay() === 0 || date.getDay() === 6;
          if(!isWeekend) accum += dailyGoal;
@@ -108,12 +112,12 @@
         <div className="fixed inset-0 glass-modal z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg h-[80vh] flex flex-col overflow-hidden">
             <div className="p-4 bg-slate-50 border-b flex justify-between items-center">
-              <h2 className="font-bold text-lg">Planificación Mensual</h2>
+              <h2 className="font-bold text-lg text-blue-900">Planificación Q{quincena}</h2>
               <button onClick={onClose}><i className="fas fa-times text-slate-400"></i></button>
             </div>
             <div className="p-4 bg-blue-50 border-b flex gap-2 items-center">
-               <label className="font-bold text-sm">Meta ($):</label>
-               <input type="number" value={metaVal} onChange={(e) => setMeta(Number(e.target.value))} className="border rounded px-2 py-1 font-bold w-32" />
+               <label className="font-bold text-sm text-blue-900">Meta Quincenal ($):</label>
+               <input type="number" value={metaVal} onChange={(e) => setMeta(Number(e.target.value))} className="border rounded px-2 py-1 font-bold w-32 text-blue-900" />
             </div>
             <div className="flex-1 overflow-y-auto p-2">
               <table className="w-full text-sm">
@@ -142,12 +146,12 @@
       return (
         <div className="bg-white p-3 shadow-sm border-b flex flex-wrap gap-4 items-center justify-between">
           <div className="flex gap-6 items-center">
-             <div><p className="text-[10px] font-bold text-slate-400 uppercase">Real Dispersado</p><p className="text-2xl font-black text-slate-800">{money(sold)}</p></div>
+             <div><p className="text-[10px] font-bold text-slate-400 uppercase">Venta Q. Real</p><p className="text-2xl font-black text-slate-800">{money(sold)}</p></div>
              <div className="hidden md:block w-px h-8 bg-slate-200"></div>
-             <div><p className="text-[10px] font-bold text-slate-400 uppercase">Estado vs Meta</p><p className={`font-bold ${deficit >= 0 ? 'text-green-600' : 'text-red-500'}`}>{deficit >= 0 ? '+' : ''}{money(deficit)}</p></div>
+             <div><p className="text-[10px] font-bold text-slate-400 uppercase">Déficit vs Tiempo</p><p className={`font-bold ${deficit >= 0 ? 'text-green-600' : 'text-red-500'}`}>{deficit >= 0 ? '+' : ''}{money(deficit)}</p></div>
           </div>
           <button onClick={onOpenPlanning} className="bg-slate-800 text-white px-3 py-1.5 rounded text-xs font-bold hover:bg-slate-700">
-            <i className="fas fa-chart-pie mr-2"></i>Metas
+            <i className="fas fa-chart-pie mr-2"></i>Meta Q.
           </button>
         </div>
       );
@@ -193,95 +197,58 @@
       };
 
       const confirmDelete = () => {
-        if(pin === '2398') {
-          deleteSale(sale.id);
-        } else {
-          setError('PIN Incorrecto');
-        }
+        if(pin === '2398') deleteSale(sale.id);
+        else setError('PIN Incorrecto');
       };
 
       return (
         <div className="bg-white p-3 rounded-lg shadow-sm border border-slate-200 mb-2 relative group hover:shadow-md transition-all">
           <div className={`absolute left-0 top-0 bottom-0 w-1 rounded-l-lg ${sale.estatus === 'Dispersado' ? 'bg-green-500' : 'bg-blue-500'}`}></div>
-          
           <div className="pl-2">
             <div className="flex justify-between items-start">
               <span className="text-[10px] text-slate-400 font-mono">{sale.folio}</span>
               <button onClick={() => setShowDeleteModal(true)} className="text-slate-300 hover:text-red-500 px-2"><i className="fas fa-trash-alt text-xs"></i></button>
             </div>
-            
             <h3 className="font-bold text-sm text-slate-800 truncate">{sale.nombre_cliente}</h3>
-            
             <div className="flex justify-between items-end mt-1">
-               <div className="flex flex-col">
-                  <span className="text-[10px] text-slate-400">Preaprobado</span>
-                  <span className="font-bold text-slate-600 text-xs">{money(sale.monto_preaprobado)}</span>
-               </div>
-               {sale.estatus === 'Dispersado' && (
-                 <div className="flex flex-col text-right">
-                    <span className="text-[10px] text-green-600 font-bold">DISPERSADO</span>
-                    <span className="font-bold text-green-700 text-sm">{money(sale.monto_dispersado)}</span>
-                 </div>
-               )}
+               <div className="flex flex-col"><span className="text-[10px] text-slate-400">Preaprobado</span><span className="font-bold text-slate-600 text-xs">{money(sale.monto_preaprobado)}</span></div>
+               {sale.estatus === 'Dispersado' && (<div className="flex flex-col text-right"><span className="text-[10px] text-green-600 font-bold">DISPERSADO</span><span className="font-bold text-green-700 text-sm">{money(sale.monto_dispersado)}</span></div>)}
             </div>
-
             <div className="mt-2 flex gap-1 border-t border-slate-100 pt-2">
                {sale.telefono && <a href={`tel:${sale.telefono}`} className="w-6 h-6 rounded bg-slate-50 flex items-center justify-center text-slate-400 hover:text-green-600"><i className="fas fa-phone text-xs"></i></a>}
                {sale.url && <a href={sale.url} target="_blank" className="w-6 h-6 rounded bg-slate-50 flex items-center justify-center text-slate-400 hover:text-blue-600"><i className="fas fa-link text-xs"></i></a>}
-               <button onClick={() => setShowHistory(!showHistory)} className="ml-auto text-[10px] text-blue-500 underline">
-                 {showHistory ? 'Ocultar' : 'Ver Eventos'}
-               </button>
+               <button onClick={() => setShowHistory(!showHistory)} className="ml-auto text-[10px] text-blue-500 underline">{showHistory ? 'Ocultar' : 'Ver Eventos'}</button>
             </div>
-
             {showHistory && (
               <div className="bg-slate-50 p-2 mt-2 rounded text-[10px] max-h-24 overflow-y-auto">
                  {sale.history && sale.history.slice().reverse().map((h, i) => (
-                   <div key={i} className="border-b border-slate-200 pb-1 mb-1">
-                     <span className="font-bold text-slate-500 block">{formatDate(h.date)}</span>
-                     <span>{h.action}</span>
-                   </div>
+                   <div key={i} className="border-b border-slate-200 pb-1 mb-1"><span className="font-bold text-slate-500 block">{formatDate(h.date)}</span><span>{h.action}</span></div>
                  ))}
                  <div className="text-xs text-gray-400 mt-2">Creado: {formatDate(sale.fecha)}</div>
               </div>
             )}
-
-            <select 
-              value={sale.estatus} 
-              onChange={handleStatusChange}
-              className="mt-2 w-full text-xs bg-slate-50 border border-slate-200 rounded p-1 outline-none focus:border-blue-500 cursor-pointer"
-            >
-               {["Con oferta", "Acepta oferta", "Dispersado", "Rechazado", "Cancelado"].map(s => (
-                 <option key={s} value={s}>{s}</option>
-               ))}
+            <select value={sale.estatus} onChange={handleStatusChange} className="mt-2 w-full text-xs bg-slate-50 border border-slate-200 rounded p-1 outline-none focus:border-blue-500 cursor-pointer">
+               {["Con oferta", "Acepta oferta", "Dispersado", "Rechazado", "Cancelado"].map(s => (<option key={s} value={s}>{s}</option>))}
             </select>
           </div>
 
-          {/* MODAL DISPERSION */}
           {showDisburseModal && (
             <div className="fixed inset-0 glass-modal z-50 flex items-center justify-center p-4">
               <div className="bg-white p-5 rounded-lg shadow-xl w-full max-w-sm">
                 <h3 className="font-bold text-lg mb-2 text-green-700">Confirmar Dispersión</h3>
-                <p className="text-sm text-slate-600 mb-4">Ingresa el monto final real.</p>
                 <input type="number" value={realAmount} onChange={(e) => setRealAmount(e.target.value)} className="w-full border-2 border-green-500 rounded p-2 text-xl font-bold mb-4 focus:outline-none" autoFocus />
-                <div className="flex gap-2">
-                  <button onClick={confirmDisbursement} className="flex-1 bg-green-600 text-white py-2 rounded font-bold hover:bg-green-500">Confirmar</button>
-                  <button onClick={() => setShowDisburseModal(false)} className="flex-1 bg-slate-200 text-slate-700 py-2 rounded font-bold">Cancelar</button>
-                </div>
+                <div className="flex gap-2"><button onClick={confirmDisbursement} className="flex-1 bg-green-600 text-white py-2 rounded font-bold hover:bg-green-500">Confirmar</button><button onClick={() => setShowDisburseModal(false)} className="flex-1 bg-slate-200 text-slate-700 py-2 rounded font-bold">Cancelar</button></div>
               </div>
             </div>
           )}
 
-          {/* MODAL BORRAR */}
           {showDeleteModal && (
             <div className="fixed inset-0 glass-modal z-50 flex items-center justify-center p-4">
               <div className="bg-white p-5 rounded-lg shadow-xl w-full max-w-sm border-2 border-red-100">
-                <h3 className="font-bold text-lg mb-2 text-red-600"><i className="fas fa-exclamation-triangle mr-2"></i>Eliminar Registro</h3>
+                <h3 className="font-bold text-lg mb-2 text-red-600">Eliminar Registro</h3>
                 <input type="password" placeholder="PIN" value={pin} onChange={(e) => setPin(e.target.value)} className="w-full border p-2 rounded mb-2 text-center tracking-widest" />
                 {error && <p className="text-red-500 text-xs font-bold text-center mb-2">{error}</p>}
-                <div className="flex gap-2">
-                  <button onClick={confirmDelete} className="flex-1 bg-red-600 text-white py-2 rounded font-bold hover:bg-red-500">ELIMINAR</button>
-                  <button onClick={() => {setShowDeleteModal(false); setPin(''); setError('');}} className="flex-1 bg-slate-200 text-slate-700 py-2 rounded font-bold">Cancelar</button>
-                </div>
+                <div className="flex gap-2"><button onClick={confirmDelete} className="flex-1 bg-red-600 text-white py-2 rounded font-bold hover:bg-red-500">ELIMINAR</button><button onClick={() => {setShowDeleteModal(false); setPin(''); setError('');}} className="flex-1 bg-slate-200 text-slate-700 py-2 rounded font-bold">Cancelar</button></div>
               </div>
             </div>
           )}
@@ -291,41 +258,41 @@
 
     const App = () => {
       const [currentDate, setCurrentDate] = useState(new Date());
+      // Nuevo Estado: Quincena actual (1 o 2)
+      const [currentQuincena, setCurrentQuincena] = useState(new Date().getDate() <= 15 ? 1 : 2);
+      
       const [allSales, setAllSales] = useState([]);
-      const [metaMensual, setMetaMensual] = useState(0);
+      const [metaQuincenal, setMetaQuincenal] = useState(0);
       const [isPlanningOpen, setIsPlanningOpen] = useState(false);
       const [showForm, setShowForm] = useState(false);
 
-      const monthKey = `${currentDate.getFullYear()}-${currentDate.getMonth()}`;
+      // Clave Única: Año-Mes-Q (ej: 2024-2-1)
+      const periodKey = `${currentDate.getFullYear()}-${currentDate.getMonth()}-${currentQuincena}`;
 
-      // Listener Ventas
       useEffect(() => {
-        const unsub = db.collection('sales').orderBy('fecha', 'desc').onSnapshot(snap => {
-          setAllSales(snap.docs.map(d => ({id: d.id, ...d.data()})));
-        });
+        const unsub = db.collection('sales').orderBy('fecha', 'desc').onSnapshot(snap => setAllSales(snap.docs.map(d => ({id: d.id, ...d.data()}))));
         return () => unsub();
       }, []);
 
-      // Listener Meta
       useEffect(() => {
-        const unsub = db.collection('metas').doc(monthKey).onSnapshot(doc => {
-          setMetaMensual(doc.exists ? doc.data().monto : 0);
-        });
+        const unsub = db.collection('metas').doc(periodKey).onSnapshot(doc => setMetaQuincenal(doc.exists ? doc.data().monto : 0));
         return () => unsub();
-      }, [monthKey]);
+      }, [periodKey]);
 
-      const saveMeta = (amount) => db.collection('metas').doc(monthKey).set({ monto: amount });
+      const saveMeta = (amount) => db.collection('metas').doc(periodKey).set({ monto: amount });
 
       const filteredSales = useMemo(() => {
         return allSales.filter(sale => {
           if(!sale.fecha) return false;
-          // AQUÍ SE USA LA FUNCIÓN DE RECUPERACIÓN (parseDate)
-          const d = parseDate(sale.fecha); 
-          return d.getMonth() === currentDate.getMonth() && d.getFullYear() === currentDate.getFullYear();
+          const d = parseDate(sale.fecha);
+          // Filtrar por Mes, Año Y QUINCENA
+          return d.getMonth() === currentDate.getMonth() && 
+                 d.getFullYear() === currentDate.getFullYear() &&
+                 getQuincena(d) === currentQuincena;
         });
-      }, [allSales, currentDate]);
+      }, [allSales, currentDate, currentQuincena]);
 
-      const businessData = getBusinessDaysData(currentDate);
+      const businessData = getBusinessDaysQuincena(currentDate, currentQuincena);
 
       const handleAddSale = async (e) => {
         e.preventDefault();
@@ -338,7 +305,7 @@
           telefono: form.phone.value,
           url: form.url.value,
           folio: 'FOL-' + Math.floor(Math.random()*100000),
-          fecha: new Date(), // Usamos Date objeto standard que Firestore convierte a Timestamp
+          fecha: new Date(), 
           history: [{ date: new Date().toISOString(), action: 'Lead Creado', user: 'Sistema' }]
         });
         setShowForm(false);
@@ -347,10 +314,24 @@
       const handleUpdateSale = (id, data) => db.collection('sales').doc(id).update(data);
       const handleDeleteSale = (id) => db.collection('sales').doc(id).delete();
 
-      const changeMonth = (offset) => {
-        const newDate = new Date(currentDate);
-        newDate.setMonth(newDate.getMonth() + offset);
-        setCurrentDate(newDate);
+      const changePeriod = (direction) => {
+        if(direction === 1) {
+            if(currentQuincena === 1) setCurrentQuincena(2);
+            else {
+                setCurrentQuincena(1);
+                const nextMonth = new Date(currentDate);
+                nextMonth.setMonth(nextMonth.getMonth() + 1);
+                setCurrentDate(nextMonth);
+            }
+        } else {
+            if(currentQuincena === 2) setCurrentQuincena(1);
+            else {
+                setCurrentQuincena(2);
+                const prevMonth = new Date(currentDate);
+                prevMonth.setMonth(prevMonth.getMonth() - 1);
+                setCurrentDate(prevMonth);
+            }
+        }
       };
 
       const monthName = new Intl.DateTimeFormat('es-MX', { month: 'long', year: 'numeric' }).format(currentDate);
@@ -359,11 +340,14 @@
         <div className="flex flex-col h-full bg-slate-100">
           <div className="bg-slate-900 text-white p-3 flex justify-between items-center shadow-md z-10">
             <div className="flex items-center gap-2 md:gap-4">
-              <h1 className="font-bold text-lg hidden md:block">CRM v5</h1>
+              <h1 className="font-bold text-lg hidden md:block">CRM Quincenal</h1>
               <div className="flex items-center bg-slate-800 rounded px-1">
-                <button onClick={() => changeMonth(-1)} className="p-2 hover:text-green-400"><i className="fas fa-chevron-left"></i></button>
-                <span className="w-32 text-center text-sm font-bold capitalize select-none">{monthName}</span>
-                <button onClick={() => changeMonth(1)} className="p-2 hover:text-green-400"><i className="fas fa-chevron-right"></i></button>
+                <button onClick={() => changePeriod(-1)} className="p-2 hover:text-green-400"><i className="fas fa-chevron-left"></i></button>
+                <div className="flex flex-col items-center w-40">
+                    <span className="text-xs font-bold uppercase tracking-wider text-slate-400">{monthName}</span>
+                    <span className="text-sm font-black text-green-400">QUINCENA {currentQuincena}</span>
+                </div>
+                <button onClick={() => changePeriod(1)} className="p-2 hover:text-green-400"><i className="fas fa-chevron-right"></i></button>
               </div>
             </div>
             <button onClick={() => setShowForm(true)} className="bg-green-600 px-4 py-1.5 rounded text-sm font-bold hover:bg-green-500 shadow-lg">
@@ -371,7 +355,7 @@
             </button>
           </div>
 
-          <MetricsHeader sales={filteredSales} meta={metaMensual} businessData={businessData} onOpenPlanning={() => setIsPlanningOpen(true)} />
+          <MetricsHeader sales={filteredSales} meta={metaQuincenal} businessData={businessData} onOpenPlanning={() => setIsPlanningOpen(true)} />
 
           <div className="flex-1 overflow-x-auto p-4 flex gap-4 pipeline-scroll items-start">
              {["Con oferta", "Acepta oferta", "Dispersado", "Rechazado"].map(status => (
@@ -405,7 +389,7 @@
             </div>
           )}
 
-          <PlanningModal isOpen={isPlanningOpen} onClose={() => setIsPlanningOpen(false)} meta={metaMensual} setMeta={saveMeta} businessData={businessData} year={currentDate.getFullYear()} month={currentDate.getMonth()} />
+          <PlanningModal isOpen={isPlanningOpen} onClose={() => setIsPlanningOpen(false)} meta={metaQuincenal} setMeta={saveMeta} businessData={businessData} year={currentDate.getFullYear()} month={currentDate.getMonth()} quincena={currentQuincena} />
         </div>
       );
     };
