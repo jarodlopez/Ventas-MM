@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>CRM Ventas - V10 (Comentarios y Long Track)</title>
+  <title>CRM Ventas - Tablero</title>
   
   <script src="https://cdn.tailwindcss.com"></script>
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -32,7 +32,6 @@
   <script type="text/babel">
     const { useState, useEffect, useMemo } = React;
 
-    // --- 1. CONFIGURACIÓN FIREBASE ---
     const firebaseConfig = {
       apiKey: "AIzaSyAAETou6DhYIJJ8cxI13BU1p_l3yGPMilA",
       authDomain: "ventas-ebd49.firebaseapp.com",
@@ -45,10 +44,8 @@
     if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
 
-    // --- 2. CONSTANTES GLOBALES ---
     const PIPELINE_STATUSES = ["Con oferta", "Acepta oferta", "Long track", "Dispersado", "Rechazado", "Cancelado"];
 
-    // --- 3. LÓGICA DE NEGOCIO ---
     const parseDate = (input) => {
       if (!input) return new Date();
       if (input.toDate) return input.toDate();
@@ -89,8 +86,6 @@
       }
       return { totalBusinessDays, remainingDays, startDay, endDay };
     };
-
-    // --- 4. COMPONENTES ---
 
     const PlanningModal = ({ isOpen, onClose, meta, setMeta, businessData, year, month, quincena }) => {
       if (!isOpen) return null;
@@ -192,8 +187,6 @@
       const [pin, setPin] = useState('');
       const [error, setError] = useState('');
       const [showHistory, setShowHistory] = useState(false);
-      
-      // Estado para el comentario
       const [comment, setComment] = useState('');
 
       const handleStatusChange = (e) => {
@@ -276,7 +269,6 @@
                    <div className="text-xs text-gray-400 mt-2">Creado: {formatDate(sale.fecha)}</div>
                  </div>
                  
-                 {/* FORMULARIO DE COMENTARIOS AÑADIDO */}
                  <form onSubmit={addComment} className="flex gap-1 mt-2 border-t border-slate-200 pt-2">
                    <input 
                      type="text" 
@@ -405,7 +397,7 @@
         <div className="flex flex-col h-full bg-slate-100">
           <div className="bg-slate-900 text-white p-3 flex justify-between items-center shadow-md z-10">
             <div className="flex items-center gap-2 md:gap-4">
-              <h1 className="font-bold text-lg hidden md:block">CRM V10</h1>
+              <h1 className="font-bold text-lg hidden md:block">CRM Pro</h1>
               <div className="flex items-center bg-slate-800 rounded px-1">
                 <button onClick={() => changePeriod(-1)} className="p-2 hover:text-green-400"><i className="fas fa-chevron-left"></i></button>
                 <div className="flex flex-col items-center w-40">
@@ -415,15 +407,21 @@
                 <button onClick={() => changePeriod(1)} className="p-2 hover:text-green-400"><i className="fas fa-chevron-right"></i></button>
               </div>
             </div>
-            <button onClick={() => setShowForm(true)} className="bg-green-600 px-4 py-1.5 rounded text-sm font-bold hover:bg-green-500 shadow-lg">
-              <i className="fas fa-plus mr-2"></i>Lead
-            </button>
+            
+            {/* AQUÍ ESTÁN LOS DOS BOTONES AHORA */}
+            <div className="flex gap-2">
+              <a href="reports.html" className="bg-blue-600 px-3 md:px-4 py-1.5 rounded text-sm font-bold hover:bg-blue-500 shadow-lg flex items-center text-white transition-colors">
+                <i className="fas fa-table mr-2"></i><span className="hidden md:inline">Reportes</span>
+              </a>
+              <button onClick={() => setShowForm(true)} className="bg-green-600 px-3 md:px-4 py-1.5 rounded text-sm font-bold hover:bg-green-500 shadow-lg flex items-center">
+                <i className="fas fa-plus mr-2"></i><span className="hidden md:inline">Lead</span>
+              </button>
+            </div>
           </div>
 
           <MetricsHeader sales={filteredSales} meta={metaQuincenal} businessData={businessData} onOpenPlanning={() => setIsPlanningOpen(true)} />
 
           <div className="flex-1 overflow-x-auto p-4 flex gap-4 pipeline-scroll items-start">
-             {/* ITERACIÓN SOBRE LA NUEVA CONSTANTE GLOBAL PIPELINE_STATUSES */}
              {PIPELINE_STATUSES.map(status => (
                <div key={status} className="min-w-[280px] w-[280px] flex flex-col h-full bg-slate-200/60 rounded-xl pipeline-col border border-slate-300">
                  <div className="p-3 font-bold text-slate-600 text-sm flex justify-between bg-slate-100 rounded-t-xl border-b border-slate-200">
