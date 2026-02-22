@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>CRM Ventas - Reportes Analíticos</title>
+  <title>CRM Ventas - Reportes Multi-Agente</title>
   
   <script src="https://cdn.tailwindcss.com"></script>
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -12,6 +12,7 @@
   
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
 
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
 
@@ -40,6 +41,7 @@
     
     if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
+    const auth = firebase.auth();
 
     const PIPELINE_STATUSES = ["Con oferta", "Acepta oferta", "Long track", "Dispersado", "Rechazado", "Cancelado"];
 
@@ -52,102 +54,71 @@
     const money = (val) => new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 }).format(val);
     const formatDate = (input) => new Intl.DateTimeFormat('es-MX', { day: '2-digit', month: 'short', year: 'numeric', hour:'2-digit', minute:'2-digit' }).format(parseDate(input));
 
-    const App = () => {
+    const App = ({ user }) => {
       const [allSales, setAllSales] = useState([]);
       const [loading, setLoading] = useState(true);
 
-      // Estados para los Filtros
       const [searchTerm, setSearchTerm] = useState("");
       const [statusFilter, setStatusFilter] = useState("Todos");
       const [dateStart, setDateStart] = useState("");
       const [dateEnd, setDateEnd] = useState("");
 
       useEffect(() => {
-        const unsub = db.collection('sales').orderBy('fecha', 'desc').onSnapshot(snap => {
-          setAllSales(snap.docs.map(d => ({id: d.id, ...d.data()})));
-          setLoading(false);
-        });
+        const unsub = db.collection('sales')
+          .where('userId', '==', user.uid) // Filtro de seguridad: Solo trae LO TUYO
+          .onSnapshot(snap => {
+             const docs = snap.docs.map(d => ({id: d.id, ...d.data()}));
+             docs.sort((a, b) => parseDate(b.fecha).getTime() - parseDate(a.fecha).getTime());
+             setAllSales(docs);
+             setLoading(false);
+          });
         return () => unsub();
-      }, []);
+      }, [user.uid]);
 
-      // Lógica de Filtrado Combinado
       const filteredSales = useMemo(() => {
         return allSales.filter(sale => {
-          // 1. Filtro por Estatus
           if (statusFilter !== "Todos" && sale.estatus !== statusFilter) return false;
-          
-          // 2. Filtro por Búsqueda (Nombre o Folio)
           if (searchTerm) {
              const term = searchTerm.toLowerCase();
              const matchesName = sale.nombre_cliente?.toLowerCase().includes(term);
              const matchesFolio = sale.folio?.toLowerCase().includes(term);
              if (!matchesName && !matchesFolio) return false;
           }
-
-          // 3. Filtro por Fechas
           if (dateStart || dateEnd) {
              const saleDate = parseDate(sale.fecha);
              saleDate.setHours(0,0,0,0);
-             
-             if (dateStart) {
-                 const start = new Date(dateStart);
-                 start.setHours(0,0,0,0);
-                 // Al usar strings YYYY-MM-DD hay que compensar la zona horaria a veces, pero para simplificar
-                 // lo tratamos como inicio del día.
-                 start.setDate(start.getDate() + 1); // Fix timezone offset HTML date input
-                 if (saleDate < start) return false;
-             }
-             if (dateEnd) {
-                 const end = new Date(dateEnd);
-                 end.setHours(0,0,0,0);
-                 end.setDate(end.getDate() + 1);
-                 if (saleDate > end) return false;
-             }
+             if (dateStart) { const start = new Date(dateStart); start.setHours(0,0,0,0); start.setDate(start.getDate() + 1); if (saleDate < start) return false; }
+             if (dateEnd) { const end = new Date(dateEnd); end.setHours(0,0,0,0); end.setDate(end.getDate() + 1); if (saleDate > end) return false; }
           }
-
           return true;
         });
       }, [allSales, searchTerm, statusFilter, dateStart, dateEnd]);
 
-      // Métricas Rápidas del filtro actual
       const totalPreapproved = filteredSales.reduce((sum, s) => sum + (Number(s.monto_preaprobado) || 0), 0);
       const totalDisbursed = filteredSales.filter(s => s.estatus === 'Dispersado').reduce((sum, s) => sum + (Number(s.monto_dispersado) || 0), 0);
 
-      // Exportar a CSV Básico
       const exportToCSV = () => {
          const headers = ["Folio", "Fecha", "Cliente", "Telefono", "Estatus", "Preaprobado", "Dispersado"];
-         const rows = filteredSales.map(s => [
-             s.folio,
-             formatDate(s.fecha).replace(',', ''),
-             `"${s.nombre_cliente}"`,
-             s.telefono || '',
-             s.estatus,
-             s.monto_preaprobado || 0,
-             s.monto_dispersado || 0
-         ]);
-         
-         const csvContent = "data:text/csv;charset=utf-8," 
-             + [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
-             
+         const rows = filteredSales.map(s => [s.folio, formatDate(s.fecha).replace(',', ''), `"${s.nombre_cliente}"`, s.telefono || '', s.estatus, s.monto_preaprobado || 0, s.monto_dispersado || 0]);
+         const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
          const encodedUri = encodeURI(csvContent);
          const link = document.createElement("a");
          link.setAttribute("href", encodedUri);
-         link.setAttribute("download", "reporte_ventas.csv");
-         document.body.appendChild(link);
-         link.click();
-         document.body.removeChild(link);
+         link.setAttribute("download", `reporte_ventas_${new Date().getTime()}.csv`);
+         document.body.appendChild(link); link.click(); document.body.removeChild(link);
       };
 
       if (loading) return <div className="h-full flex justify-center items-center font-bold text-slate-400">Cargando Reportes...</div>;
 
       return (
         <div className="flex flex-col h-full bg-slate-50">
-          
-          {/* HEADER BAR */}
           <div className="bg-slate-900 text-white p-4 flex justify-between items-center shadow z-10">
             <div className="flex items-center gap-3">
               <i className="fas fa-chart-line text-blue-400 text-xl"></i>
-              <h1 className="font-bold text-xl">Reportes Analíticos</h1>
+              <div className="flex flex-col">
+                 <h1 className="font-bold text-xl leading-none">Reportes</h1>
+                 <span className="text-xs text-blue-400">{user.email ? user.email.split('@')[0] : 'Agente'}</span>
+              </div>
             </div>
             <a href="index.html" className="bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded text-sm font-bold flex items-center transition-colors">
               <i className="fas fa-arrow-left mr-2"></i>Volver al Tablero
@@ -155,57 +126,32 @@
           </div>
 
           <div className="flex-1 p-6 overflow-hidden flex flex-col gap-6 max-w-7xl mx-auto w-full">
-            
-            {/* KPI WIDGETS */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 shrink-0">
-               <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-                  <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Registros Filtrados</p>
-                  <p className="text-3xl font-black text-slate-800">{filteredSales.length}</p>
-               </div>
-               <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-                  <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Total Preaprobado (Filtro)</p>
-                  <p className="text-3xl font-black text-blue-600">{money(totalPreapproved)}</p>
-               </div>
-               <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm border-l-4 border-l-green-500">
-                  <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Total Dispersado (Filtro)</p>
-                  <p className="text-3xl font-black text-green-600">{money(totalDisbursed)}</p>
-               </div>
+               <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm"><p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Registros Filtrados</p><p className="text-3xl font-black text-slate-800">{filteredSales.length}</p></div>
+               <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm"><p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Total Preaprobado (Filtro)</p><p className="text-3xl font-black text-blue-600">{money(totalPreapproved)}</p></div>
+               <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm border-l-4 border-l-green-500"><p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Total Dispersado (Filtro)</p><p className="text-3xl font-black text-green-600">{money(totalDisbursed)}</p></div>
             </div>
 
-            {/* FILTERS PANEL */}
             <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm shrink-0 flex flex-wrap gap-4 items-end">
                <div className="flex-1 min-w-[200px]">
                   <label className="block text-xs font-bold text-slate-500 mb-1">Buscar Cliente o Folio</label>
                   <div className="relative">
                      <i className="fas fa-search absolute left-3 top-2.5 text-slate-400"></i>
-                     <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Ej. Juan Perez..." className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded focus:outline-none focus:border-blue-500 text-sm" />
+                     <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Ej. Juan Perez..." className="w-full pl-9 pr-3 py-2 border rounded focus:border-blue-500 text-sm outline-none" />
                   </div>
                </div>
-               
                <div className="w-48">
                   <label className="block text-xs font-bold text-slate-500 mb-1">Estatus</label>
-                  <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded focus:outline-none focus:border-blue-500 text-sm bg-white">
+                  <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="w-full px-3 py-2 border rounded focus:border-blue-500 text-sm outline-none bg-white">
                      <option value="Todos">Todos los estatus</option>
                      {PIPELINE_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
                   </select>
                </div>
-
-               <div className="w-40">
-                  <label className="block text-xs font-bold text-slate-500 mb-1">Desde</label>
-                  <input type="date" value={dateStart} onChange={e => setDateStart(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded text-sm text-slate-600 focus:outline-none focus:border-blue-500" />
-               </div>
-
-               <div className="w-40">
-                  <label className="block text-xs font-bold text-slate-500 mb-1">Hasta</label>
-                  <input type="date" value={dateEnd} onChange={e => setDateEnd(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded text-sm text-slate-600 focus:outline-none focus:border-blue-500" />
-               </div>
-
-               <button onClick={exportToCSV} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded text-sm font-bold flex items-center transition-colors">
-                 <i className="fas fa-file-excel mr-2"></i>Exportar
-               </button>
+               <div className="w-40"><label className="block text-xs font-bold text-slate-500 mb-1">Desde</label><input type="date" value={dateStart} onChange={e => setDateStart(e.target.value)} className="w-full px-3 py-2 border rounded text-sm text-slate-600 focus:border-blue-500 outline-none" /></div>
+               <div className="w-40"><label className="block text-xs font-bold text-slate-500 mb-1">Hasta</label><input type="date" value={dateEnd} onChange={e => setDateEnd(e.target.value)} className="w-full px-3 py-2 border rounded text-sm text-slate-600 focus:border-blue-500 outline-none" /></div>
+               <button onClick={exportToCSV} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded text-sm font-bold flex items-center transition-colors"><i className="fas fa-file-excel mr-2"></i>Exportar</button>
             </div>
 
-            {/* DATA TABLE */}
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm flex-1 overflow-hidden flex flex-col">
                <div className="overflow-auto flex-1">
                  <table className="w-full text-left border-collapse min-w-max">
@@ -221,51 +167,53 @@
                    <tbody className="divide-y divide-slate-200">
                      {filteredSales.map(sale => (
                        <tr key={sale.id} className="hover:bg-slate-50 transition-colors">
-                         <td className="py-3 px-4">
-                           <div className="font-mono text-xs font-bold text-slate-600">{sale.folio}</div>
-                           <div className="text-xs text-slate-400 mt-1">{formatDate(sale.fecha)}</div>
-                         </td>
+                         <td className="py-3 px-4"><div className="font-mono text-xs font-bold text-slate-600">{sale.folio}</div><div className="text-xs text-slate-400 mt-1">{formatDate(sale.fecha)}</div></td>
                          <td className="py-3 px-4">
                            <div className="font-bold text-sm text-slate-800">{sale.nombre_cliente}</div>
-                           <div className="flex gap-2 mt-1">
-                             {sale.telefono && <span className="text-[10px] text-slate-400"><i className="fas fa-phone mr-1"></i>{sale.telefono}</span>}
-                           </div>
+                           <div className="flex gap-2 mt-1">{sale.telefono && <span className="text-[10px] text-slate-400"><i className="fas fa-phone mr-1"></i>{sale.telefono}</span>}</div>
                          </td>
-                         <td className="py-3 px-4">
-                           <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase
-                             ${sale.estatus === 'Dispersado' ? 'bg-green-100 text-green-700' : 
-                               sale.estatus === 'Rechazado' || sale.estatus === 'Cancelado' ? 'bg-red-100 text-red-700' : 
-                               'bg-blue-100 text-blue-700'}`
-                           }>
-                             {sale.estatus}
-                           </span>
-                         </td>
-                         <td className="py-3 px-4 text-right font-bold text-sm text-slate-600">
-                           {money(sale.monto_preaprobado)}
-                         </td>
-                         <td className="py-3 px-4 text-right font-bold text-sm">
-                           {sale.estatus === 'Dispersado' ? <span className="text-green-600">{money(sale.monto_dispersado)}</span> : <span className="text-slate-300">-</span>}
-                         </td>
+                         <td className="py-3 px-4"><span className={`px-2 py-1 rounded text-[10px] font-bold uppercase ${sale.estatus === 'Dispersado' ? 'bg-green-100 text-green-700' : sale.estatus === 'Rechazado' || sale.estatus === 'Cancelado' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'}`}>{sale.estatus}</span></td>
+                         <td className="py-3 px-4 text-right font-bold text-sm text-slate-600">{money(sale.monto_preaprobado)}</td>
+                         <td className="py-3 px-4 text-right font-bold text-sm">{sale.estatus === 'Dispersado' ? <span className="text-green-600">{money(sale.monto_dispersado)}</span> : <span className="text-slate-300">-</span>}</td>
                        </tr>
                      ))}
                      {filteredSales.length === 0 && (
-                       <tr>
-                         <td colSpan="5" className="py-8 text-center text-slate-400 font-bold">No se encontraron registros con estos filtros.</td>
-                       </tr>
+                       <tr><td colSpan="5" className="py-8 text-center text-slate-400 font-bold">No se encontraron registros con estos filtros.</td></tr>
                      )}
                    </tbody>
                  </table>
                </div>
             </div>
-
           </div>
         </div>
       );
     };
 
+    const MainWrapper = () => {
+      const [user, setUser] = useState(null);
+      const [loadingAuth, setLoadingAuth] = useState(true);
+
+      useEffect(() => {
+        return auth.onAuthStateChanged((u) => {
+          if (!u) {
+             // GUARDIÁN DE RUTA: Si no hay usuario, expulsa a index.html
+             // Usamos window.location.replace para que no se quede atascado en el botón "Atrás" del navegador
+             window.location.replace("index.html");
+          } else {
+             setUser(u);
+             setLoadingAuth(false);
+          }
+        });
+      }, []);
+
+      if (loadingAuth) return <div className="h-screen bg-slate-900 flex justify-center items-center text-white font-bold">Verificando seguridad...</div>;
+      
+      return <App user={user} />;
+    };
+
     const root = ReactDOM.createRoot(document.getElementById('root'));
-    root.render(<App />);
+    root.render(<MainWrapper />);
   </script>
 </body>
 </html>
-
+ 
