@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>CRM Ventas - Tablero Multi-Agente</title>
+  <title>CRM Ventas - Tablero (Rendimiento Optimizado)</title>
   
   <script src="https://cdn.tailwindcss.com"></script>
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -24,6 +24,9 @@
     ::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 4px; }
     body { font-family: 'Inter', system-ui, sans-serif; }
     .glass-modal { background: rgba(0, 0, 0, 0.5); backdrop-filter: blur(2px); }
+    /* Animación de carga */
+    .loader { border: 4px solid #f3f3f3; border-top: 4px solid #3b82f6; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
   </style>
 </head>
 <body class="bg-slate-100 text-slate-900 h-screen flex flex-col overflow-hidden">
@@ -79,7 +82,6 @@
       return { totalBusinessDays, remainingDays, startDay, endDay };
     };
 
-    // --- NUEVO COMPONENTE DE LOGIN DUAL ---
     const Login = () => {
       const [email, setEmail] = useState('');
       const [password, setPassword] = useState('');
@@ -96,17 +98,10 @@
         setError('');
         if (isRegistering) {
           auth.createUserWithEmailAndPassword(email, password)
-            .catch(err => {
-               if(err.code === 'auth/email-already-in-use') setError('El correo ya está registrado.');
-               else if(err.code === 'auth/weak-password') setError('La contraseña debe tener al menos 6 caracteres.');
-               else setError(err.message);
-            });
+            .catch(err => setError(err.code === 'auth/email-already-in-use' ? 'El correo ya está registrado.' : err.message));
         } else {
           auth.signInWithEmailAndPassword(email, password)
-            .catch(err => {
-               if(err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') setError('Correo o contraseña incorrectos.');
-               else setError(err.message);
-            });
+            .catch(err => setError(err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' ? 'Datos incorrectos.' : err.message));
         }
       };
 
@@ -115,55 +110,45 @@
           <div className="bg-white p-8 rounded-xl shadow-2xl w-full max-w-sm flex flex-col items-center">
             <i className="fas fa-chart-line text-5xl text-blue-600 mb-4"></i>
             <h1 className="text-2xl font-black mb-1">CRM Ventas</h1>
-            <p className="text-sm text-slate-500 mb-6">{isRegistering ? 'Crea tu cuenta de agente' : 'Ingreso para agentes'}</p>
+            <p className="text-sm text-slate-500 mb-6">{isRegistering ? 'Crear cuenta' : 'Ingreso Agentes'}</p>
 
-            {error && <div className="w-full bg-red-100 text-red-600 p-2 rounded text-xs font-bold text-center mb-4 border border-red-200">{error}</div>}
+            {error && <div className="w-full bg-red-100 text-red-600 p-2 rounded text-xs font-bold text-center mb-4">{error}</div>}
 
             <form onSubmit={handleEmailAuth} className="w-full flex flex-col gap-3 mb-6">
-              <input 
-                type="email" 
-                placeholder="Correo electrónico" 
-                required 
-                value={email} 
-                onChange={e => setEmail(e.target.value)}
-                className="w-full border border-slate-300 p-2 rounded focus:border-blue-500 focus:outline-none"
-              />
-              <input 
-                type="password" 
-                placeholder="Contraseña" 
-                required 
-                value={password} 
-                onChange={e => setPassword(e.target.value)}
-                className="w-full border border-slate-300 p-2 rounded focus:border-blue-500 focus:outline-none"
-              />
-              <button type="submit" className="w-full bg-blue-600 text-white font-bold p-2 rounded hover:bg-blue-700 transition-colors mt-1">
-                {isRegistering ? 'Registrarse' : 'Iniciar Sesión'}
-              </button>
+              <input type="email" placeholder="Correo" required value={email} onChange={e => setEmail(e.target.value)} className="w-full border p-2 rounded focus:outline-none focus:border-blue-500" />
+              <input type="password" placeholder="Contraseña" required value={password} onChange={e => setPassword(e.target.value)} className="w-full border p-2 rounded focus:outline-none focus:border-blue-500" />
+              <button type="submit" className="w-full bg-blue-600 text-white font-bold p-2 rounded hover:bg-blue-700 mt-1">{isRegistering ? 'Registrarse' : 'Iniciar Sesión'}</button>
             </form>
 
-            <div className="w-full flex items-center gap-2 mb-6">
-              <div className="h-px bg-slate-200 flex-1"></div>
-              <span className="text-xs text-slate-400 font-bold uppercase">O Continúa con</span>
-              <div className="h-px bg-slate-200 flex-1"></div>
-            </div>
+            <div className="w-full flex items-center gap-2 mb-6"><div className="h-px bg-slate-200 flex-1"></div><span className="text-xs text-slate-400 font-bold uppercase">O entra con</span><div className="h-px bg-slate-200 flex-1"></div></div>
 
-            <button onClick={handleGoogleLogin} className="w-full bg-slate-50 border border-slate-200 text-slate-700 p-2 rounded font-bold hover:bg-slate-100 flex items-center justify-center gap-2 transition-colors">
-              <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" className="w-5 h-5" />
-              Google
+            <button onClick={handleGoogleLogin} className="w-full bg-slate-50 border border-slate-200 text-slate-700 p-2 rounded font-bold hover:bg-slate-100 flex items-center justify-center gap-2">
+              <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" className="w-5 h-5" /> Google
             </button>
 
-            <button onClick={() => { setIsRegistering(!isRegistering); setError(''); }} className="mt-6 text-sm text-blue-600 hover:underline font-medium">
-              {isRegistering ? '¿Ya tienes cuenta? Inicia sesión' : '¿No tienes cuenta? Regístrate'}
-            </button>
+            <button onClick={() => { setIsRegistering(!isRegistering); setError(''); }} className="mt-6 text-sm text-blue-600 hover:underline">{isRegistering ? '¿Ya tienes cuenta? Inicia sesión' : '¿No tienes cuenta? Regístrate'}</button>
           </div>
         </div>
       );
     };
 
     const PlanningModal = ({ isOpen, onClose, meta, setMeta, businessData, year, month, quincena }) => {
+      // FIX RENDIMIENTO: Estado local para no saturar Firebase al escribir
+      const [localMeta, setLocalMeta] = useState(meta || 0);
+
+      useEffect(() => {
+        setLocalMeta(meta || 0);
+      }, [meta, isOpen]);
+
+      const handleSaveMeta = () => {
+        if(Number(localMeta) !== meta) {
+           setMeta(Number(localMeta)); // Esto ahora llama a Firebase de forma segura 1 sola vez
+        }
+      };
+
       if (!isOpen) return null;
-      const metaVal = meta || 0;
-      const dailyGoal = businessData.totalBusinessDays > 0 ? metaVal / businessData.totalBusinessDays : 0;
+
+      const dailyGoal = businessData.totalBusinessDays > 0 ? localMeta / businessData.totalBusinessDays : 0;
       const projection = [];
       let accum = 0;
       const today = new Date().getDate();
@@ -183,10 +168,21 @@
               <h2 className="font-bold text-lg text-blue-900">Planificación Q{quincena}</h2>
               <button onClick={onClose}><i className="fas fa-times text-slate-400"></i></button>
             </div>
+            
             <div className="p-4 bg-blue-50 border-b flex gap-2 items-center">
                <label className="font-bold text-sm text-blue-900">Meta Quincenal ($):</label>
-               <input type="number" value={metaVal} onChange={(e) => setMeta(Number(e.target.value))} className="border rounded px-2 py-1 font-bold w-32 text-blue-900" />
+               {/* FIX: Se usa onBlur para guardar solo cuando haces clic fuera del recuadro o presionas Enter */}
+               <input 
+                 type="number" 
+                 value={localMeta} 
+                 onChange={(e) => setLocalMeta(e.target.value)} 
+                 onBlur={handleSaveMeta}
+                 onKeyDown={(e) => { if(e.key === 'Enter') { e.target.blur(); } }}
+                 className="border-2 border-blue-200 rounded px-2 py-1 font-bold w-36 text-blue-900 focus:outline-none focus:border-blue-500" 
+               />
+               <span className="text-xs text-blue-400 italic">(Presiona Enter para guardar)</span>
             </div>
+
             <div className="flex-1 overflow-y-auto p-2">
               <table className="w-full text-sm">
                 <thead><tr className="text-left text-xs uppercase text-slate-500"><th className="p-2">Día</th><th className="p-2 text-right">Acumulado Ideal</th></tr></thead>
@@ -223,7 +219,7 @@
              <div className="hidden md:block"><p className="text-[10px] font-bold text-slate-400 uppercase">Tiempo Restante</p><p className="text-xl font-bold text-slate-700">{businessData.remainingDays} días</p></div>
           </div>
           <button onClick={onOpenPlanning} className="bg-slate-800 text-white px-4 py-2 rounded text-xs font-bold hover:bg-slate-700 shadow-lg">
-            <i className="fas fa-chart-pie mr-2"></i>Ver Planificación
+            <i className="fas fa-chart-pie mr-2"></i>Planificación
           </button>
         </div>
       );
@@ -274,7 +270,7 @@
             <div className="mt-2 flex gap-1 border-t border-slate-100 pt-2">
                {sale.telefono && <a href={`tel:${sale.telefono}`} className="w-6 h-6 rounded bg-slate-50 flex items-center justify-center text-slate-400 hover:text-green-600"><i className="fas fa-phone text-xs"></i></a>}
                {sale.url && <a href={sale.url} target="_blank" className="w-6 h-6 rounded bg-slate-50 flex items-center justify-center text-slate-400 hover:text-blue-600"><i className="fas fa-link text-xs"></i></a>}
-               <button onClick={() => setShowHistory(!showHistory)} className="ml-auto text-[10px] text-blue-500 underline">{showHistory ? 'Ocultar' : 'Ver Eventos'}</button>
+               <button onClick={() => setShowHistory(!showHistory)} className="ml-auto text-[10px] text-blue-500 underline">{showHistory ? 'Ocultar' : 'Bitácora'}</button>
             </div>
             
             {showHistory && (
@@ -283,7 +279,6 @@
                    {sale.history && sale.history.slice().reverse().map((h, i) => (
                      <div key={i} className="border-b border-slate-200 pb-1 mb-1"><span className="font-bold text-slate-500 block">{formatDate(h.date)}</span><span className="break-words">{h.action}</span></div>
                    ))}
-                   <div className="text-xs text-gray-400 mt-2">Creado: {formatDate(sale.fecha)}</div>
                  </div>
                  <form onSubmit={addComment} className="flex gap-1 mt-2 border-t border-slate-200 pt-2">
                    <input type="text" value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Comentar..." className="flex-1 border border-slate-300 rounded px-1.5 py-1 text-xs outline-none" />
@@ -349,7 +344,8 @@
         return () => unsub();
       }, [periodKey]);
 
-      const saveMeta = (amount) => db.collection('metas').doc(periodKey).set({ monto: amount, userId: user.uid });
+      // FIX MERGE: Ahora usamos merge: true para que actualice correctamente en Firebase
+      const saveMeta = (amount) => db.collection('metas').doc(periodKey).set({ monto: amount, userId: user.uid }, { merge: true });
 
       const filteredSales = useMemo(() => {
         return allSales.filter(sale => {
@@ -399,7 +395,7 @@
                 <button onClick={() => changePeriod(-1)} className="p-2 hover:text-green-400"><i className="fas fa-chevron-left"></i></button>
                 <div className="flex flex-col items-center w-40">
                     <span className="text-xs font-bold uppercase tracking-wider text-slate-400">{new Intl.DateTimeFormat('es-MX', { month: 'long', year: 'numeric' }).format(currentDate)}</span>
-                    <span className="text-sm font-black text-green-400">QUINCENA {currentQuincena}</span>
+                    <span className="text-sm font-black text-green-400">Q{currentQuincena}</span>
                 </div>
                 <button onClick={() => changePeriod(1)} className="p-2 hover:text-green-400"><i className="fas fa-chevron-right"></i></button>
               </div>
@@ -429,10 +425,10 @@
             <div className="fixed inset-0 glass-modal z-50 flex items-center justify-center p-4">
               <form onSubmit={handleAddSale} className="bg-white rounded-lg shadow-xl w-full max-w-sm p-5 space-y-4">
                  <h2 className="font-bold text-lg">Nuevo Lead</h2>
-                 <input name="client" required placeholder="Nombre Cliente" className="w-full border p-2 rounded" />
-                 <input name="amount" type="number" required placeholder="Monto Preaprobado ($)" className="w-full border p-2 rounded" />
-                 <input name="phone" placeholder="Teléfono" className="w-full border p-2 rounded" />
-                 <input name="url" placeholder="Link" className="w-full border p-2 rounded" />
+                 <input name="client" required placeholder="Nombre Cliente" className="w-full border p-2 rounded focus:outline-none focus:border-blue-500" />
+                 <input name="amount" type="number" required placeholder="Monto Preaprobado ($)" className="w-full border p-2 rounded focus:outline-none focus:border-blue-500" />
+                 <input name="phone" placeholder="Teléfono" className="w-full border p-2 rounded focus:outline-none focus:border-blue-500" />
+                 <input name="url" placeholder="Link" className="w-full border p-2 rounded focus:outline-none focus:border-blue-500" />
                  <div className="flex gap-2 pt-2"><button type="submit" className="flex-1 bg-green-600 text-white py-2 rounded font-bold">Crear</button><button type="button" onClick={() => setShowForm(false)} className="flex-1 bg-slate-200 py-2 rounded font-bold">Cancelar</button></div>
               </form>
             </div>
@@ -454,7 +450,14 @@
         });
       }, []);
 
-      if (loadingAuth) return <div className="h-screen bg-slate-900 flex justify-center items-center text-white font-bold">Iniciando sistema...</div>;
+      // FIX RENDIMIENTO: Pantalla de carga más limpia y rápida visualmente
+      if (loadingAuth) return (
+        <div className="h-screen bg-slate-900 flex flex-col justify-center items-center text-white">
+          <div className="loader mb-4"></div>
+          <p className="font-bold text-slate-400">Verificando seguridad...</p>
+        </div>
+      );
+      
       if (!user) return <Login />;
       return <App user={user} />;
     };
@@ -464,4 +467,3 @@
   </script>
 </body>
 </html>
- 
