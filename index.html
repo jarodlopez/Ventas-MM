@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>CRM Ventas - Tablero (Rendimiento Optimizado)</title>
+  <title>CRM Ventas - Tablero Multi-Agente</title>
   
   <script src="https://cdn.tailwindcss.com"></script>
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -133,7 +133,6 @@
     };
 
     const PlanningModal = ({ isOpen, onClose, meta, setMeta, businessData, year, month, quincena }) => {
-      // FIX RENDIMIENTO: Estado local para no saturar Firebase al escribir
       const [localMeta, setLocalMeta] = useState(meta || 0);
 
       useEffect(() => {
@@ -142,7 +141,7 @@
 
       const handleSaveMeta = () => {
         if(Number(localMeta) !== meta) {
-           setMeta(Number(localMeta)); // Esto ahora llama a Firebase de forma segura 1 sola vez
+           setMeta(Number(localMeta));
         }
       };
 
@@ -171,7 +170,6 @@
             
             <div className="p-4 bg-blue-50 border-b flex gap-2 items-center">
                <label className="font-bold text-sm text-blue-900">Meta Quincenal ($):</label>
-               {/* FIX: Se usa onBlur para guardar solo cuando haces clic fuera del recuadro o presionas Enter */}
                <input 
                  type="number" 
                  value={localMeta} 
@@ -263,13 +261,20 @@
               <button onClick={() => setShowDeleteModal(true)} className="text-slate-300 hover:text-red-500 px-2"><i className="fas fa-trash-alt text-xs"></i></button>
             </div>
             <h3 className="font-bold text-sm text-slate-800 truncate">{sale.nombre_cliente}</h3>
+            
             <div className="flex justify-between items-end mt-1">
                <div className="flex flex-col"><span className="text-[10px] text-slate-400">Preaprobado</span><span className="font-bold text-slate-600 text-xs">{money(sale.monto_preaprobado)}</span></div>
                {sale.estatus === 'Dispersado' && (<div className="flex flex-col text-right"><span className="text-[10px] text-green-600 font-bold">DISPERSADO</span><span className="font-bold text-green-700 text-sm">{money(sale.monto_dispersado)}</span></div>)}
             </div>
-            <div className="mt-2 flex gap-1 border-t border-slate-100 pt-2">
-               {sale.telefono && <a href={`tel:${sale.telefono}`} className="w-6 h-6 rounded bg-slate-50 flex items-center justify-center text-slate-400 hover:text-green-600"><i className="fas fa-phone text-xs"></i></a>}
-               {sale.url && <a href={sale.url} target="_blank" className="w-6 h-6 rounded bg-slate-50 flex items-center justify-center text-slate-400 hover:text-blue-600"><i className="fas fa-link text-xs"></i></a>}
+            
+            <div className="mt-2 flex flex-wrap gap-1 border-t border-slate-100 pt-2 items-center">
+               {/* Teléfono modificado para solo mostrar el registro visible */}
+               {sale.telefono && (
+                 <span className="px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100 text-slate-500 text-[10px] flex items-center font-medium">
+                   <i className="fas fa-phone mr-1"></i> {sale.telefono}
+                 </span>
+               )}
+               {sale.url && <a href={sale.url} target="_blank" className="w-5 h-5 rounded bg-slate-50 flex items-center justify-center text-slate-400 hover:text-blue-600 border border-slate-100"><i className="fas fa-link text-[10px]"></i></a>}
                <button onClick={() => setShowHistory(!showHistory)} className="ml-auto text-[10px] text-blue-500 underline">{showHistory ? 'Ocultar' : 'Bitácora'}</button>
             </div>
             
@@ -344,7 +349,6 @@
         return () => unsub();
       }, [periodKey]);
 
-      // FIX MERGE: Ahora usamos merge: true para que actualice correctamente en Firebase
       const saveMeta = (amount) => db.collection('metas').doc(periodKey).set({ monto: amount, userId: user.uid }, { merge: true });
 
       const filteredSales = useMemo(() => {
@@ -362,13 +366,13 @@
         const form = e.target;
         await db.collection('sales').add({
           userId: user.uid, 
+          folio: form.folio.value, // Registro manual del folio
           nombre_cliente: form.client.value,
           monto_preaprobado: Number(form.amount.value),
           monto_dispersado: 0,
           estatus: 'Con oferta',
           telefono: form.phone.value,
           url: form.url.value,
-          folio: 'FOL-' + Math.floor(Math.random()*100000),
           fecha: new Date().toISOString(), 
           history: [{ date: new Date().toISOString(), action: 'Lead Creado', user: 'Agente' }]
         });
@@ -421,14 +425,16 @@
              ))}
           </div>
 
+          {/* FORMULARIO MODIFICADO */}
           {showForm && (
             <div className="fixed inset-0 glass-modal z-50 flex items-center justify-center p-4">
               <form onSubmit={handleAddSale} className="bg-white rounded-lg shadow-xl w-full max-w-sm p-5 space-y-4">
                  <h2 className="font-bold text-lg">Nuevo Lead</h2>
+                 <input name="folio" required placeholder="Número de Folio" className="w-full border p-2 rounded focus:outline-none focus:border-blue-500" />
                  <input name="client" required placeholder="Nombre Cliente" className="w-full border p-2 rounded focus:outline-none focus:border-blue-500" />
                  <input name="amount" type="number" required placeholder="Monto Preaprobado ($)" className="w-full border p-2 rounded focus:outline-none focus:border-blue-500" />
                  <input name="phone" placeholder="Teléfono" className="w-full border p-2 rounded focus:outline-none focus:border-blue-500" />
-                 <input name="url" placeholder="Link" className="w-full border p-2 rounded focus:outline-none focus:border-blue-500" />
+                 <input name="url" placeholder="Enlace / Link" className="w-full border p-2 rounded focus:outline-none focus:border-blue-500" />
                  <div className="flex gap-2 pt-2"><button type="submit" className="flex-1 bg-green-600 text-white py-2 rounded font-bold">Crear</button><button type="button" onClick={() => setShowForm(false)} className="flex-1 bg-slate-200 py-2 rounded font-bold">Cancelar</button></div>
               </form>
             </div>
@@ -450,7 +456,6 @@
         });
       }, []);
 
-      // FIX RENDIMIENTO: Pantalla de carga más limpia y rápida visualmente
       if (loadingAuth) return (
         <div className="h-screen bg-slate-900 flex flex-col justify-center items-center text-white">
           <div className="loader mb-4"></div>
@@ -467,3 +472,4 @@
   </script>
 </body>
 </html>
+ 
