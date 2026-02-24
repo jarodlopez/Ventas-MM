@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>CRM Ventas - Tablero Multi-Agente</title>
+  <title>CRM Ventas - Tablero Interactivo</title>
   
   <script src="https://cdn.tailwindcss.com"></script>
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -18,15 +18,20 @@
 
   <style>
     .pipeline-scroll { scroll-snap-type: x mandatory; }
-    .pipeline-col { scroll-snap-align: start; }
+    .pipeline-col { scroll-snap-align: start; min-height: 60vh; }
     ::-webkit-scrollbar { width: 6px; height: 6px; }
     ::-webkit-scrollbar-track { background: #f1f1f1; }
     ::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 4px; }
     body { font-family: 'Inter', system-ui, sans-serif; }
     .glass-modal { background: rgba(0, 0, 0, 0.5); backdrop-filter: blur(2px); }
-    /* Animación de carga */
     .loader { border: 4px solid #f3f3f3; border-top: 4px solid #3b82f6; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; }
     @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    
+    /* Clases para el arrastre */
+    .draggable-card { cursor: grab; }
+    .draggable-card:active { cursor: grabbing; }
+    .dragging { opacity: 0.5; transform: scale(0.98); }
+    .drag-over { background-color: rgba(203, 213, 225, 0.8) !important; border: 2px dashed #94a3b8; }
   </style>
 </head>
 <body class="bg-slate-100 text-slate-900 h-screen flex flex-col overflow-hidden">
@@ -135,15 +140,9 @@
     const PlanningModal = ({ isOpen, onClose, meta, setMeta, businessData, year, month, quincena }) => {
       const [localMeta, setLocalMeta] = useState(meta || 0);
 
-      useEffect(() => {
-        setLocalMeta(meta || 0);
-      }, [meta, isOpen]);
+      useEffect(() => { setLocalMeta(meta || 0); }, [meta, isOpen]);
 
-      const handleSaveMeta = () => {
-        if(Number(localMeta) !== meta) {
-           setMeta(Number(localMeta));
-        }
-      };
+      const handleSaveMeta = () => { if(Number(localMeta) !== meta) setMeta(Number(localMeta)); };
 
       if (!isOpen) return null;
 
@@ -167,20 +166,10 @@
               <h2 className="font-bold text-lg text-blue-900">Planificación Q{quincena}</h2>
               <button onClick={onClose}><i className="fas fa-times text-slate-400"></i></button>
             </div>
-            
             <div className="p-4 bg-blue-50 border-b flex gap-2 items-center">
                <label className="font-bold text-sm text-blue-900">Meta Quincenal ($):</label>
-               <input 
-                 type="number" 
-                 value={localMeta} 
-                 onChange={(e) => setLocalMeta(e.target.value)} 
-                 onBlur={handleSaveMeta}
-                 onKeyDown={(e) => { if(e.key === 'Enter') { e.target.blur(); } }}
-                 className="border-2 border-blue-200 rounded px-2 py-1 font-bold w-36 text-blue-900 focus:outline-none focus:border-blue-500" 
-               />
-               <span className="text-xs text-blue-400 italic">(Presiona Enter para guardar)</span>
+               <input type="number" value={localMeta} onChange={(e) => setLocalMeta(e.target.value)} onBlur={handleSaveMeta} onKeyDown={(e) => { if(e.key === 'Enter') e.target.blur(); }} className="border-2 border-blue-200 rounded px-2 py-1 font-bold w-36 text-blue-900 focus:outline-none focus:border-blue-500" />
             </div>
-
             <div className="flex-1 overflow-y-auto p-2">
               <table className="w-full text-sm">
                 <thead><tr className="text-left text-xs uppercase text-slate-500"><th className="p-2">Día</th><th className="p-2 text-right">Acumulado Ideal</th></tr></thead>
@@ -223,22 +212,12 @@
       );
     };
 
-    const SaleCard = ({ sale, updateSale, deleteSale }) => {
-      const [showDisburseModal, setShowDisburseModal] = useState(false);
+    // --- TARJETA AHORA ES DRAGGABLE ---
+    const SaleCard = ({ sale, updateSale, deleteSale, onStatusChange }) => {
       const [showDeleteModal, setShowDeleteModal] = useState(false);
-      const [realAmount, setRealAmount] = useState(sale.monto_preaprobado);
       const [pin, setPin] = useState('');
       const [showHistory, setShowHistory] = useState(false);
       const [comment, setComment] = useState('');
-
-      const handleStatusChange = (e) => {
-        const newStatus = e.target.value;
-        if (newStatus === 'Dispersado') {
-           setRealAmount(sale.monto_preaprobado); setShowDisburseModal(true);
-        } else {
-           updateSale(sale.id, { estatus: newStatus, history: firebase.firestore.FieldValue.arrayUnion({ date: new Date().toISOString(), action: `Estatus: ${newStatus}`, user: 'Agente' }) });
-        }
-      };
 
       const addComment = (e) => {
         e.preventDefault();
@@ -247,17 +226,27 @@
         setComment('');
       };
 
-      const confirmDisbursement = () => {
-         updateSale(sale.id, { estatus: 'Dispersado', monto_dispersado: Number(realAmount), fecha_dispersion: new Date().toISOString(), history: firebase.firestore.FieldValue.arrayUnion({ date: new Date().toISOString(), action: `DISPERSADO: ${money(realAmount)}`, user: 'Agente' }) });
-         setShowDisburseModal(false);
+      // Funciones para el Drag & Drop
+      const handleDragStart = (e) => {
+        e.dataTransfer.setData('saleId', sale.id);
+        setTimeout(() => e.target.classList.add('dragging'), 0);
+      };
+      
+      const handleDragEnd = (e) => {
+        e.target.classList.remove('dragging');
       };
 
       return (
-        <div className="bg-white p-3 rounded-lg shadow-sm border border-slate-200 mb-2 relative group hover:shadow-md transition-all">
+        <div 
+          draggable="true"
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
+          className="bg-white p-3 rounded-lg shadow-sm border border-slate-200 mb-2 relative group hover:shadow-md transition-all draggable-card"
+        >
           <div className={`absolute left-0 top-0 bottom-0 w-1 rounded-l-lg ${sale.estatus === 'Dispersado' ? 'bg-green-500' : 'bg-blue-500'}`}></div>
           <div className="pl-2">
             <div className="flex justify-between items-start">
-              <span className="text-[10px] text-slate-400 font-mono">{sale.folio}</span>
+              <span className="text-xs font-bold text-slate-700 font-mono">{sale.folio}</span>
               <button onClick={() => setShowDeleteModal(true)} className="text-slate-300 hover:text-red-500 px-2"><i className="fas fa-trash-alt text-xs"></i></button>
             </div>
             <h3 className="font-bold text-sm text-slate-800 truncate">{sale.nombre_cliente}</h3>
@@ -268,7 +257,6 @@
             </div>
             
             <div className="mt-2 flex flex-wrap gap-1 border-t border-slate-100 pt-2 items-center">
-               {/* Teléfono modificado para solo mostrar el registro visible */}
                {sale.telefono && (
                  <span className="px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100 text-slate-500 text-[10px] flex items-center font-medium">
                    <i className="fas fa-phone mr-1"></i> {sale.telefono}
@@ -291,20 +279,12 @@
                  </form>
               </div>
             )}
-            <select value={sale.estatus} onChange={handleStatusChange} className="mt-2 w-full text-xs bg-slate-50 border border-slate-200 rounded p-1 outline-none focus:border-blue-500 cursor-pointer">
+            
+            {/* El selector sigue funcionando, pero ahora llama a la función global */}
+            <select value={sale.estatus} onChange={(e) => onStatusChange(sale, e.target.value)} className="mt-2 w-full text-xs bg-slate-50 border border-slate-200 rounded p-1 outline-none focus:border-blue-500 cursor-pointer">
                {PIPELINE_STATUSES.map(s => (<option key={s} value={s}>{s}</option>))}
             </select>
           </div>
-
-          {showDisburseModal && (
-            <div className="fixed inset-0 glass-modal z-50 flex items-center justify-center p-4">
-              <div className="bg-white p-5 rounded-lg shadow-xl w-full max-w-sm">
-                <h3 className="font-bold text-lg mb-2 text-green-700">Confirmar Dispersión</h3>
-                <input type="number" value={realAmount} onChange={(e) => setRealAmount(e.target.value)} className="w-full border-2 border-green-500 rounded p-2 text-xl font-bold mb-4" autoFocus />
-                <div className="flex gap-2"><button onClick={confirmDisbursement} className="flex-1 bg-green-600 text-white py-2 rounded font-bold">Confirmar</button><button onClick={() => setShowDisburseModal(false)} className="flex-1 bg-slate-200 py-2 rounded font-bold">Cancelar</button></div>
-              </div>
-            </div>
-          )}
 
           {showDeleteModal && (
             <div className="fixed inset-0 glass-modal z-50 flex items-center justify-center p-4">
@@ -327,6 +307,10 @@
       const [metaQuincenal, setMetaQuincenal] = useState(0);
       const [isPlanningOpen, setIsPlanningOpen] = useState(false);
       const [showForm, setShowForm] = useState(false);
+
+      // Estado global para el modal de dispersión
+      const [disburseData, setDisburseData] = useState(null); // Contiene toda la info de la tarjeta
+      const [realAmount, setRealAmount] = useState('');
 
       const periodKey = `${user.uid}_${currentDate.getFullYear()}-${currentDate.getMonth()}-${currentQuincena}`;
 
@@ -366,7 +350,7 @@
         const form = e.target;
         await db.collection('sales').add({
           userId: user.uid, 
-          folio: form.folio.value, // Registro manual del folio
+          folio: form.folio.value, 
           nombre_cliente: form.client.value,
           monto_preaprobado: Number(form.amount.value),
           monto_dispersado: 0,
@@ -381,6 +365,52 @@
 
       const handleUpdateSale = (id, data) => db.collection('sales').doc(id).update(data);
       const handleDeleteSale = (id) => db.collection('sales').doc(id).delete();
+
+      // Función Central para manejar cambios de estado (Por Select o Drag&Drop)
+      const processStatusChange = (sale, newStatus) => {
+        if (sale.estatus === newStatus) return; // Evitar llamadas innecesarias
+
+        if (newStatus === 'Dispersado') {
+           setRealAmount(sale.monto_preaprobado);
+           setDisburseData(sale); // Abre el modal global
+        } else {
+           handleUpdateSale(sale.id, { 
+             estatus: newStatus, 
+             history: firebase.firestore.FieldValue.arrayUnion({ date: new Date().toISOString(), action: `Estatus: ${newStatus}`, user: 'Agente' }) 
+           });
+        }
+      };
+
+      const confirmGlobalDisbursement = () => {
+         if(!disburseData) return;
+         handleUpdateSale(disburseData.id, { 
+           estatus: 'Dispersado', 
+           monto_dispersado: Number(realAmount), 
+           fecha_dispersion: new Date().toISOString(), 
+           history: firebase.firestore.FieldValue.arrayUnion({ date: new Date().toISOString(), action: `DISPERSADO: ${money(realAmount)}`, user: 'Agente' }) 
+         });
+         setDisburseData(null);
+      };
+
+      // Eventos de la columna para soltar la tarjeta
+      const handleDragOver = (e) => {
+        e.preventDefault(); // Necesario para permitir el "drop"
+        e.currentTarget.classList.add('drag-over');
+      };
+      
+      const handleDragLeave = (e) => {
+        e.currentTarget.classList.remove('drag-over');
+      };
+
+      const handleDrop = (e, targetStatus) => {
+        e.preventDefault();
+        e.currentTarget.classList.remove('drag-over');
+        const saleId = e.dataTransfer.getData('saleId');
+        const sale = allSales.find(s => s.id === saleId);
+        if(sale) {
+           processStatusChange(sale, targetStatus);
+        }
+      };
 
       const changePeriod = (dir) => {
         if(dir === 1) { if(currentQuincena === 1) setCurrentQuincena(2); else { setCurrentQuincena(1); setCurrentDate(new Date(currentDate.setMonth(currentDate.getMonth() + 1))); } } 
@@ -416,16 +446,47 @@
 
           <div className="flex-1 overflow-x-auto p-4 flex gap-4 pipeline-scroll items-start">
              {PIPELINE_STATUSES.map(status => (
-               <div key={status} className="min-w-[280px] w-[280px] flex flex-col h-full bg-slate-200/60 rounded-xl pipeline-col border border-slate-300">
-                 <div className="p-3 font-bold text-slate-600 text-sm flex justify-between bg-slate-100 rounded-t-xl border-b border-slate-200">{status}<span className="bg-white px-2 rounded-full text-xs shadow-sm">{filteredSales.filter(s => s.estatus === status).length}</span></div>
-                 <div className="flex-1 overflow-y-auto p-2">
-                   {filteredSales.filter(s => s.estatus === status).map(sale => <SaleCard key={sale.id} sale={sale} updateSale={handleUpdateSale} deleteSale={handleDeleteSale} />)}
+               <div 
+                 key={status} 
+                 onDragOver={handleDragOver}
+                 onDragLeave={handleDragLeave}
+                 onDrop={(e) => handleDrop(e, status)}
+                 className="min-w-[280px] w-[280px] flex flex-col h-full bg-slate-200/60 rounded-xl pipeline-col border border-transparent transition-colors duration-200"
+               >
+                 <div className="p-3 font-bold text-slate-600 text-sm flex justify-between bg-slate-100 rounded-t-xl border border-slate-300 border-b-0">
+                   {status}
+                   <span className="bg-white px-2 rounded-full text-xs shadow-sm">{filteredSales.filter(s => s.estatus === status).length}</span>
+                 </div>
+                 <div className="flex-1 overflow-y-auto p-2 border border-slate-300 border-t-0 rounded-b-xl pb-20">
+                   {filteredSales.filter(s => s.estatus === status).map(sale => (
+                     <SaleCard 
+                       key={sale.id} 
+                       sale={sale} 
+                       updateSale={handleUpdateSale} 
+                       deleteSale={handleDeleteSale} 
+                       onStatusChange={processStatusChange} 
+                     />
+                   ))}
                  </div>
                </div>
              ))}
           </div>
 
-          {/* FORMULARIO MODIFICADO */}
+          {/* Modal Central para Dispersión */}
+          {disburseData && (
+            <div className="fixed inset-0 glass-modal z-50 flex items-center justify-center p-4">
+              <div className="bg-white p-5 rounded-lg shadow-xl w-full max-w-sm">
+                <h3 className="font-bold text-lg mb-2 text-green-700">Confirmar Dispersión</h3>
+                <p className="text-xs text-slate-500 mb-2">Cliente: {disburseData.nombre_cliente}</p>
+                <input type="number" value={realAmount} onChange={(e) => setRealAmount(e.target.value)} className="w-full border-2 border-green-500 rounded p-2 text-xl font-bold mb-4 focus:outline-none" autoFocus />
+                <div className="flex gap-2">
+                  <button onClick={confirmGlobalDisbursement} className="flex-1 bg-green-600 text-white py-2 rounded font-bold hover:bg-green-500 transition-colors">Confirmar</button>
+                  <button onClick={() => setDisburseData(null)} className="flex-1 bg-slate-200 py-2 rounded font-bold hover:bg-slate-300 transition-colors">Cancelar</button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {showForm && (
             <div className="fixed inset-0 glass-modal z-50 flex items-center justify-center p-4">
               <form onSubmit={handleAddSale} className="bg-white rounded-lg shadow-xl w-full max-w-sm p-5 space-y-4">
