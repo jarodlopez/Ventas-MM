@@ -26,8 +26,6 @@
     .glass-modal { background: rgba(0, 0, 0, 0.5); backdrop-filter: blur(2px); }
     .loader { border: 4px solid #f3f3f3; border-top: 4px solid #3b82f6; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; }
     @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-    
-    /* Clases para el arrastre */
     .dragging { opacity: 0.5; transform: scale(0.98); }
     .drag-over { background-color: rgba(203, 213, 225, 0.8) !important; border: 2px dashed #94a3b8; }
   </style>
@@ -53,6 +51,16 @@
     const auth = firebase.auth();
 
     const PIPELINE_STATUSES = ["Con oferta", "Acepta oferta", "Long track", "Dispersado", "Rechazado", "Cancelado"];
+    
+    // Lista de motivos de pérdida
+    const LOST_REASONS = [
+      "No contesta / Inlocalizable",
+      "Tasa/Condiciones no favorables",
+      "Se fue con la competencia",
+      "No cumple requisitos / Buro",
+      "Cliente se arrepintió",
+      "Otro motivo"
+    ];
 
     const parseDate = (input) => {
       if (!input) return new Date();
@@ -216,7 +224,6 @@
       const [showHistory, setShowHistory] = useState(false);
       const [comment, setComment] = useState('');
       
-      // ESTADO QUE CONTROLA SI SE PUEDE ARRASTRAR
       const [isDraggable, setIsDraggable] = useState(false);
 
       const addComment = (e) => {
@@ -233,8 +240,15 @@
       
       const handleDragEnd = (e) => {
         e.target.classList.remove('dragging');
-        setIsDraggable(false); // Reinicia el estado al soltar
+        setIsDraggable(false); 
       };
+
+      // Color dinámico para la barra lateral
+      const getBorderColor = () => {
+        if(sale.estatus === 'Dispersado') return 'bg-green-500';
+        if(sale.estatus === 'Rechazado' || sale.estatus === 'Cancelado') return 'bg-red-500';
+        return 'bg-blue-500';
+      }
 
       return (
         <div 
@@ -243,12 +257,11 @@
           onDragEnd={handleDragEnd}
           className={`bg-white p-3 rounded-lg shadow-sm border border-slate-200 mb-2 relative group hover:shadow-md transition-all ${isDraggable ? 'cursor-grab' : ''}`}
         >
-          <div className={`absolute left-0 top-0 bottom-0 w-1 rounded-l-lg ${sale.estatus === 'Dispersado' ? 'bg-green-500' : 'bg-blue-500'}`}></div>
+          <div className={`absolute left-0 top-0 bottom-0 w-1 rounded-l-lg ${getBorderColor()}`}></div>
           <div className="pl-2">
             
             <div className="flex justify-between items-start">
               <div className="flex items-center gap-2">
-                {/* ZONA DE AGARRE (GRIP) */}
                 <div 
                   onMouseEnter={() => setIsDraggable(true)}
                   onMouseLeave={() => setIsDraggable(false)}
@@ -257,18 +270,25 @@
                 >
                   <i className="fas fa-grip-vertical text-sm"></i>
                 </div>
-                {/* TEXTO SELECCIONABLE */}
                 <span className="text-xs font-bold text-slate-700 font-mono select-text">{sale.folio}</span>
               </div>
               <button onClick={() => setShowDeleteModal(true)} className="text-slate-300 hover:text-red-500 px-2"><i className="fas fa-trash-alt text-xs"></i></button>
             </div>
             
-            {/* TEXTO SELECCIONABLE */}
             <h3 className="font-bold text-sm text-slate-800 truncate mt-1 select-text">{sale.nombre_cliente}</h3>
             
             <div className="flex justify-between items-end mt-1">
                <div className="flex flex-col"><span className="text-[10px] text-slate-400">Preaprobado</span><span className="font-bold text-slate-600 text-xs">{money(sale.monto_preaprobado)}</span></div>
+               
+               {/* Mostrar Monto Dispersado o Motivo de Pérdida */}
                {sale.estatus === 'Dispersado' && (<div className="flex flex-col text-right"><span className="text-[10px] text-green-600 font-bold">DISPERSADO</span><span className="font-bold text-green-700 text-sm">{money(sale.monto_dispersado)}</span></div>)}
+               
+               {(sale.estatus === 'Rechazado' || sale.estatus === 'Cancelado') && sale.motivo_perdida && (
+                 <div className="flex flex-col text-right">
+                    <span className="text-[10px] text-red-500 font-bold uppercase">Motivo</span>
+                    <span className="font-bold text-red-700 text-[10px] truncate max-w-[100px]" title={sale.motivo_perdida}>{sale.motivo_perdida}</span>
+                 </div>
+               )}
             </div>
             
             <div className="mt-2 flex flex-wrap gap-1 border-t border-slate-100 pt-2 items-center">
@@ -320,10 +340,18 @@
       const [allSales, setAllSales] = useState([]);
       const [metaQuincenal, setMetaQuincenal] = useState(0);
       const [isPlanningOpen, setIsPlanningOpen] = useState(false);
+      
+      // Estado para formulario de creación
       const [showForm, setShowForm] = useState(false);
+      const [formError, setFormError] = useState(''); // NIVEL 2: Error de duplicados
 
+      // Estados para flujos condicionales de estatus
       const [disburseData, setDisburseData] = useState(null); 
       const [realAmount, setRealAmount] = useState('');
+      
+      // NIVEL 2: Estado para Captura de Pérdida
+      const [lostData, setLostData] = useState(null);
+      const [lostReason, setLostReason] = useState(LOST_REASONS[0]);
 
       const periodKey = `${user.uid}_${currentDate.getFullYear()}-${currentDate.getMonth()}-${currentQuincena}`;
 
@@ -358,34 +386,61 @@
 
       const businessData = getBusinessDaysQuincena(currentDate, currentQuincena);
 
+      // --- CREACIÓN CON PREVENCIÓN DE DUPLICADOS ---
       const handleAddSale = async (e) => {
         e.preventDefault();
         const form = e.target;
+        const newFolio = form.folio.value.trim();
+        const newPhone = form.phone.value.trim();
+
+        // 1. Validar Folio Duplicado
+        const isFolioDup = allSales.some(s => s.folio.toLowerCase() === newFolio.toLowerCase());
+        if (isFolioDup) {
+           return setFormError('Error: Este Folio ya existe en tu pipeline.');
+        }
+
+        // 2. Validar Teléfono Duplicado (si lo ingresó)
+        if (newPhone) {
+           const isPhoneDup = allSales.some(s => s.telefono === newPhone);
+           if (isPhoneDup) {
+              return setFormError('Error: Este teléfono ya pertenece a otro cliente.');
+           }
+        }
+
+        setFormError(''); // Limpiar si todo está bien
+
         await db.collection('sales').add({
           userId: user.uid, 
-          folio: form.folio.value, 
+          folio: newFolio, 
           nombre_cliente: form.client.value,
           monto_preaprobado: Number(form.amount.value),
           monto_dispersado: 0,
           estatus: 'Con oferta',
-          telefono: form.phone.value,
+          telefono: newPhone,
           url: form.url.value,
           fecha: new Date().toISOString(), 
           history: [{ date: new Date().toISOString(), action: 'Lead Creado', user: 'Agente' }]
         });
+        
         setShowForm(false);
       };
 
       const handleUpdateSale = (id, data) => db.collection('sales').doc(id).update(data);
       const handleDeleteSale = (id) => db.collection('sales').doc(id).delete();
 
+      // --- MANEJO CONDICIONAL DE ESTATUS (Data Quality) ---
       const processStatusChange = (sale, newStatus) => {
         if (sale.estatus === newStatus) return; 
 
         if (newStatus === 'Dispersado') {
            setRealAmount(sale.monto_preaprobado);
            setDisburseData(sale); 
-        } else {
+        } 
+        else if (newStatus === 'Rechazado' || newStatus === 'Cancelado') {
+           setLostReason(LOST_REASONS[0]); // Reset dropdown
+           setLostData({ sale, newStatus }); // Abre modal de pérdida
+        } 
+        else {
            handleUpdateSale(sale.id, { 
              estatus: newStatus, 
              history: firebase.firestore.FieldValue.arrayUnion({ date: new Date().toISOString(), action: `Estatus: ${newStatus}`, user: 'Agente' }) 
@@ -393,6 +448,7 @@
         }
       };
 
+      // Confirmar Dispersión (Éxito)
       const confirmGlobalDisbursement = () => {
          if(!disburseData) return;
          handleUpdateSale(disburseData.id, { 
@@ -402,6 +458,21 @@
            history: firebase.firestore.FieldValue.arrayUnion({ date: new Date().toISOString(), action: `DISPERSADO: ${money(realAmount)}`, user: 'Agente' }) 
          });
          setDisburseData(null);
+      };
+
+      // Confirmar Pérdida (Rechazado/Cancelado)
+      const confirmLostStatus = () => {
+         if(!lostData) return;
+         handleUpdateSale(lostData.sale.id, {
+            estatus: lostData.newStatus,
+            motivo_perdida: lostReason, // GUARDAR EL DATO CONDICIONAL
+            history: firebase.firestore.FieldValue.arrayUnion({ 
+              date: new Date().toISOString(), 
+              action: `${lostData.newStatus} | Motivo: ${lostReason}`, 
+              user: 'Agente' 
+            })
+         });
+         setLostData(null);
       };
 
       const handleDragOver = (e) => {
@@ -448,7 +519,7 @@
             
             <div className="flex gap-2 items-center">
               <a href="reports.html" className="bg-blue-600 px-3 py-1.5 rounded text-sm font-bold hover:bg-blue-500 shadow-lg text-white"><i className="fas fa-table md:mr-2"></i><span className="hidden md:inline">Reportes</span></a>
-              <button onClick={() => setShowForm(true)} className="bg-green-600 px-3 py-1.5 rounded text-sm font-bold hover:bg-green-500 shadow-lg"><i className="fas fa-plus md:mr-2"></i><span className="hidden md:inline">Lead</span></button>
+              <button onClick={() => {setShowForm(true); setFormError('');}} className="bg-green-600 px-3 py-1.5 rounded text-sm font-bold hover:bg-green-500 shadow-lg"><i className="fas fa-plus md:mr-2"></i><span className="hidden md:inline">Lead</span></button>
               <button onClick={() => auth.signOut()} className="text-slate-400 hover:text-white px-2" title="Cerrar sesión"><i className="fas fa-sign-out-alt"></i></button>
             </div>
           </div>
@@ -483,6 +554,7 @@
              ))}
           </div>
 
+          {/* MODAL 1: Confirmar Dispersión */}
           {disburseData && (
             <div className="fixed inset-0 glass-modal z-50 flex items-center justify-center p-4">
               <div className="bg-white p-5 rounded-lg shadow-xl w-full max-w-sm">
@@ -497,16 +569,49 @@
             </div>
           )}
 
+          {/* MODAL 2: Confirmar Rechazo/Cancelación (Data Quality) */}
+          {lostData && (
+            <div className="fixed inset-0 glass-modal z-50 flex items-center justify-center p-4">
+              <div className="bg-white p-5 rounded-lg shadow-xl w-full max-w-sm border-t-4 border-red-500">
+                <h3 className="font-bold text-lg mb-2 text-red-600">Mover a {lostData.newStatus}</h3>
+                <p className="text-xs text-slate-500 mb-4">Para mantener la base de datos limpia, por favor indica por qué se perdió esta oportunidad.</p>
+                
+                <label className="block text-xs font-bold text-slate-700 mb-1">Motivo Principal:</label>
+                <select 
+                  value={lostReason} 
+                  onChange={(e) => setLostReason(e.target.value)}
+                  className="w-full border-2 border-slate-300 rounded p-2 mb-6 focus:outline-none focus:border-red-500 font-medium"
+                >
+                  {LOST_REASONS.map(r => <option key={r} value={r}>{r}</option>)}
+                </select>
+
+                <div className="flex gap-2">
+                  <button onClick={confirmLostStatus} className="flex-1 bg-red-600 text-white py-2 rounded font-bold hover:bg-red-700 transition-colors">Guardar</button>
+                  <button onClick={() => setLostData(null)} className="flex-1 bg-slate-200 py-2 rounded font-bold hover:bg-slate-300 transition-colors">Cancelar</button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* MODAL CREACIÓN CON PREVENCIÓN DE DUPLICADOS */}
           {showForm && (
             <div className="fixed inset-0 glass-modal z-50 flex items-center justify-center p-4">
               <form onSubmit={handleAddSale} className="bg-white rounded-lg shadow-xl w-full max-w-sm p-5 space-y-4">
-                 <h2 className="font-bold text-lg">Nuevo Lead</h2>
-                 <input name="folio" required placeholder="Número de Folio" className="w-full border p-2 rounded focus:outline-none focus:border-blue-500" />
+                 <h2 className="font-bold text-lg border-b pb-2">Nuevo Lead</h2>
+                 
+                 {/* Alerta de Duplicados */}
+                 {formError && <div className="bg-red-100 text-red-700 p-2 rounded text-xs font-bold border border-red-200"><i className="fas fa-exclamation-circle mr-1"></i>{formError}</div>}
+
+                 <input name="folio" required placeholder="Número de Folio" className="w-full border p-2 rounded focus:outline-none focus:border-blue-500 font-mono" />
                  <input name="client" required placeholder="Nombre Cliente" className="w-full border p-2 rounded focus:outline-none focus:border-blue-500" />
                  <input name="amount" type="number" required placeholder="Monto Preaprobado ($)" className="w-full border p-2 rounded focus:outline-none focus:border-blue-500" />
                  <input name="phone" placeholder="Teléfono" className="w-full border p-2 rounded focus:outline-none focus:border-blue-500" />
                  <input name="url" placeholder="Enlace / Link" className="w-full border p-2 rounded focus:outline-none focus:border-blue-500" />
-                 <div className="flex gap-2 pt-2"><button type="submit" className="flex-1 bg-green-600 text-white py-2 rounded font-bold">Crear</button><button type="button" onClick={() => setShowForm(false)} className="flex-1 bg-slate-200 py-2 rounded font-bold">Cancelar</button></div>
+                 
+                 <div className="flex gap-2 pt-2">
+                    <button type="submit" className="flex-1 bg-blue-600 text-white py-2 rounded font-bold hover:bg-blue-700 transition-colors">Guardar</button>
+                    <button type="button" onClick={() => setShowForm(false)} className="flex-1 bg-slate-200 py-2 rounded font-bold hover:bg-slate-300">Cancelar</button>
+                 </div>
               </form>
             </div>
           )}
