@@ -28,8 +28,6 @@
     @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     
     /* Clases para el arrastre */
-    .draggable-card { cursor: grab; }
-    .draggable-card:active { cursor: grabbing; }
     .dragging { opacity: 0.5; transform: scale(0.98); }
     .drag-over { background-color: rgba(203, 213, 225, 0.8) !important; border: 2px dashed #94a3b8; }
   </style>
@@ -212,12 +210,14 @@
       );
     };
 
-    // --- TARJETA AHORA ES DRAGGABLE ---
     const SaleCard = ({ sale, updateSale, deleteSale, onStatusChange }) => {
       const [showDeleteModal, setShowDeleteModal] = useState(false);
       const [pin, setPin] = useState('');
       const [showHistory, setShowHistory] = useState(false);
       const [comment, setComment] = useState('');
+      
+      // ESTADO QUE CONTROLA SI SE PUEDE ARRASTRAR
+      const [isDraggable, setIsDraggable] = useState(false);
 
       const addComment = (e) => {
         e.preventDefault();
@@ -226,7 +226,6 @@
         setComment('');
       };
 
-      // Funciones para el Drag & Drop
       const handleDragStart = (e) => {
         e.dataTransfer.setData('saleId', sale.id);
         setTimeout(() => e.target.classList.add('dragging'), 0);
@@ -234,22 +233,38 @@
       
       const handleDragEnd = (e) => {
         e.target.classList.remove('dragging');
+        setIsDraggable(false); // Reinicia el estado al soltar
       };
 
       return (
         <div 
-          draggable="true"
+          draggable={isDraggable}
           onDragStart={handleDragStart}
           onDragEnd={handleDragEnd}
-          className="bg-white p-3 rounded-lg shadow-sm border border-slate-200 mb-2 relative group hover:shadow-md transition-all draggable-card"
+          className={`bg-white p-3 rounded-lg shadow-sm border border-slate-200 mb-2 relative group hover:shadow-md transition-all ${isDraggable ? 'cursor-grab' : ''}`}
         >
           <div className={`absolute left-0 top-0 bottom-0 w-1 rounded-l-lg ${sale.estatus === 'Dispersado' ? 'bg-green-500' : 'bg-blue-500'}`}></div>
           <div className="pl-2">
+            
             <div className="flex justify-between items-start">
-              <span className="text-xs font-bold text-slate-700 font-mono">{sale.folio}</span>
+              <div className="flex items-center gap-2">
+                {/* ZONA DE AGARRE (GRIP) */}
+                <div 
+                  onMouseEnter={() => setIsDraggable(true)}
+                  onMouseLeave={() => setIsDraggable(false)}
+                  className="text-slate-300 hover:text-blue-500 cursor-grab px-1"
+                  title="Arrastrar tarjeta"
+                >
+                  <i className="fas fa-grip-vertical text-sm"></i>
+                </div>
+                {/* TEXTO SELECCIONABLE */}
+                <span className="text-xs font-bold text-slate-700 font-mono select-text">{sale.folio}</span>
+              </div>
               <button onClick={() => setShowDeleteModal(true)} className="text-slate-300 hover:text-red-500 px-2"><i className="fas fa-trash-alt text-xs"></i></button>
             </div>
-            <h3 className="font-bold text-sm text-slate-800 truncate">{sale.nombre_cliente}</h3>
+            
+            {/* TEXTO SELECCIONABLE */}
+            <h3 className="font-bold text-sm text-slate-800 truncate mt-1 select-text">{sale.nombre_cliente}</h3>
             
             <div className="flex justify-between items-end mt-1">
                <div className="flex flex-col"><span className="text-[10px] text-slate-400">Preaprobado</span><span className="font-bold text-slate-600 text-xs">{money(sale.monto_preaprobado)}</span></div>
@@ -258,7 +273,7 @@
             
             <div className="mt-2 flex flex-wrap gap-1 border-t border-slate-100 pt-2 items-center">
                {sale.telefono && (
-                 <span className="px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100 text-slate-500 text-[10px] flex items-center font-medium">
+                 <span className="px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100 text-slate-500 text-[10px] flex items-center font-medium select-text">
                    <i className="fas fa-phone mr-1"></i> {sale.telefono}
                  </span>
                )}
@@ -270,7 +285,7 @@
               <div className="bg-slate-50 p-2 mt-2 rounded text-[10px]">
                  <div className="max-h-24 overflow-y-auto pr-1">
                    {sale.history && sale.history.slice().reverse().map((h, i) => (
-                     <div key={i} className="border-b border-slate-200 pb-1 mb-1"><span className="font-bold text-slate-500 block">{formatDate(h.date)}</span><span className="break-words">{h.action}</span></div>
+                     <div key={i} className="border-b border-slate-200 pb-1 mb-1"><span className="font-bold text-slate-500 block">{formatDate(h.date)}</span><span className="break-words select-text">{h.action}</span></div>
                    ))}
                  </div>
                  <form onSubmit={addComment} className="flex gap-1 mt-2 border-t border-slate-200 pt-2">
@@ -280,7 +295,6 @@
               </div>
             )}
             
-            {/* El selector sigue funcionando, pero ahora llama a la función global */}
             <select value={sale.estatus} onChange={(e) => onStatusChange(sale, e.target.value)} className="mt-2 w-full text-xs bg-slate-50 border border-slate-200 rounded p-1 outline-none focus:border-blue-500 cursor-pointer">
                {PIPELINE_STATUSES.map(s => (<option key={s} value={s}>{s}</option>))}
             </select>
@@ -288,7 +302,7 @@
 
           {showDeleteModal && (
             <div className="fixed inset-0 glass-modal z-50 flex items-center justify-center p-4">
-              <div className="bg-white p-5 rounded-lg shadow-xl w-full max-w-sm border-2 border-red-100">
+              <div className="bg-white p-5 rounded-lg shadow-xl w-full max-w-sm border-2 border-red-100 cursor-default">
                 <h3 className="font-bold text-lg mb-2 text-red-600">Eliminar Registro</h3>
                 <input type="password" placeholder="PIN" value={pin} onChange={(e) => setPin(e.target.value)} className="w-full border p-2 rounded mb-2 text-center" />
                 <div className="flex gap-2"><button onClick={() => { if(pin === '2398') deleteSale(sale.id); }} className="flex-1 bg-red-600 text-white py-2 rounded font-bold">ELIMINAR</button><button onClick={() => {setShowDeleteModal(false); setPin('');}} className="flex-1 bg-slate-200 py-2 rounded font-bold">Cancelar</button></div>
@@ -308,8 +322,7 @@
       const [isPlanningOpen, setIsPlanningOpen] = useState(false);
       const [showForm, setShowForm] = useState(false);
 
-      // Estado global para el modal de dispersión
-      const [disburseData, setDisburseData] = useState(null); // Contiene toda la info de la tarjeta
+      const [disburseData, setDisburseData] = useState(null); 
       const [realAmount, setRealAmount] = useState('');
 
       const periodKey = `${user.uid}_${currentDate.getFullYear()}-${currentDate.getMonth()}-${currentQuincena}`;
@@ -366,13 +379,12 @@
       const handleUpdateSale = (id, data) => db.collection('sales').doc(id).update(data);
       const handleDeleteSale = (id) => db.collection('sales').doc(id).delete();
 
-      // Función Central para manejar cambios de estado (Por Select o Drag&Drop)
       const processStatusChange = (sale, newStatus) => {
-        if (sale.estatus === newStatus) return; // Evitar llamadas innecesarias
+        if (sale.estatus === newStatus) return; 
 
         if (newStatus === 'Dispersado') {
            setRealAmount(sale.monto_preaprobado);
-           setDisburseData(sale); // Abre el modal global
+           setDisburseData(sale); 
         } else {
            handleUpdateSale(sale.id, { 
              estatus: newStatus, 
@@ -392,9 +404,8 @@
          setDisburseData(null);
       };
 
-      // Eventos de la columna para soltar la tarjeta
       const handleDragOver = (e) => {
-        e.preventDefault(); // Necesario para permitir el "drop"
+        e.preventDefault(); 
         e.currentTarget.classList.add('drag-over');
       };
       
@@ -472,7 +483,6 @@
              ))}
           </div>
 
-          {/* Modal Central para Dispersión */}
           {disburseData && (
             <div className="fixed inset-0 glass-modal z-50 flex items-center justify-center p-4">
               <div className="bg-white p-5 rounded-lg shadow-xl w-full max-w-sm">
