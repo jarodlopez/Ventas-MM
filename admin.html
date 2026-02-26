@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CRM - Panel de Supervisor</title>
+  
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+
+  <style>
+    body { font-family: 'Inter', system-ui, sans-serif; }
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: #f1f1f1; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+    .loader { border: 4px solid #f3f3f3; border-top: 4px solid #8b5cf6; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-900 h-screen flex flex-col overflow-hidden">
+  
+  <div id="root" class="h-full flex flex-col"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useMemo } = React;
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyAAETou6DhYIJJ8cxI13BU1p_l3yGPMilA",
+      authDomain: "ventas-ebd49.firebaseapp.com",
+      projectId: "ventas-ebd49",
+      storageBucket: "ventas-ebd49.firebasestorage.app",
+      messagingSenderId: "907042495792",
+      appId: "1:907042495792:web:6827da0b73333496f6bcf5"
+    };
+    
+    if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+    const auth = firebase.auth();
+
+    const parseDate = (input) => {
+      if (!input) return new Date();
+      if (input.toDate) return input.toDate();
+      return new Date(input);
+    };
+
+    const money = (val) => new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 }).format(val);
+    const formatDate = (input) => new Intl.DateTimeFormat('es-MX', { day: '2-digit', month: 'short', year: 'numeric' }).format(parseDate(input));
+
+    const AdminDashboard = ({ user }) => {
+      const [allSales, setAllSales] = useState([]);
+      const [loading, setLoading] = useState(true);
+      const [isAdmin, setIsAdmin] = useState(true); // Asumimos true hasta que Firebase diga lo contrario
+
+      useEffect(() => {
+        // Al NO poner '.where', pedimos TODOS los datos globales.
+        // Si el usuario no es admin en Firestore, esto lanzará un error de permisos.
+        const unsub = db.collection('sales')
+          .orderBy('fecha', 'desc')
+          .onSnapshot(
+            snap => {
+               const docs = snap.docs.map(d => ({id: d.id, ...d.data()}));
+               setAllSales(docs);
+               setLoading(false);
+            },
+            error => {
+               console.error("Error de permisos:", error);
+               setIsAdmin(false);
+               setLoading(false);
+            }
+          );
+        return () => unsub();
+      }, []);
+
+      // Agrupar ventas por agente (Leaderboard)
+      const agentStats = useMemo(() => {
+        const stats = {};
+        allSales.forEach(sale => {
+           // Usamos el email si existe (lo añadiremos en el futuro), si no, mostramos el ID acortado
+           const agentKey = sale.agentEmail || sale.userId; 
+           
+           if(!stats[agentKey]) {
+              stats[agentKey] = { leads: 0, dispersado: 0, pipeline: 0, perdidos: 0, id: sale.userId };
+           }
+           
+           stats[agentKey].leads += 1;
+           
+           if(sale.estatus === 'Dispersado') {
+              stats[agentKey].dispersado += (Number(sale.monto_dispersado) || 0);
+           } else if (sale.estatus === 'Rechazado' || sale.estatus === 'Cancelado') {
+              stats[agentKey].perdidos += 1;
+           } else {
+              stats[agentKey].pipeline += (Number(sale.monto_preaprobado) || 0);
+           }
+        });
+        // Convertir a array y ordenar por mayor monto dispersado
+        return Object.entries(stats).map(([email, data]) => ({email, ...data})).sort((a,b) => b.dispersado - a.dispersado);
+      }, [allSales]);
+
+      // KPIs Globales
+      const totalGlobalDispersed = allSales.filter(s => s.estatus === 'Dispersado').reduce((acc, s) => acc + (Number(s.monto_dispersado) || 0), 0);
+      const totalGlobalPipeline = allSales.filter(s => !['Dispersado','Rechazado','Cancelado'].includes(s.estatus)).reduce((acc, s) => acc + (Number(s.monto_preaprobado) || 0), 0);
+      const totalActiveLeads = allSales.filter(s => !['Dispersado','Rechazado','Cancelado'].includes(s.estatus)).length;
+
+      if (!isAdmin) {
+         return (
+            <div className="h-screen flex flex-col items-center justify-center bg-slate-900 text-white p-6 text-center">
+               <i className="fas fa-lock text-6xl text-red-500 mb-4"></i>
+               <h1 className="text-3xl font-bold mb-2">Acceso Denegado</h1>
+               <p className="text-slate-400 max-w-md">No tienes los privilegios de Supervisor. Tu cuenta no está registrada en la base de datos de administradores.</p>
+               <button onClick={() => window.location.replace("index.html")} className="mt-6 bg-blue-600 px-6 py-2 rounded font-bold hover:bg-blue-700">Volver a mi Tablero</button>
+            </div>
+         );
+      }
+
+      if (loading) return <div className="h-screen flex justify-center items-center font-bold text-slate-400 bg-slate-900"><div className="loader mr-4"></div> Cargando datos globales...</div>;
+
+      return (
+        <div className="flex flex-col h-full bg-slate-50">
+          
+          {/* Header */}
+          <div className="bg-purple-900 text-white p-4 flex justify-between items-center shadow z-10 shrink-0">
+            <div className="flex items-center gap-3">
+              <i className="fas fa-crown text-yellow-400 text-2xl"></i>
+              <div>
+                 <h1 className="font-bold text-xl leading-none">Global Control</h1>
+                 <span className="text-xs text-purple-300">Modo Supervisor Activo</span>
+              </div>
+            </div>
+            <div className="flex gap-3">
+               <button onClick={() => window.print()} className="bg-purple-700 hover:bg-purple-600 px-4 py-2 rounded text-sm font-bold flex items-center transition-colors shadow-lg">
+                 <i className="fas fa-print mr-2"></i>Imprimir
+               </button>
+               <button onClick={() => window.location.replace("index.html")} className="bg-slate-800 hover:bg-slate-700 px-4 py-2 rounded text-sm font-bold flex items-center transition-colors shadow-lg">
+                 <i className="fas fa-arrow-left mr-2"></i>Ir a mi Tablero
+               </button>
+            </div>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-6 max-w-7xl mx-auto w-full">
+            
+            {/* KPIs */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 shrink-0">
+               <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm border-l-4 border-l-green-500">
+                  <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Empresa: Total Dispersado</p>
+                  <p className="text-3xl font-black text-green-600">{money(totalGlobalDispersed)}</p>
+               </div>
+               <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm border-l-4 border-l-blue-500">
+                  <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Empresa: Pipeline Activo</p>
+                  <p className="text-3xl font-black text-blue-600">{money(totalGlobalPipeline)}</p>
+               </div>
+               <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm border-l-4 border-l-purple-500">
+                  <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Total Leads Activos</p>
+                  <p className="text-3xl font-black text-purple-700">{totalActiveLeads} prospectos</p>
+               </div>
+            </div>
+
+            {/* Leaderboard de Agentes */}
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm shrink-0 overflow-hidden">
+               <div className="p-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+                  <h2 className="font-bold text-slate-700"><i className="fas fa-users mr-2 text-purple-500"></i>Rendimiento por Agente</h2>
+               </div>
+               <div className="overflow-x-auto">
+                 <table className="w-full text-left border-collapse">
+                   <thead className="bg-white">
+                     <tr>
+                       <th className="py-3 px-4 text-xs font-bold text-slate-500 uppercase border-b">ID Agente</th>
+                       <th className="py-3 px-4 text-xs font-bold text-slate-500 uppercase border-b text-center">Total Leads</th>
+                       <th className="py-3 px-4 text-xs font-bold text-slate-500 uppercase border-b text-center">Perdidos</th>
+                       <th className="py-3 px-4 text-xs font-bold text-slate-500 uppercase border-b text-right">Pipeline (Vivo)</th>
+                       <th className="py-3 px-4 text-xs font-bold text-slate-500 uppercase border-b text-right">Dispersado</th>
+                     </tr>
+                   </thead>
+                   <tbody className="divide-y divide-slate-100">
+                     {agentStats.map((agent, index) => (
+                       <tr key={index} className="hover:bg-slate-50 transition-colors">
+                         <td className="py-3 px-4 font-mono text-xs font-bold text-purple-700">
+                           {agent.email.substring(0, 15)}...
+                         </td>
+                         <td className="py-3 px-4 text-center font-bold text-slate-600">{agent.leads}</td>
+                         <td className="py-3 px-4 text-center font-bold text-red-500">{agent.perdidos}</td>
+                         <td className="py-3 px-4 text-right font-bold text-blue-600">{money(agent.pipeline)}</td>
+                         <td className="py-3 px-4 text-right font-bold text-green-600">{money(agent.dispersado)}</td>
+                       </tr>
+                     ))}
+                     {agentStats.length === 0 && <tr><td colSpan="5" className="py-4 text-center text-slate-400">No hay datos de agentes.</td></tr>}
+                   </tbody>
+                 </table>
+               </div>
+            </div>
+
+            {/* Data Master Table */}
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm flex-1 flex flex-col min-h-[400px]">
+               <div className="p-4 border-b border-slate-200 bg-slate-50">
+                  <h2 className="font-bold text-slate-700"><i className="fas fa-database mr-2 text-slate-500"></i>Base de Datos Global (Leads)</h2>
+               </div>
+               <div className="overflow-auto flex-1">
+                 <table className="w-full text-left border-collapse min-w-max">
+                   <thead className="bg-white sticky top-0 z-10 shadow-sm">
+                     <tr>
+                       <th className="py-3 px-4 text-xs font-bold text-slate-500 uppercase">Fecha / Folio</th>
+                       <th className="py-3 px-4 text-xs font-bold text-slate-500 uppercase">Cliente</th>
+                       <th className="py-3 px-4 text-xs font-bold text-slate-500 uppercase">Agente (UID)</th>
+                       <th className="py-3 px-4 text-xs font-bold text-slate-500 uppercase">Estatus</th>
+                       <th className="py-3 px-4 text-xs font-bold text-slate-500 uppercase text-right">Preaprobado</th>
+                     </tr>
+                   </thead>
+                   <tbody className="divide-y divide-slate-200">
+                     {allSales.map(sale => (
+                       <tr key={sale.id} className="hover:bg-slate-50 transition-colors">
+                         <td className="py-3 px-4">
+                           <div className="font-mono text-xs font-bold text-slate-700">{sale.folio}</div>
+                           <div className="text-[10px] text-slate-400">{formatDate(sale.fecha)}</div>
+                         </td>
+                         <td className="py-3 px-4">
+                           <div className="font-bold text-sm text-slate-800">{sale.nombre_cliente}</div>
+                         </td>
+                         <td className="py-3 px-4">
+                           <span className="text-[10px] bg-slate-200 text-slate-600 px-2 py-1 rounded font-mono">
+                             {(sale.agentEmail || sale.userId).substring(0, 10)}...
+                           </span>
+                         </td>
+                         <td className="py-3 px-4">
+                           <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase ${sale.estatus === 'Dispersado' ? 'bg-green-100 text-green-700' : sale.estatus === 'Rechazado' || sale.estatus === 'Cancelado' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'}`}>
+                             {sale.estatus}
+                           </span>
+                         </td>
+                         <td className="py-3 px-4 text-right font-bold text-sm text-slate-600">
+                           {money(sale.monto_preaprobado)}
+                         </td>
+                       </tr>
+                     ))}
+                   </tbody>
+                 </table>
+               </div>
+            </div>
+
+          </div>
+        </div>
+      );
+    };
+
+    const MainWrapper = () => {
+      const [user, setUser] = useState(null);
+      const [loadingAuth, setLoadingAuth] = useState(true);
+
+      useEffect(() => {
+        return auth.onAuthStateChanged((u) => {
+          if (!u) window.location.replace("index.html");
+          else { setUser(u); setLoadingAuth(false); }
+        });
+      }, []);
+
+      if (loadingAuth) return <div className="h-screen bg-slate-900 flex justify-center items-center text-white font-bold"><div className="loader mr-4"></div>Verificando seguridad...</div>;
+      
+      return <AdminDashboard user={user} />;
+    };
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<MainWrapper />);
+  </script>
+</body>
+</html>
+
