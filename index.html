@@ -51,8 +51,8 @@
     const auth = firebase.auth();
 
     const PIPELINE_STATUSES = ["Con oferta", "Acepta oferta", "Long track", "Dispersado", "Rechazado", "Cancelado"];
+    const FINAL_STATUSES = ["Dispersado", "Rechazado", "Cancelado"];
     
-    // Lista de motivos de pérdida
     const LOST_REASONS = [
       "No contesta / Inlocalizable",
       "Tasa/Condiciones no favorables",
@@ -122,21 +122,16 @@
             <i className="fas fa-chart-line text-5xl text-blue-600 mb-4"></i>
             <h1 className="text-2xl font-black mb-1">CRM Ventas</h1>
             <p className="text-sm text-slate-500 mb-6">{isRegistering ? 'Crear cuenta' : 'Ingreso Agentes'}</p>
-
             {error && <div className="w-full bg-red-100 text-red-600 p-2 rounded text-xs font-bold text-center mb-4">{error}</div>}
-
             <form onSubmit={handleEmailAuth} className="w-full flex flex-col gap-3 mb-6">
               <input type="email" placeholder="Correo" required value={email} onChange={e => setEmail(e.target.value)} className="w-full border p-2 rounded focus:outline-none focus:border-blue-500" />
               <input type="password" placeholder="Contraseña" required value={password} onChange={e => setPassword(e.target.value)} className="w-full border p-2 rounded focus:outline-none focus:border-blue-500" />
               <button type="submit" className="w-full bg-blue-600 text-white font-bold p-2 rounded hover:bg-blue-700 mt-1">{isRegistering ? 'Registrarse' : 'Iniciar Sesión'}</button>
             </form>
-
             <div className="w-full flex items-center gap-2 mb-6"><div className="h-px bg-slate-200 flex-1"></div><span className="text-xs text-slate-400 font-bold uppercase">O entra con</span><div className="h-px bg-slate-200 flex-1"></div></div>
-
             <button onClick={handleGoogleLogin} className="w-full bg-slate-50 border border-slate-200 text-slate-700 p-2 rounded font-bold hover:bg-slate-100 flex items-center justify-center gap-2">
               <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" className="w-5 h-5" /> Google
             </button>
-
             <button onClick={() => { setIsRegistering(!isRegistering); setError(''); }} className="mt-6 text-sm text-blue-600 hover:underline">{isRegistering ? '¿Ya tienes cuenta? Inicia sesión' : '¿No tienes cuenta? Regístrate'}</button>
           </div>
         </div>
@@ -145,11 +140,8 @@
 
     const PlanningModal = ({ isOpen, onClose, meta, setMeta, businessData, year, month, quincena }) => {
       const [localMeta, setLocalMeta] = useState(meta || 0);
-
       useEffect(() => { setLocalMeta(meta || 0); }, [meta, isOpen]);
-
       const handleSaveMeta = () => { if(Number(localMeta) !== meta) setMeta(Number(localMeta)); };
-
       if (!isOpen) return null;
 
       const dailyGoal = businessData.totalBusinessDays > 0 ? localMeta / businessData.totalBusinessDays : 0;
@@ -174,7 +166,7 @@
             </div>
             <div className="p-4 bg-blue-50 border-b flex gap-2 items-center">
                <label className="font-bold text-sm text-blue-900">Meta Quincenal ($):</label>
-               <input type="number" value={localMeta} onChange={(e) => setLocalMeta(e.target.value)} onBlur={handleSaveMeta} onKeyDown={(e) => { if(e.key === 'Enter') e.target.blur(); }} className="border-2 border-blue-200 rounded px-2 py-1 font-bold w-36 text-blue-900 focus:outline-none focus:border-blue-500" />
+               <input type="number" value={localMeta} onChange={(e) => setLocalMeta(e.target.value)} onBlur={handleSaveMeta} className="border-2 border-blue-200 rounded px-2 py-1 font-bold w-36 text-blue-900 focus:outline-none focus:border-blue-500" />
             </div>
             <div className="flex-1 overflow-y-auto p-2">
               <table className="w-full text-sm">
@@ -218,12 +210,11 @@
       );
     };
 
-    const SaleCard = ({ sale, updateSale, deleteSale, onStatusChange }) => {
+    const SaleCard = ({ sale, updateSale, deleteSale, onStatusChange, isCarryOver }) => {
       const [showDeleteModal, setShowDeleteModal] = useState(false);
       const [pin, setPin] = useState('');
       const [showHistory, setShowHistory] = useState(false);
       const [comment, setComment] = useState('');
-      
       const [isDraggable, setIsDraggable] = useState(false);
 
       const addComment = (e) => {
@@ -243,11 +234,10 @@
         setIsDraggable(false); 
       };
 
-      // Color dinámico para la barra lateral
       const getBorderColor = () => {
         if(sale.estatus === 'Dispersado') return 'bg-green-500';
         if(sale.estatus === 'Rechazado' || sale.estatus === 'Cancelado') return 'bg-red-500';
-        return 'bg-blue-500';
+        return isCarryOver ? 'bg-orange-400' : 'bg-blue-500';
       }
 
       return (
@@ -259,18 +249,17 @@
         >
           <div className={`absolute left-0 top-0 bottom-0 w-1 rounded-l-lg ${getBorderColor()}`}></div>
           <div className="pl-2">
-            
             <div className="flex justify-between items-start">
               <div className="flex items-center gap-2">
-                <div 
-                  onMouseEnter={() => setIsDraggable(true)}
-                  onMouseLeave={() => setIsDraggable(false)}
-                  className="text-slate-300 hover:text-blue-500 cursor-grab px-1"
-                  title="Arrastrar tarjeta"
-                >
+                <div onMouseEnter={() => setIsDraggable(true)} onMouseLeave={() => setIsDraggable(false)} className="text-slate-300 hover:text-blue-500 cursor-grab px-1">
                   <i className="fas fa-grip-vertical text-sm"></i>
                 </div>
-                <span className="text-xs font-bold text-slate-700 font-mono select-text">{sale.folio}</span>
+                <div className="flex flex-col">
+                  <span className="text-xs font-bold text-slate-700 font-mono select-text">{sale.folio}</span>
+                  {isCarryOver && !FINAL_STATUSES.includes(sale.estatus) && (
+                    <span className="text-[9px] font-black text-orange-600 uppercase tracking-tighter"><i className="fas fa-clock mr-0.5"></i> Carry Over</span>
+                  )}
+                </div>
               </div>
               <button onClick={() => setShowDeleteModal(true)} className="text-slate-300 hover:text-red-500 px-2"><i className="fas fa-trash-alt text-xs"></i></button>
             </div>
@@ -279,10 +268,7 @@
             
             <div className="flex justify-between items-end mt-1">
                <div className="flex flex-col"><span className="text-[10px] text-slate-400">Preaprobado</span><span className="font-bold text-slate-600 text-xs">{money(sale.monto_preaprobado)}</span></div>
-               
-               {/* Mostrar Monto Dispersado o Motivo de Pérdida */}
                {sale.estatus === 'Dispersado' && (<div className="flex flex-col text-right"><span className="text-[10px] text-green-600 font-bold">DISPERSADO</span><span className="font-bold text-green-700 text-sm">{money(sale.monto_dispersado)}</span></div>)}
-               
                {(sale.estatus === 'Rechazado' || sale.estatus === 'Cancelado') && sale.motivo_perdida && (
                  <div className="flex flex-col text-right">
                     <span className="text-[10px] text-red-500 font-bold uppercase">Motivo</span>
@@ -336,20 +322,13 @@
     const App = ({ user }) => {
       const [currentDate, setCurrentDate] = useState(new Date());
       const [currentQuincena, setCurrentQuincena] = useState(new Date().getDate() <= 15 ? 1 : 2);
-      
       const [allSales, setAllSales] = useState([]);
       const [metaQuincenal, setMetaQuincenal] = useState(0);
       const [isPlanningOpen, setIsPlanningOpen] = useState(false);
-      
-      // Estado para formulario de creación
       const [showForm, setShowForm] = useState(false);
-      const [formError, setFormError] = useState(''); // NIVEL 2: Error de duplicados
-
-      // Estados para flujos condicionales de estatus
+      const [formError, setFormError] = useState('');
       const [disburseData, setDisburseData] = useState(null); 
       const [realAmount, setRealAmount] = useState('');
-      
-      // NIVEL 2: Estado para Captura de Pérdida
       const [lostData, setLostData] = useState(null);
       const [lostReason, setLostReason] = useState(LOST_REASONS[0]);
 
@@ -377,38 +356,34 @@
       const saveMeta = (amount) => db.collection('metas').doc(periodKey).set({ monto: amount, userId: user.uid }, { merge: true });
 
       const filteredSales = useMemo(() => {
+        const now = new Date(currentDate.getFullYear(), currentDate.getMonth(), currentQuincena === 1 ? 15 : 31);
+        
         return allSales.filter(sale => {
           if(!sale.fecha) return false;
           const d = parseDate(sale.fecha);
-          return d.getMonth() === currentDate.getMonth() && d.getFullYear() === currentDate.getFullYear() && getQuincena(d) === currentQuincena;
+          const isSamePeriod = d.getMonth() === currentDate.getMonth() && d.getFullYear() === currentDate.getFullYear() && getQuincena(d) === currentQuincena;
+          
+          // LÓGICA CARRY OVER: 
+          // Si el lead es de un periodo ANTERIOR al actual y NO está en estatus final, debe aparecer.
+          const isPastLead = d < new Date(currentDate.getFullYear(), currentDate.getMonth(), currentQuincena === 1 ? 1 : 16);
+          const isNotFinished = !FINAL_STATUSES.includes(sale.estatus);
+          
+          return isSamePeriod || (isPastLead && isNotFinished);
         });
       }, [allSales, currentDate, currentQuincena]);
 
       const businessData = getBusinessDaysQuincena(currentDate, currentQuincena);
 
-      // --- CREACIÓN CON PREVENCIÓN DE DUPLICADOS ---
       const handleAddSale = async (e) => {
         e.preventDefault();
         const form = e.target;
         const newFolio = form.folio.value.trim();
         const newPhone = form.phone.value.trim();
-
-        // 1. Validar Folio Duplicado
         const isFolioDup = allSales.some(s => s.folio.toLowerCase() === newFolio.toLowerCase());
-        if (isFolioDup) {
-           return setFormError('Error: Este Folio ya existe en tu pipeline.');
-        }
+        if (isFolioDup) return setFormError('Error: Este Folio ya existe.');
+        if (newPhone && allSales.some(s => s.telefono === newPhone)) return setFormError('Error: Este teléfono ya existe.');
 
-        // 2. Validar Teléfono Duplicado (si lo ingresó)
-        if (newPhone) {
-           const isPhoneDup = allSales.some(s => s.telefono === newPhone);
-           if (isPhoneDup) {
-              return setFormError('Error: Este teléfono ya pertenece a otro cliente.');
-           }
-        }
-
-        setFormError(''); // Limpiar si todo está bien
-
+        setFormError('');
         await db.collection('sales').add({
           userId: user.uid, 
           folio: newFolio, 
@@ -421,24 +396,21 @@
           fecha: new Date().toISOString(), 
           history: [{ date: new Date().toISOString(), action: 'Lead Creado', user: 'Agente' }]
         });
-        
         setShowForm(false);
       };
 
       const handleUpdateSale = (id, data) => db.collection('sales').doc(id).update(data);
       const handleDeleteSale = (id) => db.collection('sales').doc(id).delete();
 
-      // --- MANEJO CONDICIONAL DE ESTATUS (Data Quality) ---
       const processStatusChange = (sale, newStatus) => {
         if (sale.estatus === newStatus) return; 
-
         if (newStatus === 'Dispersado') {
            setRealAmount(sale.monto_preaprobado);
            setDisburseData(sale); 
         } 
         else if (newStatus === 'Rechazado' || newStatus === 'Cancelado') {
-           setLostReason(LOST_REASONS[0]); // Reset dropdown
-           setLostData({ sale, newStatus }); // Abre modal de pérdida
+           setLostReason(LOST_REASONS[0]);
+           setLostData({ sale, newStatus });
         } 
         else {
            handleUpdateSale(sale.id, { 
@@ -448,7 +420,6 @@
         }
       };
 
-      // Confirmar Dispersión (Éxito)
       const confirmGlobalDisbursement = () => {
          if(!disburseData) return;
          handleUpdateSale(disburseData.id, { 
@@ -460,43 +431,35 @@
          setDisburseData(null);
       };
 
-      // Confirmar Pérdida (Rechazado/Cancelado)
       const confirmLostStatus = () => {
          if(!lostData) return;
          handleUpdateSale(lostData.sale.id, {
             estatus: lostData.newStatus,
-            motivo_perdida: lostReason, // GUARDAR EL DATO CONDICIONAL
-            history: firebase.firestore.FieldValue.arrayUnion({ 
-              date: new Date().toISOString(), 
-              action: `${lostData.newStatus} | Motivo: ${lostReason}`, 
-              user: 'Agente' 
-            })
+            motivo_perdida: lostReason,
+            history: firebase.firestore.FieldValue.arrayUnion({ date: new Date().toISOString(), action: `${lostData.newStatus} | Motivo: ${lostReason}`, user: 'Agente' })
          });
          setLostData(null);
       };
 
-      const handleDragOver = (e) => {
-        e.preventDefault(); 
-        e.currentTarget.classList.add('drag-over');
-      };
-      
-      const handleDragLeave = (e) => {
-        e.currentTarget.classList.remove('drag-over');
-      };
-
+      const handleDragOver = (e) => { e.preventDefault(); e.currentTarget.classList.add('drag-over'); };
+      const handleDragLeave = (e) => { e.currentTarget.classList.remove('drag-over'); };
       const handleDrop = (e, targetStatus) => {
         e.preventDefault();
         e.currentTarget.classList.remove('drag-over');
         const saleId = e.dataTransfer.getData('saleId');
         const sale = allSales.find(s => s.id === saleId);
-        if(sale) {
-           processStatusChange(sale, targetStatus);
-        }
+        if(sale) processStatusChange(sale, targetStatus);
       };
 
       const changePeriod = (dir) => {
-        if(dir === 1) { if(currentQuincena === 1) setCurrentQuincena(2); else { setCurrentQuincena(1); setCurrentDate(new Date(currentDate.setMonth(currentDate.getMonth() + 1))); } } 
-        else { if(currentQuincena === 2) setCurrentQuincena(1); else { setCurrentQuincena(2); setCurrentDate(new Date(currentDate.setMonth(currentDate.getMonth() - 1))); } }
+        let newDate = new Date(currentDate);
+        if(dir === 1) { 
+          if(currentQuincena === 1) setCurrentQuincena(2); 
+          else { setCurrentQuincena(1); newDate.setMonth(newDate.getMonth() + 1); setCurrentDate(newDate); } 
+        } else { 
+          if(currentQuincena === 2) setCurrentQuincena(1); 
+          else { setCurrentQuincena(2); newDate.setMonth(newDate.getMonth() - 1); setCurrentDate(newDate); } 
+        }
       };
 
       return (
@@ -520,7 +483,7 @@
             <div className="flex gap-2 items-center">
               <a href="reports.html" className="bg-blue-600 px-3 py-1.5 rounded text-sm font-bold hover:bg-blue-500 shadow-lg text-white"><i className="fas fa-table md:mr-2"></i><span className="hidden md:inline">Reportes</span></a>
               <button onClick={() => {setShowForm(true); setFormError('');}} className="bg-green-600 px-3 py-1.5 rounded text-sm font-bold hover:bg-green-500 shadow-lg"><i className="fas fa-plus md:mr-2"></i><span className="hidden md:inline">Lead</span></button>
-              <button onClick={() => auth.signOut()} className="text-slate-400 hover:text-white px-2" title="Cerrar sesión"><i className="fas fa-sign-out-alt"></i></button>
+              <button onClick={() => auth.signOut()} className="text-slate-400 hover:text-white px-2"><i className="fas fa-sign-out-alt"></i></button>
             </div>
           </div>
 
@@ -528,89 +491,67 @@
 
           <div className="flex-1 overflow-x-auto p-4 flex gap-4 pipeline-scroll items-start">
              {PIPELINE_STATUSES.map(status => (
-               <div 
-                 key={status} 
-                 onDragOver={handleDragOver}
-                 onDragLeave={handleDragLeave}
-                 onDrop={(e) => handleDrop(e, status)}
-                 className="min-w-[280px] w-[280px] flex flex-col h-full bg-slate-200/60 rounded-xl pipeline-col border border-transparent transition-colors duration-200"
-               >
+               <div key={status} onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={(e) => handleDrop(e, status)}
+                 className="min-w-[280px] w-[280px] flex flex-col h-full bg-slate-200/60 rounded-xl pipeline-col border border-transparent transition-colors duration-200">
                  <div className="p-3 font-bold text-slate-600 text-sm flex justify-between bg-slate-100 rounded-t-xl border border-slate-300 border-b-0">
                    {status}
                    <span className="bg-white px-2 rounded-full text-xs shadow-sm">{filteredSales.filter(s => s.estatus === status).length}</span>
                  </div>
                  <div className="flex-1 overflow-y-auto p-2 border border-slate-300 border-t-0 rounded-b-xl pb-20">
-                   {filteredSales.filter(s => s.estatus === status).map(sale => (
-                     <SaleCard 
-                       key={sale.id} 
-                       sale={sale} 
-                       updateSale={handleUpdateSale} 
-                       deleteSale={handleDeleteSale} 
-                       onStatusChange={processStatusChange} 
-                     />
-                   ))}
+                   {filteredSales.filter(s => s.estatus === status).map(sale => {
+                     const d = parseDate(sale.fecha);
+                     const isCO = d < new Date(currentDate.getFullYear(), currentDate.getMonth(), currentQuincena === 1 ? 1 : 16);
+                     return (
+                        <SaleCard key={sale.id} sale={sale} updateSale={handleUpdateSale} deleteSale={handleDeleteSale} onStatusChange={processStatusChange} isCarryOver={isCO} />
+                     );
+                   })}
                  </div>
                </div>
              ))}
           </div>
 
-          {/* MODAL 1: Confirmar Dispersión */}
+          {/* Modales de Proceso */}
           {disburseData && (
             <div className="fixed inset-0 glass-modal z-50 flex items-center justify-center p-4">
               <div className="bg-white p-5 rounded-lg shadow-xl w-full max-w-sm">
                 <h3 className="font-bold text-lg mb-2 text-green-700">Confirmar Dispersión</h3>
-                <p className="text-xs text-slate-500 mb-2">Cliente: {disburseData.nombre_cliente}</p>
                 <input type="number" value={realAmount} onChange={(e) => setRealAmount(e.target.value)} className="w-full border-2 border-green-500 rounded p-2 text-xl font-bold mb-4 focus:outline-none" autoFocus />
                 <div className="flex gap-2">
-                  <button onClick={confirmGlobalDisbursement} className="flex-1 bg-green-600 text-white py-2 rounded font-bold hover:bg-green-500 transition-colors">Confirmar</button>
-                  <button onClick={() => setDisburseData(null)} className="flex-1 bg-slate-200 py-2 rounded font-bold hover:bg-slate-300 transition-colors">Cancelar</button>
+                  <button onClick={confirmGlobalDisbursement} className="flex-1 bg-green-600 text-white py-2 rounded font-bold">Confirmar</button>
+                  <button onClick={() => setDisburseData(null)} className="flex-1 bg-slate-200 py-2 rounded font-bold">Cancelar</button>
                 </div>
               </div>
             </div>
           )}
 
-          {/* MODAL 2: Confirmar Rechazo/Cancelación (Data Quality) */}
           {lostData && (
             <div className="fixed inset-0 glass-modal z-50 flex items-center justify-center p-4">
               <div className="bg-white p-5 rounded-lg shadow-xl w-full max-w-sm border-t-4 border-red-500">
                 <h3 className="font-bold text-lg mb-2 text-red-600">Mover a {lostData.newStatus}</h3>
-                <p className="text-xs text-slate-500 mb-4">Para mantener la base de datos limpia, por favor indica por qué se perdió esta oportunidad.</p>
-                
-                <label className="block text-xs font-bold text-slate-700 mb-1">Motivo Principal:</label>
-                <select 
-                  value={lostReason} 
-                  onChange={(e) => setLostReason(e.target.value)}
-                  className="w-full border-2 border-slate-300 rounded p-2 mb-6 focus:outline-none focus:border-red-500 font-medium"
-                >
+                <select value={lostReason} onChange={(e) => setLostReason(e.target.value)} className="w-full border-2 border-slate-300 rounded p-2 mb-6 font-medium">
                   {LOST_REASONS.map(r => <option key={r} value={r}>{r}</option>)}
                 </select>
-
                 <div className="flex gap-2">
-                  <button onClick={confirmLostStatus} className="flex-1 bg-red-600 text-white py-2 rounded font-bold hover:bg-red-700 transition-colors">Guardar</button>
-                  <button onClick={() => setLostData(null)} className="flex-1 bg-slate-200 py-2 rounded font-bold hover:bg-slate-300 transition-colors">Cancelar</button>
+                  <button onClick={confirmLostStatus} className="flex-1 bg-red-600 text-white py-2 rounded font-bold">Guardar</button>
+                  <button onClick={() => setLostData(null)} className="flex-1 bg-slate-200 py-2 rounded font-bold">Cancelar</button>
                 </div>
               </div>
             </div>
           )}
 
-          {/* MODAL CREACIÓN CON PREVENCIÓN DE DUPLICADOS */}
           {showForm && (
             <div className="fixed inset-0 glass-modal z-50 flex items-center justify-center p-4">
               <form onSubmit={handleAddSale} className="bg-white rounded-lg shadow-xl w-full max-w-sm p-5 space-y-4">
                  <h2 className="font-bold text-lg border-b pb-2">Nuevo Lead</h2>
-                 
-                 {/* Alerta de Duplicados */}
-                 {formError && <div className="bg-red-100 text-red-700 p-2 rounded text-xs font-bold border border-red-200"><i className="fas fa-exclamation-circle mr-1"></i>{formError}</div>}
-
+                 {formError && <div className="bg-red-100 text-red-700 p-2 rounded text-xs font-bold border border-red-200">{formError}</div>}
                  <input name="folio" required placeholder="Número de Folio" className="w-full border p-2 rounded focus:outline-none focus:border-blue-500 font-mono" />
-                 <input name="client" required placeholder="Nombre Cliente" className="w-full border p-2 rounded focus:outline-none focus:border-blue-500" />
-                 <input name="amount" type="number" required placeholder="Monto Preaprobado ($)" className="w-full border p-2 rounded focus:outline-none focus:border-blue-500" />
-                 <input name="phone" placeholder="Teléfono" className="w-full border p-2 rounded focus:outline-none focus:border-blue-500" />
-                 <input name="url" placeholder="Enlace / Link" className="w-full border p-2 rounded focus:outline-none focus:border-blue-500" />
-                 
+                 <input name="client" required placeholder="Nombre Cliente" className="w-full border p-2 rounded" />
+                 <input name="amount" type="number" required placeholder="Monto Preaprobado ($)" className="w-full border p-2 rounded" />
+                 <input name="phone" placeholder="Teléfono" className="w-full border p-2 rounded" />
+                 <input name="url" placeholder="Enlace / Link" className="w-full border p-2 rounded" />
                  <div className="flex gap-2 pt-2">
-                    <button type="submit" className="flex-1 bg-blue-600 text-white py-2 rounded font-bold hover:bg-blue-700 transition-colors">Guardar</button>
-                    <button type="button" onClick={() => setShowForm(false)} className="flex-1 bg-slate-200 py-2 rounded font-bold hover:bg-slate-300">Cancelar</button>
+                    <button type="submit" className="flex-1 bg-blue-600 text-white py-2 rounded font-bold">Guardar</button>
+                    <button type="button" onClick={() => setShowForm(false)} className="flex-1 bg-slate-200 py-2 rounded font-bold">Cancelar</button>
                  </div>
               </form>
             </div>
@@ -624,21 +565,8 @@
     const MainWrapper = () => {
       const [user, setUser] = useState(null);
       const [loadingAuth, setLoadingAuth] = useState(true);
-
-      useEffect(() => {
-        return auth.onAuthStateChanged((u) => {
-          setUser(u);
-          setLoadingAuth(false);
-        });
-      }, []);
-
-      if (loadingAuth) return (
-        <div className="h-screen bg-slate-900 flex flex-col justify-center items-center text-white">
-          <div className="loader mb-4"></div>
-          <p className="font-bold text-slate-400">Verificando seguridad...</p>
-        </div>
-      );
-      
+      useEffect(() => { return auth.onAuthStateChanged((u) => { setUser(u); setLoadingAuth(false); }); }, []);
+      if (loadingAuth) return <div className="h-screen bg-slate-900 flex flex-col justify-center items-center text-white"><div className="loader mb-4"></div></div>;
       if (!user) return <Login />;
       return <App user={user} />;
     };
