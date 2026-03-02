@@ -266,6 +266,14 @@
                   <i className="fas fa-grip-vertical text-sm"></i>
                 </div>
                 <span className="text-xs font-bold text-slate-700 font-mono select-text">{sale.folio}</span>
+                
+                {/* ETIQUETA VISUAL DE CARRY OVER */}
+                {sale.isCarryOver && (
+                  <span className="bg-orange-100 text-orange-700 text-[9px] font-black px-1.5 py-0.5 rounded shadow-sm border border-orange-200 flex items-center gap-1" title="Este lead viene de un periodo anterior">
+                    <i className="fas fa-history text-[8px]"></i> CARRY OVER
+                  </span>
+                )}
+
               </div>
               <button onClick={() => setShowDeleteModal(true)} className="text-slate-300 hover:text-red-500 px-2"><i className="fas fa-trash-alt text-xs"></i></button>
             </div>
@@ -367,13 +375,11 @@
 
       const saveMeta = (amount) => db.collection('metas').doc(periodKey).set({ monto: amount, userId: user.uid }, { merge: true });
 
-      // === CORRECCIÓN MAESTRA DE CARRY OVER ===
       const filteredSales = useMemo(() => {
         const viewYear = currentDate.getFullYear();
         const viewMonth = currentDate.getMonth();
         const viewQ = currentQuincena;
 
-        // Calculamos el último segundo del periodo actual que el usuario está visualizando
         const lastDayOfMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
         const endDay = viewQ === 1 ? 15 : lastDayOfMonth;
         const viewEnd = new Date(viewYear, viewMonth, endDay, 23, 59, 59);
@@ -382,21 +388,30 @@
           if(!sale.fecha) return false;
           
           if (sale.estatus === 'Dispersado') {
-             // Si está ganado, se ancla a la fecha en la que se ganó (dispersión)
              const d = parseDate(sale.fecha_dispersion || sale.fecha);
              return d.getFullYear() === viewYear && d.getMonth() === viewMonth && getQuincena(d) === viewQ;
           } 
           else if (sale.estatus === 'Rechazado' || sale.estatus === 'Cancelado') {
-             // Si está perdido, se ancla a la fecha en que se mató el lead
              const d = parseDate(sale.fecha_resolucion || sale.fecha);
              return d.getFullYear() === viewYear && d.getMonth() === viewMonth && getQuincena(d) === viewQ;
           } 
           else {
-             // CARRY OVER ACTIVO: Si el lead sigue abierto, aparece en la quincena actual
-             // siempre y cuando haya sido creado antes o durante este periodo.
              const creationDate = parseDate(sale.fecha);
              return creationDate <= viewEnd;
           }
+        }).map(sale => {
+             // VALIDADOR DE CARRY OVER: Compara la fecha de creación con el periodo actual visto
+             const cDate = parseDate(sale.fecha);
+             const cYear = cDate.getFullYear();
+             const cMonth = cDate.getMonth();
+             const cQ = getQuincena(cDate);
+             
+             let isCarry = false;
+             if (cYear < viewYear) isCarry = true;
+             else if (cYear === viewYear && cMonth < viewMonth) isCarry = true;
+             else if (cYear === viewYear && cMonth === viewMonth && cQ < viewQ) isCarry = true;
+
+             return { ...sale, isCarryOver: isCarry };
         });
       }, [allSales, currentDate, currentQuincena]);
 
@@ -462,7 +477,7 @@
          handleUpdateSale(disburseData.id, { 
            estatus: 'Dispersado', 
            monto_dispersado: Number(realAmount), 
-           fecha_dispersion: new Date().toISOString(), // ANCLAJE DE TIEMPO DE GANANCIA
+           fecha_dispersion: new Date().toISOString(), 
            history: firebase.firestore.FieldValue.arrayUnion({ date: new Date().toISOString(), action: `DISPERSADO: ${money(realAmount)}`, user: 'Agente' }) 
          });
          setDisburseData(null);
@@ -473,7 +488,7 @@
          handleUpdateSale(lostData.sale.id, {
             estatus: lostData.newStatus,
             motivo_perdida: lostReason, 
-            fecha_resolucion: new Date().toISOString(), // ANCLAJE DE TIEMPO DE PÉRDIDA
+            fecha_resolucion: new Date().toISOString(), 
             history: firebase.firestore.FieldValue.arrayUnion({ 
               date: new Date().toISOString(), 
               action: `${lostData.newStatus} | Motivo: ${lostReason}`, 
