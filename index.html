@@ -419,19 +419,18 @@
       const businessData = getBusinessDaysQuincena(currentDate, currentQuincena);
 
       // =========================================================================
-      // HACK: MOTOR DE ENVÍO INVISIBLE A GOOGLE FORMS (BYPASS IT)
+      // HACK: MOTOR DE ENVÍO INVISIBLE A GOOGLE FORMS (LLAVES CORREGIDAS)
       // =========================================================================
       const sendToGoogleForm = (saleData) => {
-          // 1. ID DEL FORMULARIO REAL EXTRAIDO DEL ENLACE
           const formId = "1FAIpQLSc609itq9FuNgU11lBycgB_wlQPg2Zf-vRrvTvlEm3Ps5aY0g"; 
           const formUrl = `https://docs.google.com/forms/d/e/${formId}/formResponse`;
           
-          // 2. TUS LLAVES SECRETAS OBTENIDAS CON EXITO
-          const entryFecha = "entry.2016779465"; 
-          const entryFolio = "entry.1021794384"; 
-          const entryCliente = "entry.1815753709"; 
-          const entryCanal = "entry.997349041"; 
-          const entryEstatus = "entry.1619374583"; 
+          // LLAVES RE-MAPEADAS EXACTAMENTE COMO ESTÁN EN TU EXCEL
+          const entryFecha = "entry.1619374583";     // Apunta a Columna B (FECHA)
+          const entryFolio = "entry.2016779465";     // Apunta a Columna C (Folio)
+          const entryCliente = "entry.1021794384";   // Apunta a Columna D (Nombre)
+          const entryCanal = "entry.1815753709";     // Apunta a Columna E (Canal)
+          const entryEstatus = "entry.997349041";    // Apunta a Columna F (Estatus)
 
           // Prepara el paquete
           const formData = new URLSearchParams();
@@ -447,7 +446,7 @@
               mode: "no-cors",
               headers: { "Content-Type": "application/x-www-form-urlencoded" },
               body: formData.toString()
-          }).then(() => console.log("¡Hack completado! Dato en el Sheet."))
+          }).then(() => console.log("¡Hack completado! Dato ordenado en el Sheet."))
           .catch(err => console.error("Error al enviar", err));
       };
 
@@ -498,8 +497,6 @@
       const handleUpdateSale = (id, data) => db.collection('sales').doc(id).update(data);
       const handleDeleteSale = (id) => db.collection('sales').doc(id).delete();
 
-      // Cuando cambie el estatus, podríamos también actualizar el form... 
-      // pero por ahora solo mandamos la creación inicial como pediste.
       const processStatusChange = (sale, newStatus) => {
         if (sale.estatus === newStatus) return; 
 
@@ -714,4 +711,4 @@
     root.render(<MainWrapper />);
   </script>
 </body>
-  </html> 
+</html>
