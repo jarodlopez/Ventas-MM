@@ -267,10 +267,15 @@
                 </div>
                 <span className="text-xs font-bold text-slate-700 font-mono select-text">{sale.folio}</span>
                 
-                {/* ETIQUETA VISUAL DE CARRY OVER */}
                 {sale.isCarryOver && (
                   <span className="bg-orange-100 text-orange-700 text-[9px] font-black px-1.5 py-0.5 rounded shadow-sm border border-orange-200 flex items-center gap-1" title="Este lead viene de un periodo anterior">
                     <i className="fas fa-history text-[8px]"></i> CARRY OVER
+                  </span>
+                )}
+                
+                {sale.canal === 'UPPER' && (
+                  <span className="bg-indigo-100 text-indigo-700 text-[9px] font-black px-1.5 py-0.5 rounded shadow-sm border border-indigo-200 flex items-center gap-1" title="Lead enviado al Sheet de UPPER">
+                    <i className="fas fa-bolt text-[8px]"></i> UPPER
                   </span>
                 )}
 
@@ -386,7 +391,6 @@
 
         return allSales.filter(sale => {
           if(!sale.fecha) return false;
-          
           if (sale.estatus === 'Dispersado') {
              const d = parseDate(sale.fecha_dispersion || sale.fecha);
              return d.getFullYear() === viewYear && d.getMonth() === viewMonth && getQuincena(d) === viewQ;
@@ -400,28 +404,61 @@
              return creationDate <= viewEnd;
           }
         }).map(sale => {
-             // VALIDADOR DE CARRY OVER: Compara la fecha de creación con el periodo actual visto
              const cDate = parseDate(sale.fecha);
              const cYear = cDate.getFullYear();
              const cMonth = cDate.getMonth();
              const cQ = getQuincena(cDate);
-             
              let isCarry = false;
              if (cYear < viewYear) isCarry = true;
              else if (cYear === viewYear && cMonth < viewMonth) isCarry = true;
              else if (cYear === viewYear && cMonth === viewMonth && cQ < viewQ) isCarry = true;
-
              return { ...sale, isCarryOver: isCarry };
         });
       }, [allSales, currentDate, currentQuincena]);
 
       const businessData = getBusinessDaysQuincena(currentDate, currentQuincena);
 
+      // =========================================================================
+      // HACK: MOTOR DE ENVÍO INVISIBLE A GOOGLE FORMS (BYPASS IT)
+      // =========================================================================
+      const sendToGoogleForm = (saleData) => {
+          // 1. ID DEL FORMULARIO REAL EXTRAIDO DEL ENLACE
+          const formId = "1FAIpQLSc609itq9FuNgU11lBycgB_wlQPg2Zf-vRrvTvlEm3Ps5aY0g"; 
+          const formUrl = `https://docs.google.com/forms/d/e/${formId}/formResponse`;
+          
+          // 2. TUS LLAVES SECRETAS OBTENIDAS CON EXITO
+          const entryFecha = "entry.2016779465"; 
+          const entryFolio = "entry.1021794384"; 
+          const entryCliente = "entry.1815753709"; 
+          const entryCanal = "entry.997349041"; 
+          const entryEstatus = "entry.1619374583"; 
+
+          // Prepara el paquete
+          const formData = new URLSearchParams();
+          formData.append(entryFecha, new Intl.DateTimeFormat('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date()));
+          formData.append(entryFolio, saleData.folio);
+          formData.append(entryCliente, saleData.nombre_cliente);
+          formData.append(entryCanal, "UPPER");
+          formData.append(entryEstatus, "Con oferta");
+
+          // Disparo invisible (no-cors)
+          fetch(formUrl, {
+              method: "POST",
+              mode: "no-cors",
+              headers: { "Content-Type": "application/x-www-form-urlencoded" },
+              body: formData.toString()
+          }).then(() => console.log("¡Hack completado! Dato en el Sheet."))
+          .catch(err => console.error("Error al enviar", err));
+      };
+
       const handleAddSale = async (e) => {
         e.preventDefault();
         const form = e.target;
         const newFolio = form.folio.value.trim();
         const newPhone = form.phone.value.trim();
+        const clientName = form.client.value;
+        const amount = Number(form.amount.value);
+        const isUpper = form.isUpper.checked; 
 
         const isFolioDup = allSales.some(s => s.folio.toLowerCase() === newFolio.toLowerCase());
         if (isFolioDup) return setFormError('Error: Este Folio ya existe en tu pipeline.');
@@ -433,19 +470,27 @@
 
         setFormError(''); 
 
-        await db.collection('sales').add({
+        const saleData = {
           userId: user.uid, 
           agentEmail: user.email,
           folio: newFolio, 
-          nombre_cliente: form.client.value,
-          monto_preaprobado: Number(form.amount.value),
+          nombre_cliente: clientName,
+          monto_preaprobado: amount,
           monto_dispersado: 0,
           estatus: 'Con oferta',
           telefono: newPhone,
           url: form.url.value,
+          canal: isUpper ? 'UPPER' : 'Normal', 
           fecha: new Date().toISOString(), 
-          history: [{ date: new Date().toISOString(), action: 'Lead Creado', user: 'Agente' }]
-        });
+          history: [{ date: new Date().toISOString(), action: isUpper ? 'Lead UPPER Creado' : 'Lead Creado', user: 'Agente' }]
+        };
+
+        await db.collection('sales').add(saleData);
+
+        // Si la casilla UPPER se marca, usamos tu formulario hackeado
+        if (isUpper) {
+            sendToGoogleForm(saleData);
+        }
         
         setShowForm(false);
       };
@@ -453,6 +498,8 @@
       const handleUpdateSale = (id, data) => db.collection('sales').doc(id).update(data);
       const handleDeleteSale = (id) => db.collection('sales').doc(id).delete();
 
+      // Cuando cambie el estatus, podríamos también actualizar el form... 
+      // pero por ahora solo mandamos la creación inicial como pediste.
       const processStatusChange = (sale, newStatus) => {
         if (sale.estatus === newStatus) return; 
 
@@ -619,6 +666,15 @@
                  <input name="phone" placeholder="Teléfono" className="w-full border p-2 rounded focus:outline-none focus:border-blue-500" />
                  <input name="url" placeholder="Enlace / Link" className="w-full border p-2 rounded focus:outline-none focus:border-blue-500" />
                  
+                 {/* CASILLA UPPER */}
+                 <div className="bg-indigo-50 border border-indigo-100 p-3 rounded-md flex items-center gap-3 mt-2 hover:bg-indigo-100 transition-colors">
+                    <input type="checkbox" id="isUpper" name="isUpper" className="w-5 h-5 cursor-pointer accent-indigo-600" />
+                    <label htmlFor="isUpper" className="text-sm font-bold text-indigo-900 cursor-pointer select-none">
+                       Asignación "UPPER" 
+                       <span className="block text-[10px] text-indigo-600 font-normal mt-0.5">Reportar automáticamente a jefatura (Sheets).</span>
+                    </label>
+                 </div>
+                 
                  <div className="flex gap-2 pt-2">
                     <button type="submit" className="flex-1 bg-blue-600 text-white py-2 rounded font-bold hover:bg-blue-700 transition-colors">Guardar</button>
                     <button type="button" onClick={() => setShowForm(false)} className="flex-1 bg-slate-200 py-2 rounded font-bold hover:bg-slate-300">Cancelar</button>
@@ -658,4 +714,4 @@
     root.render(<MainWrapper />);
   </script>
 </body>
-</html>
+  </html> 
