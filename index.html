@@ -288,13 +288,13 @@
             
             <h3 className="font-bold text-sm text-slate-800 truncate mt-1 select-text">{sale.nombre_cliente}</h3>
             
-            {/* ZONA FINANCIERA CORREGIDA (VS DE LÍNEA) */}
+            {/* ZONA FINANCIERA RESTAURADA CON ETIQUETAS ORIGINALES */}
             <div className="flex justify-between items-end mt-2 bg-slate-50 p-2 rounded border border-slate-100">
                <div className="flex flex-col gap-1">
                   {sale.monto_original ? (
                      <>
                         <div>
-                          <span className="text-[9px] text-slate-400 uppercase font-bold block leading-none mb-0.5">Línea Inicial</span>
+                          <span className="text-[9px] text-slate-400 uppercase font-bold block leading-none mb-0.5">Línea Preaprobada</span>
                           <span className={`font-medium text-[10px] ${sale.monto_original !== sale.monto_preaprobado ? 'text-slate-400 line-through' : 'text-slate-600'}`}>
                             {money(sale.monto_original)}
                           </span>
@@ -306,7 +306,7 @@
                      </>
                   ) : (
                      <div>
-                       <span className="text-[10px] text-slate-400 uppercase font-bold block leading-none mb-0.5">Línea Preaprobada</span>
+                       <span className="text-[10px] text-slate-400 uppercase font-bold block leading-none mb-0.5">Preaprobado</span>
                        <span className="font-bold text-slate-600 text-xs">{money(sale.monto_preaprobado)}</span>
                      </div>
                   )}
@@ -514,7 +514,7 @@
           agentEmail: user.email,
           folio: newFolio, 
           nombre_cliente: clientName,
-          monto_preaprobado: amount, // Línea inicial
+          monto_preaprobado: amount,
           monto_dispersado: 0,
           estatus: 'Con oferta',
           telefono: newPhone,
@@ -547,7 +547,7 @@
         await db.collection('sales').doc(editSaleData.id).update({
             folio: editedFolio,
             nombre_cliente: form.client.value,
-            monto_preaprobado: Number(form.amount.value), // El lápiz edita el monto de la etapa actual
+            monto_preaprobado: Number(form.amount.value), 
             telefono: editedPhone,
             url: form.url.value,
             history: firebase.firestore.FieldValue.arrayUnion({ date: new Date().toISOString(), action: 'Datos de tarjeta editados manualmente', user: 'Agente' })
@@ -586,18 +586,17 @@
         }
       };
 
-      // CONFIRMAR OFERTA (AQUÍ ESTÁ LA MAGIA DE LA MEMORIA FINANCIERA)
+      // CONFIRMAR OFERTA
       const confirmAcceptOffer = () => {
          if(!acceptOfferData) return;
          
-         // Si es la primera vez que se ajusta, respaldamos la línea original
          const montoInicialRespaldado = acceptOfferData.monto_original || acceptOfferData.monto_preaprobado;
 
          handleUpdateSale(acceptOfferData.id, { 
            estatus: 'Acepta oferta', 
-           monto_original: montoInicialRespaldado, // Trazabilidad
-           monto_preaprobado: Number(realAmount),  // Nuevo monto activo para el Pipeline
-           history: firebase.firestore.FieldValue.arrayUnion({ date: new Date().toISOString(), action: `OFERTA ACEPTADA: ${money(realAmount)} (Línea inicial: ${money(montoInicialRespaldado)})`, user: 'Agente' }) 
+           monto_original: montoInicialRespaldado, 
+           monto_preaprobado: Number(realAmount), 
+           history: firebase.firestore.FieldValue.arrayUnion({ date: new Date().toISOString(), action: `OFERTA ACEPTADA: ${money(realAmount)} (Línea preaprobada: ${money(montoInicialRespaldado)})`, user: 'Agente' }) 
          });
          setAcceptOfferData(null);
       };
@@ -714,7 +713,7 @@
             <div className="fixed inset-0 glass-modal z-50 flex items-center justify-center p-4">
               <div className="bg-white p-5 rounded-lg shadow-xl w-full max-w-sm border-t-4 border-blue-500">
                 <h3 className="font-bold text-lg mb-2 text-blue-700">Oferta Aceptada</h3>
-                <p className="text-xs text-slate-500 mb-4">El cliente <strong>{acceptOfferData.nombre_cliente}</strong> aceptó. La línea original era de <strong>{money(acceptOfferData.monto_original || acceptOfferData.monto_preaprobado)}</strong>. ¿Por qué monto se cerró finalmente?</p>
+                <p className="text-xs text-slate-500 mb-4">El cliente <strong>{acceptOfferData.nombre_cliente}</strong> aceptó. La línea preaprobada original era de <strong>{money(acceptOfferData.monto_original || acceptOfferData.monto_preaprobado)}</strong>. ¿Por qué monto se cerró finalmente?</p>
                 <input type="number" value={realAmount} onChange={(e) => setRealAmount(e.target.value)} className="w-full border-2 border-blue-400 rounded p-2 text-xl font-bold mb-4 focus:outline-none" autoFocus />
                 <div className="flex gap-2">
                   <button onClick={confirmAcceptOffer} className="flex-1 bg-blue-600 text-white py-2 rounded font-bold hover:bg-blue-500 transition-colors">Confirmar Cierre</button>
@@ -791,7 +790,7 @@
                  <div><label className="text-[10px] font-bold text-slate-500 uppercase">Cliente</label>
                  <input name="client" defaultValue={editSaleData.nombre_cliente} required className="w-full border p-2 rounded focus:outline-none focus:border-blue-500 text-sm" /></div>
                  
-                 <div><label className="text-[10px] font-bold text-slate-500 uppercase">Monto Actual</label>
+                 <div><label className="text-[10px] font-bold text-slate-500 uppercase">Monto Preaprobado</label>
                  <input name="amount" type="number" defaultValue={editSaleData.monto_preaprobado} required className="w-full border p-2 rounded focus:outline-none focus:border-blue-500 text-sm" /></div>
                  
                  <div><label className="text-[10px] font-bold text-slate-500 uppercase">Teléfono</label>
@@ -839,4 +838,4 @@
     root.render(<MainWrapper />);
   </script>
 </body>
-</html> 
+</html>
