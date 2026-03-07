@@ -215,7 +215,8 @@
       );
     };
 
-    const SaleCard = ({ sale, updateSale, deleteSale, onStatusChange }) => {
+    // TARJETA DE VENTA
+    const SaleCard = ({ sale, updateSale, deleteSale, onStatusChange, onEdit }) => {
       const [showDeleteModal, setShowDeleteModal] = useState(false);
       const [pin, setPin] = useState('');
       const [showHistory, setShowHistory] = useState(false);
@@ -280,7 +281,10 @@
                 )}
 
               </div>
-              <button onClick={() => setShowDeleteModal(true)} className="text-slate-300 hover:text-red-500 px-2"><i className="fas fa-trash-alt text-xs"></i></button>
+              <div className="flex">
+                <button onClick={() => onEdit(sale)} className="text-slate-300 hover:text-blue-500 px-2" title="Editar"><i className="fas fa-pencil-alt text-xs"></i></button>
+                <button onClick={() => setShowDeleteModal(true)} className="text-slate-300 hover:text-red-500 px-2" title="Eliminar"><i className="fas fa-trash-alt text-xs"></i></button>
+              </div>
             </div>
             
             <h3 className="font-bold text-sm text-slate-800 truncate mt-1 select-text">{sale.nombre_cliente}</h3>
@@ -350,12 +354,15 @@
       
       const [showForm, setShowForm] = useState(false);
       const [formError, setFormError] = useState(''); 
+      const [searchTerm, setSearchTerm] = useState('');
 
-      const [disburseData, setDisburseData] = useState(null); 
+      const [acceptOfferData, setAcceptOfferData] = useState(null); 
       const [realAmount, setRealAmount] = useState('');
       
       const [lostData, setLostData] = useState(null);
       const [lostReason, setLostReason] = useState(LOST_REASONS[0]);
+      
+      const [editSaleData, setEditSaleData] = useState(null);
 
       const periodKey = `${user.uid}_${currentDate.getFullYear()}-${currentDate.getMonth()}-${currentQuincena}`;
 
@@ -389,7 +396,7 @@
         const endDay = viewQ === 1 ? 15 : lastDayOfMonth;
         const viewEnd = new Date(viewYear, viewMonth, endDay, 23, 59, 59);
 
-        return allSales.filter(sale => {
+        let results = allSales.filter(sale => {
           if(!sale.fecha) return false;
           if (sale.estatus === 'Dispersado') {
              const d = parseDate(sale.fecha_dispersion || sale.fecha);
@@ -414,25 +421,35 @@
              else if (cYear === viewYear && cMonth === viewMonth && cQ < viewQ) isCarry = true;
              return { ...sale, isCarryOver: isCarry };
         });
-      }, [allSales, currentDate, currentQuincena]);
+
+        // FILTRO DE BÚSQUEDA
+        if (searchTerm.trim() !== '') {
+            const term = searchTerm.toLowerCase();
+            results = results.filter(s => 
+                (s.folio && s.folio.toLowerCase().includes(term)) || 
+                (s.nombre_cliente && s.nombre_cliente.toLowerCase().includes(term))
+            );
+        }
+
+        return results;
+
+      }, [allSales, currentDate, currentQuincena, searchTerm]);
 
       const businessData = getBusinessDaysQuincena(currentDate, currentQuincena);
 
       // =========================================================================
-      // HACK: MOTOR DE ENVÍO INVISIBLE A GOOGLE FORMS (LLAVES CORREGIDAS)
+      // HACK: MOTOR DE ENVÍO INVISIBLE A GOOGLE FORMS
       // =========================================================================
       const sendToGoogleForm = (saleData) => {
           const formId = "1FAIpQLSc609itq9FuNgU11lBycgB_wlQPg2Zf-vRrvTvlEm3Ps5aY0g"; 
           const formUrl = `https://docs.google.com/forms/d/e/${formId}/formResponse`;
           
-          // LLAVES RE-MAPEADAS EXACTAMENTE COMO ESTÁN EN TU EXCEL
-          const entryFecha = "entry.1619374583";     // Apunta a Columna B (FECHA)
-          const entryFolio = "entry.2016779465";     // Apunta a Columna C (Folio)
-          const entryCliente = "entry.1021794384";   // Apunta a Columna D (Nombre)
-          const entryCanal = "entry.1815753709";     // Apunta a Columna E (Canal)
-          const entryEstatus = "entry.997349041";    // Apunta a Columna F (Estatus)
+          const entryFecha = "entry.1619374583";     
+          const entryFolio = "entry.2016779465";     
+          const entryCliente = "entry.1021794384";   
+          const entryCanal = "entry.1815753709";     
+          const entryEstatus = "entry.997349041";    
 
-          // Prepara el paquete
           const formData = new URLSearchParams();
           formData.append(entryFecha, new Intl.DateTimeFormat('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date()));
           formData.append(entryFolio, saleData.folio);
@@ -440,7 +457,6 @@
           formData.append(entryCanal, "UPPER");
           formData.append(entryEstatus, "Con oferta");
 
-          // Disparo invisible (no-cors)
           fetch(formUrl, {
               method: "POST",
               mode: "no-cors",
@@ -486,12 +502,34 @@
 
         await db.collection('sales').add(saleData);
 
-        // Si la casilla UPPER se marca, usamos tu formulario hackeado
         if (isUpper) {
             sendToGoogleForm(saleData);
         }
         
         setShowForm(false);
+      };
+
+      const handleEditSubmit = async (e) => {
+        e.preventDefault();
+        const form = e.target;
+        const editedFolio = form.folio.value.trim();
+        const editedPhone = form.phone.value.trim();
+
+        const isFolioDup = allSales.some(s => s.folio.toLowerCase() === editedFolio.toLowerCase() && s.id !== editSaleData.id);
+        if (isFolioDup) return setFormError('Error: Ese Folio ya lo tiene otra tarjeta.');
+
+        setFormError('');
+
+        await db.collection('sales').doc(editSaleData.id).update({
+            folio: editedFolio,
+            nombre_cliente: form.client.value,
+            monto_preaprobado: Number(form.amount.value),
+            telefono: editedPhone,
+            url: form.url.value,
+            history: firebase.firestore.FieldValue.arrayUnion({ date: new Date().toISOString(), action: 'Datos de tarjeta editados', user: 'Agente' })
+        });
+        
+        setEditSaleData(null);
       };
 
       const handleUpdateSale = (id, data) => db.collection('sales').doc(id).update(data);
@@ -500,9 +538,17 @@
       const processStatusChange = (sale, newStatus) => {
         if (sale.estatus === newStatus) return; 
 
-        if (newStatus === 'Dispersado') {
+        if (newStatus === 'Acepta oferta') {
            setRealAmount(sale.monto_preaprobado);
-           setDisburseData(sale); 
+           setAcceptOfferData(sale); 
+        } 
+        else if (newStatus === 'Dispersado') {
+           handleUpdateSale(sale.id, { 
+             estatus: 'Dispersado', 
+             monto_dispersado: Number(sale.monto_preaprobado), 
+             fecha_dispersion: new Date().toISOString(), 
+             history: firebase.firestore.FieldValue.arrayUnion({ date: new Date().toISOString(), action: `DISPERSADO: ${money(sale.monto_preaprobado)}`, user: 'Agente' }) 
+           });
         } 
         else if (newStatus === 'Rechazado' || newStatus === 'Cancelado') {
            setLostReason(LOST_REASONS[0]); 
@@ -516,15 +562,14 @@
         }
       };
 
-      const confirmGlobalDisbursement = () => {
-         if(!disburseData) return;
-         handleUpdateSale(disburseData.id, { 
-           estatus: 'Dispersado', 
-           monto_dispersado: Number(realAmount), 
-           fecha_dispersion: new Date().toISOString(), 
-           history: firebase.firestore.FieldValue.arrayUnion({ date: new Date().toISOString(), action: `DISPERSADO: ${money(realAmount)}`, user: 'Agente' }) 
+      const confirmAcceptOffer = () => {
+         if(!acceptOfferData) return;
+         handleUpdateSale(acceptOfferData.id, { 
+           estatus: 'Acepta oferta', 
+           monto_preaprobado: Number(realAmount), // Actualiza el monto con la cifra final pactada
+           history: firebase.firestore.FieldValue.arrayUnion({ date: new Date().toISOString(), action: `OFERTA ACEPTADA: ${money(realAmount)}`, user: 'Agente' }) 
          });
-         setDisburseData(null);
+         setAcceptOfferData(null);
       };
 
       const confirmLostStatus = () => {
@@ -560,7 +605,8 @@
 
       return (
         <div className="flex flex-col h-full bg-slate-100">
-          <div className="bg-slate-900 text-white p-3 flex justify-between items-center shadow-md z-10">
+          <div className="bg-slate-900 text-white p-3 flex flex-wrap justify-between items-center shadow-md z-10 gap-2">
+            
             <div className="flex items-center gap-2 md:gap-4">
               <div className="flex flex-col hidden md:flex">
                  <h1 className="font-bold text-lg leading-tight">CRM</h1>
@@ -568,12 +614,29 @@
               </div>
               <div className="flex items-center bg-slate-800 rounded px-1">
                 <button onClick={() => changePeriod(-1)} className="p-2 hover:text-green-400"><i className="fas fa-chevron-left"></i></button>
-                <div className="flex flex-col items-center w-40">
-                    <span className="text-xs font-bold uppercase tracking-wider text-slate-400">{new Intl.DateTimeFormat('es-MX', { month: 'long', year: 'numeric' }).format(currentDate)}</span>
+                <div className="flex flex-col items-center w-36">
+                    <span className="text-xs font-bold uppercase tracking-wider text-slate-400">{new Intl.DateTimeFormat('es-MX', { month: 'short', year: 'numeric' }).format(currentDate)}</span>
                     <span className="text-sm font-black text-green-400">Q{currentQuincena}</span>
                 </div>
                 <button onClick={() => changePeriod(1)} className="p-2 hover:text-green-400"><i className="fas fa-chevron-right"></i></button>
               </div>
+            </div>
+
+            {/* BARRA DE BÚSQUEDA */}
+            <div className="relative flex-1 max-w-xs mx-2 hidden sm:block">
+               <i className="fas fa-search absolute left-3 top-2.5 text-slate-400 text-sm"></i>
+               <input 
+                 type="text" 
+                 placeholder="Buscar por Folio o Cliente..." 
+                 value={searchTerm} 
+                 onChange={(e) => setSearchTerm(e.target.value)}
+                 className="w-full pl-9 pr-3 py-1.5 rounded-full text-sm bg-slate-800 border border-slate-700 text-white outline-none focus:border-blue-500 focus:bg-slate-700 transition-colors"
+               />
+               {searchTerm && (
+                 <button onClick={() => setSearchTerm('')} className="absolute right-3 top-2.5 text-slate-400 hover:text-white">
+                    <i className="fas fa-times text-sm"></i>
+                 </button>
+               )}
             </div>
             
             <div className="flex gap-2 items-center">
@@ -606,22 +669,27 @@
                        updateSale={handleUpdateSale} 
                        deleteSale={handleDeleteSale} 
                        onStatusChange={processStatusChange} 
+                       onEdit={(saleToEdit) => { setEditSaleData(saleToEdit); setFormError(''); }}
                      />
                    ))}
+                   {searchTerm && filteredSales.filter(s => s.estatus === status).length === 0 && (
+                     <p className="text-center text-xs text-slate-400 mt-4">Sin resultados</p>
+                   )}
                  </div>
                </div>
              ))}
           </div>
 
-          {disburseData && (
+          {/* MODAL: CONFIRMAR MONTO EN "ACEPTA OFERTA" */}
+          {acceptOfferData && (
             <div className="fixed inset-0 glass-modal z-50 flex items-center justify-center p-4">
-              <div className="bg-white p-5 rounded-lg shadow-xl w-full max-w-sm">
-                <h3 className="font-bold text-lg mb-2 text-green-700">Confirmar Dispersión</h3>
-                <p className="text-xs text-slate-500 mb-2">Cliente: {disburseData.nombre_cliente}</p>
-                <input type="number" value={realAmount} onChange={(e) => setRealAmount(e.target.value)} className="w-full border-2 border-green-500 rounded p-2 text-xl font-bold mb-4 focus:outline-none" autoFocus />
+              <div className="bg-white p-5 rounded-lg shadow-xl w-full max-w-sm border-t-4 border-blue-500">
+                <h3 className="font-bold text-lg mb-2 text-blue-700">Confirmar Monto Aceptado</h3>
+                <p className="text-xs text-slate-500 mb-4">El cliente <strong>{acceptOfferData.nombre_cliente}</strong> aceptó. Por favor confirma o ajusta la cantidad final preaprobada.</p>
+                <input type="number" value={realAmount} onChange={(e) => setRealAmount(e.target.value)} className="w-full border-2 border-blue-400 rounded p-2 text-xl font-bold mb-4 focus:outline-none" autoFocus />
                 <div className="flex gap-2">
-                  <button onClick={confirmGlobalDisbursement} className="flex-1 bg-green-600 text-white py-2 rounded font-bold hover:bg-green-500 transition-colors">Confirmar</button>
-                  <button onClick={() => setDisburseData(null)} className="flex-1 bg-slate-200 py-2 rounded font-bold hover:bg-slate-300 transition-colors">Cancelar</button>
+                  <button onClick={confirmAcceptOffer} className="flex-1 bg-blue-600 text-white py-2 rounded font-bold hover:bg-blue-500 transition-colors">Guardar</button>
+                  <button onClick={() => setAcceptOfferData(null)} className="flex-1 bg-slate-200 py-2 rounded font-bold hover:bg-slate-300 transition-colors">Cancelar</button>
                 </div>
               </div>
             </div>
@@ -650,6 +718,7 @@
             </div>
           )}
 
+          {/* MODAL: NUEVO LEAD */}
           {showForm && (
             <div className="fixed inset-0 glass-modal z-50 flex items-center justify-center p-4">
               <form onSubmit={handleAddSale} className="bg-white rounded-lg shadow-xl w-full max-w-sm p-5 space-y-4">
@@ -663,7 +732,6 @@
                  <input name="phone" placeholder="Teléfono" className="w-full border p-2 rounded focus:outline-none focus:border-blue-500" />
                  <input name="url" placeholder="Enlace / Link" className="w-full border p-2 rounded focus:outline-none focus:border-blue-500" />
                  
-                 {/* CASILLA UPPER */}
                  <div className="bg-indigo-50 border border-indigo-100 p-3 rounded-md flex items-center gap-3 mt-2 hover:bg-indigo-100 transition-colors">
                     <input type="checkbox" id="isUpper" name="isUpper" className="w-5 h-5 cursor-pointer accent-indigo-600" />
                     <label htmlFor="isUpper" className="text-sm font-bold text-indigo-900 cursor-pointer select-none">
@@ -675,6 +743,37 @@
                  <div className="flex gap-2 pt-2">
                     <button type="submit" className="flex-1 bg-blue-600 text-white py-2 rounded font-bold hover:bg-blue-700 transition-colors">Guardar</button>
                     <button type="button" onClick={() => setShowForm(false)} className="flex-1 bg-slate-200 py-2 rounded font-bold hover:bg-slate-300">Cancelar</button>
+                 </div>
+              </form>
+            </div>
+          )}
+
+          {/* MODAL: EDITAR LEAD */}
+          {editSaleData && (
+            <div className="fixed inset-0 glass-modal z-50 flex items-center justify-center p-4">
+              <form onSubmit={handleEditSubmit} className="bg-white rounded-lg shadow-xl w-full max-w-sm p-5 space-y-4 border-t-4 border-slate-700">
+                 <h2 className="font-bold text-lg border-b pb-2 text-slate-700">Editar Tarjeta</h2>
+                 
+                 {formError && <div className="bg-red-100 text-red-700 p-2 rounded text-xs font-bold border border-red-200"><i className="fas fa-exclamation-circle mr-1"></i>{formError}</div>}
+
+                 <div><label className="text-[10px] font-bold text-slate-500 uppercase">Folio</label>
+                 <input name="folio" defaultValue={editSaleData.folio} required className="w-full border p-2 rounded focus:outline-none focus:border-blue-500 font-mono text-sm" /></div>
+                 
+                 <div><label className="text-[10px] font-bold text-slate-500 uppercase">Cliente</label>
+                 <input name="client" defaultValue={editSaleData.nombre_cliente} required className="w-full border p-2 rounded focus:outline-none focus:border-blue-500 text-sm" /></div>
+                 
+                 <div><label className="text-[10px] font-bold text-slate-500 uppercase">Monto</label>
+                 <input name="amount" type="number" defaultValue={editSaleData.monto_preaprobado} required className="w-full border p-2 rounded focus:outline-none focus:border-blue-500 text-sm" /></div>
+                 
+                 <div><label className="text-[10px] font-bold text-slate-500 uppercase">Teléfono</label>
+                 <input name="phone" defaultValue={editSaleData.telefono} className="w-full border p-2 rounded focus:outline-none focus:border-blue-500 text-sm" /></div>
+                 
+                 <div><label className="text-[10px] font-bold text-slate-500 uppercase">Enlace</label>
+                 <input name="url" defaultValue={editSaleData.url} className="w-full border p-2 rounded focus:outline-none focus:border-blue-500 text-sm" /></div>
+                 
+                 <div className="flex gap-2 pt-4">
+                    <button type="submit" className="flex-1 bg-slate-800 text-white py-2 rounded font-bold hover:bg-slate-700 transition-colors">Actualizar</button>
+                    <button type="button" onClick={() => setEditSaleData(null)} className="flex-1 bg-slate-200 py-2 rounded font-bold hover:bg-slate-300">Cancelar</button>
                  </div>
               </form>
             </div>
