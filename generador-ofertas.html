@@ -39,11 +39,12 @@
             opacity: 0.02;
         }
 
+        /* AJUSTE AQUÍ: Se redujo el padding superior de 15mm a 5mm para subir la franja verde */
         #pdf-content {
             box-sizing: border-box;
             width: 210mm; 
             min-height: 297mm; 
-            padding: 15mm; 
+            padding: 5mm 15mm 15mm 15mm; 
             margin: 0 auto;
         }
     </style>
@@ -111,7 +112,7 @@
                     <div class="absolute inset-0 watermark pointer-events-none z-0"></div>
                     <div class="h-3 w-full bg-mmgreen z-10 relative"></div>
 
-                    <div class="z-10 relative flex flex-col flex-grow">
+                    <div class="z-10 relative flex flex-col flex-grow mt-10">
                         
                         <div class="flex justify-between items-start mb-10">
                             <div>
@@ -161,7 +162,7 @@
                             </div>
                             <div class="border-b border-slate-200 pb-3">
                                 <p class="text-[11px] text-slate-400 font-bold tracking-widest uppercase mb-1">Plazo</p>
-                                <p class="text-xl font-bold text-slate-900">60 meses <span class="text-sm font-normal text-slate-400">(Fijo)</span></p>
+                                <p class="text-xl font-bold text-slate-900">60 meses <span class="text-sm font-normal text-slate-400"></span></p>
                             </div>
                             <div class="border-b border-slate-200 pb-3">
                                 <p class="text-[11px] text-slate-400 font-bold tracking-widest uppercase mb-1">Comisión por Desembolso</p>
