@@ -115,8 +115,8 @@
                         
                         <div class="flex justify-between items-start mb-10">
                             <div>
-                                <a href="https://raw.githubusercontent.com/jarodlopez/Ventas-MM/refs/heads/main/MM-Logo-N.png" target="_blank" rel="noopener noreferrer" class="inline-block transition-transform hover:scale-105">
-                                    <img src="https://tudinerohoymismo.multimoney.com/logos/MM-Logo-B.png" crossorigin="anonymous" alt="MultiMoney" class="h-10 object-contain">
+                                <a href="https://blog.multimoney.com.mx/tendencias-tecnolgicas-en-crdito" target="_blank" rel="noopener noreferrer" class="inline-block transition-transform hover:scale-105">
+                                    <img src="https://raw.githubusercontent.com/jarodlopez/Ventas-MM/refs/heads/main/MM-Logo-N.png" crossorigin="anonymous" alt="MultiMoney" class="h-10 object-contain">
                                 </a>
                                 <p class="text-[10px] text-slate-400 font-bold tracking-widest uppercase mt-2 ml-1">Finanzas en estos tiempos</p>
                             </div>
@@ -129,8 +129,8 @@
                             </div>
                         </div>
 
-                        <div class="mb-8 border-l-4 border-slate-900 pl-6">
-                            <h2 id="out-cliente" class="text-3xl font-black text-slate-950 tracking-tighter capitalize overflow-hidden whitespace-nowrap text-ellipsis">Nombre del Cliente</h2>
+                        <div class="mb-8 border-l-4 border-slate-900 pl-6 py-1">
+                            <h2 id="out-cliente" class="text-3xl font-black text-slate-950 capitalize leading-snug break-words">Nombre del Cliente</h2>
                         </div>
 
                         <div class="bg-mmdark text-white rounded-2xl p-8 mb-6 flex flex-col justify-center shadow-2xl relative overflow-hidden border border-slate-800">
@@ -138,7 +138,7 @@
                             
                             <div class="relative z-10">
                                 <p class="text-sm text-slate-300 font-semibold tracking-widest uppercase mb-2">Monto Total Pre-Aprobado</p>
-                                <p id="out-monto" class="text-5xl md:text-6xl font-black text-mmgreen tracking-tighter">N/D</p>
+                                <p id="out-monto" class="text-5xl md:text-6xl font-black text-mmgreen tracking-tighter leading-none py-2">N/D</p>
                             </div>
                         </div>
 
@@ -161,7 +161,7 @@
                             </div>
                             <div class="border-b border-slate-200 pb-3">
                                 <p class="text-[11px] text-slate-400 font-bold tracking-widest uppercase mb-1">Plazo</p>
-                                <p class="text-xl font-bold text-slate-900">60 meses <span class="text-sm font-normal text-slate-400"></span></p>
+                                <p class="text-xl font-bold text-slate-900">60 meses <span class="text-sm font-normal text-slate-400">(Fijo)</span></p>
                             </div>
                             <div class="border-b border-slate-200 pb-3">
                                 <p class="text-[11px] text-slate-400 font-bold tracking-widest uppercase mb-1">Comisión por Desembolso</p>
@@ -231,37 +231,47 @@
 
         function descargarPDF() {
             generarOferta(); 
-            const element = document.getElementById('pdf-content');
-            
-            const opt = {
-                margin:       0,
-                filename:     getNombreArchivo('pdf'),
-                image:        { type: 'jpeg', quality: 1.0 },
-                html2canvas:  { scale: 2, useCORS: true, logging: false, backgroundColor: '#ffffff', scrollY: -window.scrollY },
-                jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
-            };
+            // Esperar a que las fuentes se carguen antes de exportar
+            document.fonts.ready.then(() => {
+                const element = document.getElementById('pdf-content');
+                
+                const opt = {
+                    margin:       0,
+                    filename:     getNombreArchivo('pdf'),
+                    image:        { type: 'jpeg', quality: 1.0 },
+                    html2canvas:  { scale: 2, useCORS: true, logging: false, backgroundColor: '#ffffff', scrollY: 0 },
+                    jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+                };
 
-            html2pdf().set(opt).from(element).save();
+                html2pdf().set(opt).from(element).save();
+            });
         }
 
         function descargarImagen() {
             generarOferta();
-            const element = document.getElementById('pdf-content');
+            // Evitar cortes visuales subiendo el scroll temporalmente al top antes del canvas
+            window.scrollTo(0,0);
             
-            html2canvas(element, { 
-                scale: 3, 
-                useCORS: true,
-                backgroundColor: '#ffffff',
-                scrollY: 0,
-                x: 0,
-                y: 0,
-                width: 793, 
-                height: 1122
-            }).then(canvas => {
-                const link = document.createElement('a');
-                link.download = getNombreArchivo('jpg');
-                link.href = canvas.toDataURL('image/jpeg', 0.95);
-                link.click();
+            // Esperar a que las fuentes se carguen antes de exportar
+            document.fonts.ready.then(() => {
+                const element = document.getElementById('pdf-content');
+                
+                html2canvas(element, { 
+                    scale: 3, 
+                    useCORS: true,
+                    allowTaint: true,
+                    backgroundColor: '#ffffff',
+                    scrollY: 0,
+                    x: 0,
+                    y: 0,
+                    width: 793, 
+                    height: 1122
+                }).then(canvas => {
+                    const link = document.createElement('a');
+                    link.download = getNombreArchivo('jpg');
+                    link.href = canvas.toDataURL('image/jpeg', 0.95);
+                    link.click();
+                });
             });
         }
 
@@ -295,3 +305,4 @@
     </script>
 </body>
 </html>
+ 
