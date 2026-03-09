@@ -11,8 +11,8 @@
             theme: {
                 extend: {
                     colors: {
-                        mmgreen: '#00B100', 
-                        mmdark: '#111827',
+                        mmgreen: '#00B100', // Verde oficial MultiMoney
+                        mmdark: '#1e293b', // Un gris oscuro menos intenso (slate-800)
                         slate: { 850: '#1e293b', 950: '#020617' }
                     },
                     fontFamily: {
@@ -29,10 +29,11 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800;900&display=swap" rel="stylesheet">
     
     <style>
-        body { font-family: 'Inter', sans-serif; background-color: #020617; }
+        body { font-family: 'Inter', sans-serif; background-color: #0f172a; } /* Fondo oscuro más suave para el generador (slate-900) */
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
         
+        /* Efecto de marca de agua sutil en el documento */
         .watermark {
             background-image: radial-gradient(#00b100 0.5px, transparent 0.5px);
             background-size: 15px 15px;
@@ -42,11 +43,11 @@
         /* Lienzo A4 exacto sin padding interno (se maneja en un div adentro) */
         #pdf-content {
             box-sizing: border-box;
-            width: 210mm; 
-            min-height: 297mm; 
+            width: 210mm; /* A4 fixed width */
+            min-height: 297mm; /* A4 fixed height */
             margin: 0 auto;
             position: relative;
-            background-color: white;
+            background-color: white; /* Aseguramos fondo blanco en el documento */
             overflow: hidden;
         }
     </style>
@@ -55,36 +56,36 @@
 
     <div class="max-w-[1400px] mx-auto grid grid-cols-1 xl:grid-cols-12 gap-8">
         
-        <div class="xl:col-span-4 bg-slate-900 p-6 sm:p-8 rounded-2xl shadow-2xl border border-slate-800 flex flex-col gap-6">
+        <div class="xl:col-span-4 bg-slate-100 p-6 sm:p-8 rounded-2xl shadow-2xl border border-slate-200 flex flex-col gap-6 text-slate-800">
             
-            <div class="border-b border-slate-800 pb-5">
+            <div class="border-b border-slate-200 pb-5">
                 <div class="flex items-center gap-3 mb-2">
                     <div class="w-3 h-3 rounded-full bg-mmgreen animate-pulse"></div>
-                    <h1 class="text-2xl font-black text-white tracking-tighter">Portal Comercial</h1>
+                    <h1 class="text-2xl font-black text-slate-950 tracking-tighter">Portal Comercial</h1>
                 </div>
-                <p class="text-slate-400 text-sm">Generador de ofertas de crédito.</p>
+                <p class="text-slate-600 text-sm">Generador de ofertas de crédito.</p>
             </div>
 
             <div class="space-y-4 flex-grow flex flex-col">
                 <div>
-                    <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Nombre del Cliente</label>
-                    <input type="text" id="input-cliente" placeholder="Ej. Juan Pérez" class="w-full p-3 bg-slate-950 border border-slate-700 text-white rounded-xl focus:ring-2 focus:ring-mmgreen focus:border-mmgreen outline-none transition-all placeholder-slate-600 font-medium">
+                    <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">Nombre del Cliente</label>
+                    <input type="text" id="input-cliente" placeholder="Ej. Juan Pérez" class="w-full p-3 bg-white border border-slate-300 text-slate-950 rounded-xl focus:ring-2 focus:ring-mmgreen focus:border-mmgreen outline-none transition-all placeholder-slate-400 font-medium">
                 </div>
 
                 <div class="flex-grow flex flex-col">
-                    <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Datos Brutos del Sistema</label>
-                    <textarea id="input-raw" rows="12" placeholder="Pega los datos aquí..." class="w-full p-4 bg-slate-950 border border-slate-700 text-white rounded-xl focus:ring-2 focus:ring-mmgreen focus:border-mmgreen outline-none transition-all flex-grow font-mono text-xs resize-none placeholder-slate-600 leading-relaxed"></textarea>
+                    <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">Datos Brutos del Sistema</label>
+                    <textarea id="input-raw" rows="12" placeholder="Pega los datos aquí..." class="w-full p-4 bg-white border border-slate-300 text-slate-950 rounded-xl focus:ring-2 focus:ring-mmgreen focus:border-mmgreen outline-none transition-all flex-grow font-mono text-xs resize-none placeholder-slate-400 leading-relaxed"></textarea>
                 </div>
             </div>
 
-            <div class="grid grid-cols-2 gap-3 pt-4 border-t border-slate-800">
+            <div class="grid grid-cols-2 gap-3 pt-4 border-t border-slate-200">
                 <button onclick="generarOferta()" class="col-span-2 bg-mmgreen hover:bg-green-600 text-white font-extrabold text-lg py-4 rounded-xl transition-all shadow-[0_0_20px_rgba(0,177,0,0.3)]">
                     Generar Oferta
                 </button>
-                <button onclick="limpiarCampos()" class="bg-slate-800 hover:bg-slate-700 text-white font-medium py-3 rounded-xl transition-colors">
+                <button onclick="limpiarCampos()" class="bg-slate-300 hover:bg-slate-400 text-slate-800 font-medium py-3 rounded-xl transition-colors">
                     Limpiar
                 </button>
-                <button onclick="copiarOferta()" class="bg-slate-800 hover:bg-slate-700 text-white font-medium py-3 rounded-xl transition-colors">
+                <button onclick="copiarOferta()" class="bg-slate-300 hover:bg-slate-400 text-slate-800 font-medium py-3 rounded-xl transition-colors">
                     Copiar Texto
                 </button>
             </div>
@@ -92,7 +93,7 @@
 
         <div class="xl:col-span-8 flex flex-col gap-4">
             
-            <div class="bg-slate-900 p-4 rounded-2xl border border-slate-800 flex justify-between items-center shadow-lg">
+            <div class="bg-slate-800 p-4 rounded-2xl border border-slate-700 flex justify-between items-center shadow-lg text-slate-200">
                 <div class="flex items-center gap-2">
                     <span class="w-2 h-2 rounded-full bg-mmgreen"></span>
                     <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-widest">Vista Previa del Documento A4</h2>
@@ -101,7 +102,7 @@
                     <button onclick="descargarImagen()" class="text-sm bg-white hover:bg-slate-100 text-slate-900 font-bold py-2 px-6 rounded-lg transition-colors flex items-center gap-2">
                         JPG
                     </button>
-                    <button onclick="descargarPDF()" class="text-sm bg-slate-800 hover:bg-slate-700 text-white font-medium py-2 px-6 rounded-lg transition-colors flex items-center gap-2 shadow-sm">
+                    <button onclick="descargarPDF()" class="text-sm bg-slate-700 hover:bg-slate-600 text-white font-medium py-2 px-6 rounded-lg transition-colors flex items-center gap-2 shadow-sm">
                         PDF
                     </button>
                 </div>
@@ -122,7 +123,7 @@
                                 <a href="https://blog.multimoney.com.mx/tendencias-tecnolgicas-en-crdito" target="_blank" rel="noopener noreferrer" class="inline-block transition-transform hover:scale-105">
                                     <img src="https://raw.githubusercontent.com/jarodlopez/Ventas-MM/refs/heads/main/MM-Logo-N.png" crossorigin="anonymous" alt="MultiMoney" class="h-10 object-contain">
                                 </a>
-                                <p class="text-xs text-slate-400 font-bold tracking-widest uppercase mt-6 ml-1">Gracias por confiar en Multimoney</p>
+                                <p class="text-[11px] text-slate-500 font-bold tracking-widest uppercase mt-6 ml-1">Gracias por confiar en Multimoney</p>
                             </div>
                             <div class="text-right">
                                 <div class="inline-block bg-green-100 text-mmgreen px-4 py-1.5 rounded-full text-xs font-extrabold tracking-widest uppercase mb-3 border border-green-200">
@@ -141,7 +142,7 @@
                             <div class="absolute -right-10 -top-10 w-48 h-48 bg-mmgreen opacity-20 rounded-full blur-3xl z-0"></div>
                             
                             <div class="relative z-10">
-                                <p class="text-sm text-slate-300 font-semibold tracking-widest uppercase mb-2">Monto Total Pre-Aprobado</p>
+                                <p class="text-sm text-slate-200 font-semibold tracking-widest uppercase mb-2">Monto Total Pre-Aprobado</p>
                                 <p id="out-monto" class="text-5xl md:text-6xl font-black text-mmgreen tracking-tighter leading-none py-2">N/D</p>
                             </div>
                         </div>
@@ -161,25 +162,25 @@
                         <div class="grid grid-cols-2 gap-x-12 gap-y-10 mb-12 flex-grow">
                             <div class="border-b-2 border-slate-100 pb-4">
                                 <p class="text-xs text-slate-500 font-bold tracking-widest uppercase mb-2">Tasa Mensual</p>
-                                <p id="out-tasa" class="text-2xl font-black text-slate-900">N/D</p>
+                                <p id="out-tasa" class="text-2xl font-black text-slate-800">N/D</p>
                             </div>
                             <div class="border-b-2 border-slate-100 pb-4">
                                 <p class="text-xs text-slate-500 font-bold tracking-widest uppercase mb-2">Plazo</p>
-                                <p class="text-2xl font-black text-slate-900">60 meses</p>
+                                <p class="text-2xl font-black text-slate-800">60 meses</p>
                             </div>
                             <div class="border-b-2 border-slate-100 pb-4">
                                 <p class="text-xs text-slate-500 font-bold tracking-widest uppercase mb-2">Comisión por Desembolso</p>
-                                <p id="out-comision" class="text-2xl font-black text-slate-900">N/D</p>
+                                <p id="out-comision" class="text-2xl font-black text-slate-800">N/D</p>
                             </div>
                             <div class="border-b-2 border-slate-100 pb-4">
                                 <p class="text-xs text-slate-500 font-bold tracking-widest uppercase mb-2">Fecha Est. Primer Pago</p>
-                                <p id="out-fecha" class="text-2xl font-black text-slate-900">N/D</p>
+                                <p id="out-fecha" class="text-2xl font-black text-slate-800">N/D</p>
                             </div>
                         </div>
 
-                        <div class="mt-auto pt-6 border-t border-slate-200">
+                        <div class="mt-auto pt-6 border-t border-slate-200legal-footer">
                             <p class="text-[10px] text-slate-400 leading-relaxed text-justify">
-                                <strong>IMPORTANTE:</strong> Esta información es estrictamente comercial y confidencial. Representa una oferta pre-aprobada válida únicamente por 24 horas y no constituye una obligación contractual firme para MultiMoney. Las tasas de interés, comisiones, montos y cuotas proyectadas están sujetos a verificación documental final y aprobación por parte del comité de riesgo crediticio de MultiMoney, por lo que podrían variar previo a la formalización del contrato definitivo. La cuota mensual estimada incluye impuestos aplicables.
+                                <strong>IMPORTANTE:</strong> Esta información es estrictamente comercial y confidencial. Representa una oferta pre-aprobada válida únicamente por 24 horas y no constituye una obligación contractual firme para MultiMoney. Las tasas de interés, comisiones, montos y cuotas proyectadas están sujetos a verificación documental final y aprobación por parte del comité de riesgo crediticio de MultiMoney, por lo que podrían variar previo a la formalización del contrato definitivo. La cuota mensual estimada incluye impuestos aplicables salvo indicación contraria.
                             </p>
                         </div>
                     </div>
@@ -309,4 +310,3 @@
     </script>
 </body>
 </html>
- 
