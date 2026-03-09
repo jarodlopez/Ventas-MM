@@ -39,13 +39,14 @@
             opacity: 0.02;
         }
 
-        /* AJUSTE AQUÍ: Se redujo el padding superior de 15mm a 5mm para subir la franja verde */
+        /* Estilo base para el documento A4 */
         #pdf-content {
             box-sizing: border-box;
-            width: 210mm; 
-            min-height: 297mm; 
-            padding: 5mm 15mm 15mm 15mm; 
+            width: 210mm; /* A4 fixed width */
+            min-height: 297mm; /* A4 fixed height */
+            padding: 0; /* Sin padding en el padre para permitir que la barra verde sea full-width */
             margin: 0 auto;
+            position: relative;
         }
     </style>
 </head>
@@ -92,8 +93,8 @@
             
             <div class="bg-slate-900 p-4 rounded-2xl border border-slate-800 flex justify-between items-center shadow-lg">
                 <div class="flex items-center gap-2">
-                    <span class="w-2 h-2 rounded-full bg-green-400"></span>
-                    <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-widest">Vista Previa del Documento</h2>
+                    <span class="w-2 h-2 rounded-full bg-mmgreen"></span>
+                    <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-widest">Vista Previa del Documento A4</h2>
                 </div>
                 <div class="flex gap-3">
                     <button onclick="descargarImagen()" class="text-sm bg-white hover:bg-slate-100 text-slate-900 font-bold py-2 px-6 rounded-lg transition-colors flex items-center gap-2">
@@ -110,16 +111,17 @@
                 <div id="pdf-content" class="bg-white relative shadow-2xl overflow-hidden text-slate-900 flex flex-col">
                     
                     <div class="absolute inset-0 watermark pointer-events-none z-0"></div>
-                    <div class="h-3 w-full bg-mmgreen z-10 relative"></div>
+                    
+                    <div class="h-3 w-full bg-mmgreen z-10 relative pt-[5mm]"></div>
 
-                    <div class="z-10 relative flex flex-col flex-grow mt-10">
+                    <div class="z-10 relative flex flex-col flex-grow mt-10 px-[15mm] pb-[15mm]">
                         
                         <div class="flex justify-between items-start mb-10">
                             <div>
                                 <a href="https://blog.multimoney.com.mx/tendencias-tecnolgicas-en-crdito" target="_blank" rel="noopener noreferrer" class="inline-block transition-transform hover:scale-105">
                                     <img src="https://raw.githubusercontent.com/jarodlopez/Ventas-MM/refs/heads/main/MM-Logo-N.png" crossorigin="anonymous" alt="MultiMoney" class="h-10 object-contain">
                                 </a>
-                                <p class="text-[10px] text-slate-400 font-bold tracking-widest uppercase mt-2 ml-1">Gracias por confiar en MultiMoney.</p>
+                                <p class="text-[10px] text-slate-400 font-bold tracking-widest uppercase mt-8 ml-1">Gracias por confiar en Multimoney</p>
                             </div>
                             <div class="text-right">
                                 <div class="inline-block bg-green-100 text-mmgreen px-4 py-1.5 rounded-full text-xs font-extrabold tracking-widest uppercase mb-3 border border-green-200">
@@ -162,7 +164,7 @@
                             </div>
                             <div class="border-b border-slate-200 pb-3">
                                 <p class="text-[11px] text-slate-400 font-bold tracking-widest uppercase mb-1">Plazo</p>
-                                <p class="text-xl font-bold text-slate-900">60 meses <span class="text-sm font-normal text-slate-400"></span></p>
+                                <p class="text-xl font-bold text-slate-900">60 meses</p>
                             </div>
                             <div class="border-b border-slate-200 pb-3">
                                 <p class="text-[11px] text-slate-400 font-bold tracking-widest uppercase mb-1">Comisión por Desembolso</p>
@@ -306,4 +308,3 @@
     </script>
 </body>
 </html>
- 
