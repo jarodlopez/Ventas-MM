@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generador de Ofertas - MultiMoney</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen p-4 md:p-8">
+
+    <div class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-8">
+        
+        <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col gap-5">
+            <div>
+                <h1 class="text-2xl font-bold text-slate-900">Generador de Ofertas</h1>
+                <p class="text-slate-500 text-sm mt-1">Pega los datos en bruto y genera el PDF para el cliente.</p>
+            </div>
+
+            <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1">Nombre del Cliente</label>
+                <input type="text" id="input-cliente" placeholder="Ej. Juan Pérez" class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all">
+            </div>
+
+            <div class="flex-grow flex flex-col">
+                <label class="block text-sm font-medium text-slate-700 mb-1">Datos en Bruto de la Oferta</label>
+                <textarea id="input-raw" rows="10" placeholder="Pega aquí el texto desordenado..." class="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all flex-grow font-mono text-sm resize-none"></textarea>
+            </div>
+
+            <div class="flex gap-3">
+                <button onclick="generarOferta()" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-4 rounded-lg transition-colors shadow-sm">
+                    Generar Vista Previa
+                </button>
+                <button onclick="limpiarCampos()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium py-3 px-4 rounded-lg transition-colors">
+                    Limpiar
+                </button>
+            </div>
+        </div>
+
+        <div class="flex flex-col gap-4">
+            <div class="flex justify-between items-end">
+                <h2 class="text-lg font-semibold text-slate-800">Vista Previa del Documento</h2>
+                <div class="flex gap-2">
+                    <button onclick="copiarOferta()" class="text-sm bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-medium py-2 px-4 rounded-lg transition-colors flex items-center gap-2 shadow-sm">
+                        Copiar Texto
+                    </button>
+                    <button onclick="descargarPDF()" class="text-sm bg-slate-900 hover:bg-slate-800 text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center gap-2 shadow-sm">
+                        Descargar PDF
+                    </button>
+                </div>
+            </div>
+
+            <div class="bg-slate-200 p-4 md:p-8 rounded-2xl flex-grow overflow-auto no-scrollbar flex justify-center items-start">
+                
+                <div id="pdf-content" class="bg-white w-full max-w-[210mm] min-h-[297mm] p-12 shadow-md relative">
+                    <div class="flex justify-between items-center mb-10 border-b-2 border-slate-100 pb-6">
+                        <div>
+                            <h1 class="text-3xl font-bold text-slate-900 tracking-tight">OFERTA DE LÍNEA DE CRÉDITO</h1>
+                            <p class="text-slate-500 mt-2 text-lg">Cliente: <span id="out-cliente" class="font-semibold text-slate-800">_______</span></p>
+                        </div>
+                        <img src="https://tudinerohoymismo.multimoney.com/logos/MM-Logo-B.png" crossorigin="anonymous" alt="Logo MultiMoney" class="max-h-12 max-w-[180px] object-contain">
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-y-6 gap-x-12">
+                        
+                        <div class="border-l-4 border-blue-500 pl-4">
+                            <p class="text-sm text-slate-500 font-medium">Monto de Línea de Crédito</p>
+                            <p id="out-monto" class="text-xl font-bold text-slate-900 mt-1">N/D</p>
+                        </div>
+
+                        <div class="border-l-4 border-slate-200 pl-4">
+                            <p class="text-sm text-slate-500 font-medium">Monto Disponible</p>
+                            <p id="out-disponer" class="text-xl font-bold text-slate-900 mt-1">N/D</p>
+                        </div>
+
+                        <div class="border-l-4 border-slate-200 pl-4">
+                            <p class="text-sm text-slate-500 font-medium">Tasa Mensual</p>
+                            <p id="out-tasa" class="text-lg font-semibold text-slate-800 mt-1">N/D</p>
+                        </div>
+
+                        <div class="border-l-4 border-slate-200 pl-4">
+                            <p class="text-sm text-slate-500 font-medium">Comisión por Desembolso</p>
+                            <p id="out-comision" class="text-lg font-semibold text-slate-800 mt-1">N/D</p>
+                        </div>
+
+                        <div class="border-l-4 border-slate-200 pl-4">
+                            <p class="text-sm text-slate-500 font-medium">Plazo</p>
+                            <p id="out-plazo" class="text-lg font-semibold text-slate-800 mt-1">N/D</p>
+                        </div>
+
+                        <div class="border-l-4 border-slate-200 pl-4">
+                            <p class="text-sm text-slate-500 font-medium">Ciclo de Pago</p>
+                            <p id="out-ciclo" class="text-lg font-semibold text-slate-800 mt-1">N/D</p>
+                        </div>
+
+                        <div class="border-l-4 border-slate-200 pl-4">
+                            <p class="text-sm text-slate-500 font-medium">Fecha de Primer Pago</p>
+                            <p id="out-fecha" class="text-lg font-semibold text-slate-800 mt-1">N/D</p>
+                        </div>
+
+                        <div class="bg-blue-50 border-l-4 border-blue-600 pl-4 py-2 pr-4 rounded-r-lg">
+                            <p class="text-sm text-blue-800 font-medium">Pago Mensual Aproximado</p>
+                            <p id="out-pago" class="text-2xl font-bold text-blue-900 mt-1">N/D</p>
+                        </div>
+                    </div>
+
+                    <div class="absolute bottom-12 left-12 right-12 border-t border-slate-200 pt-6">
+                        <p class="text-xs text-slate-400 text-justify">
+                            <strong>Nota Legal:</strong> Este documento es una propuesta preliminar y no constituye una obligación contractual firme. Las tasas, comisiones y montos están sujetos a verificación y pueden variar dependiendo del análisis de riesgo crediticio final. Los pagos mostrados son de carácter informativo.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Función para extraer datos con expresiones regulares
+        function extraerDato(texto, regex, sufijo = '', prefijo = '') {
+            const match = texto.match(regex);
+            if (match && match[1]) {
+                return `${prefijo}${match[1].trim()}${sufijo}`;
+            }
+            return 'N/D';
+        }
+
+        function generarOferta() {
+            const rawText = document.getElementById('input-raw').value;
+            const clienteInput = document.getElementById('input-cliente').value.trim();
+            
+            // Limpiar saltos de línea y espacios
+            const cleanText = rawText.replace(/\n/g, ' ').replace(/\s+/g, ' ');
+
+            // Reglas Regex para detectar los valores
+            const regexMonto = /Monto L(?:í|i)nea de Cr(?:é|e)dito:\s*[\$\s]*([\d,]+(?:.\d{1,2})?)\s*MXN/i;
+            const regexTasa = /Tasa Mensual:\s*([\d.]+)\s*%?\s*(?:IVAI)?/i;
+            const regexComision = /Comisi(?:ó|o)n por Desembolso:\s*([\d.]+)\s*%?\s*(?:IVAI)?/i;
+            const regexPlazo = /Plazo:\s*(\d+)\s*Meses/i;
+            const regexFecha = /Fecha Primer Pago:\s*([\d/]+)/i;
+            const regexCiclo = /Ciclo:\s*(\d+)/i;
+            const regexDisponer = /Monto Por Disponer:\s*[\$\s]*([\d,]+(?:.\d{1,2})?)\s*MXN/i;
+            const regexPago = /Pago Mensual(?: ser(?:í|i)a)?:\s*[\$\s]*([\d,]+(?:.\d{1,2})?)\s*MXN/i;
+
+            // Inyectar en la vista
+            document.getElementById('out-cliente').innerText = clienteInput || '_______';
+            document.getElementById('out-monto').innerText = extraerDato(cleanText, regexMonto, ' MXN', '$');
+            document.getElementById('out-tasa').innerText = extraerDato(cleanText, regexTasa, '% IVAI');
+            document.getElementById('out-comision').innerText = extraerDato(cleanText, regexComision, '% IVAI');
+            document.getElementById('out-plazo').innerText = extraerDato(cleanText, regexPlazo, ' meses');
+            document.getElementById('out-fecha').innerText = extraerDato(cleanText, regexFecha);
+            document.getElementById('out-ciclo').innerText = extraerDato(cleanText, regexCiclo);
+            document.getElementById('out-disponer').innerText = extraerDato(cleanText, regexDisponer, ' MXN', '$');
+            document.getElementById('out-pago').innerText = extraerDato(cleanText, regexPago, ' MXN', '$');
+        }
+
+        function descargarPDF() {
+            generarOferta(); // Actualizar antes de descargar
+            
+            const element = document.getElementById('pdf-content');
+            let cliente = document.getElementById('input-cliente').value.trim();
+            if(!cliente) cliente = "Cliente";
+            
+            const opt = {
+                margin:       0,
+                filename:     `Oferta_${cliente}.pdf`,
+                image:        { type: 'jpeg', quality: 0.98 },
+                html2canvas:  { scale: 2, useCORS: true }, // useCORS es vital para cargar el logo externo
+                jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            };
+
+            html2pdf().set(opt).from(element).save();
+        }
+
+        function copiarOferta() {
+            generarOferta();
+            const textoCopiado = `OFERTA DE LÍNEA DE CRÉDITO - MultiMoney
+Cliente: ${document.getElementById('out-cliente').innerText}
+
+Monto de Línea de Crédito: ${document.getElementById('out-monto').innerText}
+Tasa Mensual: ${document.getElementById('out-tasa').innerText}
+Comisión por Desembolso: ${document.getElementById('out-comision').innerText}
+Plazo: ${document.getElementById('out-plazo').innerText}
+Fecha de Primer Pago: ${document.getElementById('out-fecha').innerText}
+Ciclo de Pago: ${document.getElementById('out-ciclo').innerText}
+Monto Disponible: ${document.getElementById('out-disponer').innerText}
+Pago Mensual Aproximado: ${document.getElementById('out-pago').innerText}`;
+
+            navigator.clipboard.writeText(textoCopiado).then(() => {
+                alert("Oferta copiada al portapapeles.");
+            });
+        }
+
+        function limpiarCampos() {
+            document.getElementById('input-raw').value = '';
+            document.getElementById('input-cliente').value = '';
+            const defaults = ['out-monto', 'out-tasa', 'out-comision', 'out-plazo', 'out-fecha', 'out-ciclo', 'out-disponer', 'out-pago'];
+            defaults.forEach(id => document.getElementById(id).innerText = 'N/D');
+            document.getElementById('out-cliente').innerText = '_______';
+        }
+    </script>
+</body>
+</html>
