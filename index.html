@@ -50,10 +50,13 @@
     const db = firebase.firestore();
     const auth = firebase.auth();
 
-    const PIPELINE_STATUSES = ["Con oferta", "Acepta oferta", "Long track", "Dispersado", "Rechazado", "Cancelado"];
+    // NUEVO ESTATUS AÑADIDO: "Expirado"
+    const PIPELINE_STATUSES = ["Con oferta", "Acepta oferta", "Long track", "Dispersado", "Rechazado", "Cancelado", "Expirado"];
     
+    // NUEVO MOTIVO AÑADIDO: "Oferta expirada"
     const LOST_REASONS = [
       "No contesta / Inlocalizable",
+      "Oferta expirada",
       "Tasa/Condiciones no favorables",
       "Se fue con la competencia",
       "No cumple requisitos / Buro",
@@ -241,7 +244,7 @@
 
       const getBorderColor = () => {
         if(sale.estatus === 'Dispersado') return 'bg-green-500';
-        if(sale.estatus === 'Rechazado' || sale.estatus === 'Cancelado') return 'bg-red-500';
+        if(sale.estatus === 'Rechazado' || sale.estatus === 'Cancelado' || sale.estatus === 'Expirado') return 'bg-red-500';
         return 'bg-blue-500';
       }
 
@@ -288,7 +291,6 @@
             
             <h3 className="font-bold text-sm text-slate-800 truncate mt-1 select-text">{sale.nombre_cliente}</h3>
             
-            {/* ZONA FINANCIERA RESTAURADA CON ETIQUETAS ORIGINALES */}
             <div className="flex justify-between items-end mt-2 bg-slate-50 p-2 rounded border border-slate-100">
                <div className="flex flex-col gap-1">
                   {sale.monto_original ? (
@@ -319,7 +321,8 @@
                  </div>
                )}
                
-               {(sale.estatus === 'Rechazado' || sale.estatus === 'Cancelado') && sale.motivo_perdida && (
+               {/* AHORA EXPIRADO TAMBIÉN MUESTRA EL MOTIVO (QUE SERÁ OFERTA EXPIRADA) */}
+               {(sale.estatus === 'Rechazado' || sale.estatus === 'Cancelado' || sale.estatus === 'Expirado') && sale.motivo_perdida && (
                  <div className="flex flex-col text-right">
                     <span className="text-[10px] text-red-500 font-bold uppercase block leading-none mb-0.5">Motivo</span>
                     <span className="font-bold text-red-700 text-[10px] truncate max-w-[90px]" title={sale.motivo_perdida}>{sale.motivo_perdida}</span>
@@ -427,7 +430,7 @@
              const d = parseDate(sale.fecha_dispersion || sale.fecha);
              return d.getFullYear() === viewYear && d.getMonth() === viewMonth && getQuincena(d) === viewQ;
           } 
-          else if (sale.estatus === 'Rechazado' || sale.estatus === 'Cancelado') {
+          else if (sale.estatus === 'Rechazado' || sale.estatus === 'Cancelado' || sale.estatus === 'Expirado') {
              const d = parseDate(sale.fecha_resolucion || sale.fecha);
              return d.getFullYear() === viewYear && d.getMonth() === viewMonth && getQuincena(d) === viewQ;
           } 
@@ -574,8 +577,9 @@
              history: firebase.firestore.FieldValue.arrayUnion({ date: new Date().toISOString(), action: `DISPERSADO AUTOMÁTICO: ${money(sale.monto_preaprobado)}`, user: 'Agente' }) 
            });
         } 
-        else if (newStatus === 'Rechazado' || newStatus === 'Cancelado') {
-           setLostReason(LOST_REASONS[0]); 
+        else if (newStatus === 'Rechazado' || newStatus === 'Cancelado' || newStatus === 'Expirado') {
+           // Selecciona automáticamente "Oferta expirada" si eligen la nueva columna
+           setLostReason(newStatus === 'Expirado' ? 'Oferta expirada' : LOST_REASONS[0]); 
            setLostData({ sale, newStatus }); 
         } 
         else {
@@ -838,4 +842,4 @@
     root.render(<MainWrapper />);
   </script>
 </body>
-</html>
+</html> 
