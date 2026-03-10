@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Generador de Ofertas - MultiMoney</title>
+    <title>Generador de Ofertas - MultiMoney (Marketing UX)</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -59,15 +59,15 @@
             <div class="border-b border-slate-800 pb-5">
                 <div class="flex items-center gap-3 mb-2">
                     <div class="w-3 h-3 rounded-full bg-mmgreen animate-pulse"></div>
-                    <h1 class="text-2xl font-bold text-white tracking-tighter">Portal Comercial</h1>
+                    <h1 class="text-2xl font-bold text-white tracking-tighter">Portal Conversión UX</h1>
                 </div>
-                <p class="text-slate-400 text-sm">Generador de ofertas de crédito.</p>
+                <p class="text-slate-400 text-sm">Diseño optimizado para engagement.</p>
             </div>
 
             <div class="space-y-4 flex-grow flex flex-col">
                 <div>
-                    <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Nombre del Cliente</label>
-                    <input type="text" id="input-cliente" placeholder="Ej. Juan Pérez" class="w-full p-3 bg-slate-950 border border-slate-700 text-white rounded-xl focus:ring-2 focus:ring-mmgreen focus:border-mmgreen outline-none transition-all placeholder-slate-600 font-medium">
+                    <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Nombre Completo del Cliente</label>
+                    <input type="text" id="input-cliente" placeholder="Ej. Liliana Evangelista Andrade" class="w-full p-3 bg-slate-950 border border-slate-700 text-white rounded-xl focus:ring-2 focus:ring-mmgreen focus:border-mmgreen outline-none transition-all placeholder-slate-600 font-medium">
                 </div>
 
                 <div class="flex-grow flex flex-col">
@@ -84,7 +84,7 @@
                     Limpiar
                 </button>
                 <button onclick="copiarOferta()" class="bg-slate-800 hover:bg-slate-700 text-white font-medium py-3 rounded-xl transition-colors">
-                    Copiar Texto
+                    Copiar Texto WhatsApp
                 </button>
             </div>
         </div>
@@ -94,11 +94,11 @@
             <div class="bg-slate-800 p-4 rounded-2xl border border-slate-700 flex justify-between items-center shadow-lg text-slate-200">
                 <div class="flex items-center gap-2">
                     <span class="w-2 h-2 rounded-full bg-mmgreen"></span>
-                    <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-widest">Vista Previa del Documento A4</h2>
+                    <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-widest">Vista Previa (Cebo Comercial)</h2>
                 </div>
                 <div class="flex gap-3">
                     <button onclick="descargarImagen()" class="text-sm bg-white hover:bg-slate-100 text-slate-900 font-bold py-2 px-6 rounded-lg transition-colors flex items-center gap-2">
-                        JPG
+                        Descargar JPG
                     </button>
                     <button onclick="descargarPDF()" class="text-sm bg-slate-700 hover:bg-slate-600 text-white font-medium py-2 px-6 rounded-lg transition-colors flex items-center gap-2 shadow-sm">
                         PDF
@@ -108,77 +108,56 @@
 
             <div class="bg-[#0f172a] p-4 md:p-8 rounded-2xl flex-grow overflow-auto no-scrollbar flex justify-center items-start">
                 
-                <div id="pdf-content" class="shadow-2xl text-slate-800">
+                <div id="pdf-content" class="shadow-2xl text-slate-800 flex flex-col">
                     
                     <div class="absolute inset-0 watermark pointer-events-none z-0"></div>
                     
                     <div class="absolute top-0 left-0 w-full h-4 bg-mmgreen z-20"></div>
 
-                    <div class="relative z-10 flex flex-col h-full p-[15mm] pt-[20mm]">
+                    <div class="relative z-10 flex flex-col h-full p-[18mm] pt-[25mm]">
                         
-                        <div class="flex justify-between items-start mb-10">
-                            <div>
-                                <a href="https://blog.multimoney.com.mx/tendencias-tecnolgicas-en-crdito" target="_blank" rel="noopener noreferrer" class="inline-block transition-transform hover:scale-105">
-                                    <img src="https://raw.githubusercontent.com/jarodlopez/Ventas-MM/refs/heads/main/MM-Logo-N.png" crossorigin="anonymous" alt="MultiMoney" class="h-10 object-contain">
-                                </a>
-                                <p class="text-[11px] text-slate-500 font-bold tracking-widest uppercase mt-6 ml-1">Gracias por confiar en Multimoney</p>
-                            </div>
-                            <div class="text-right">
-                                <div class="inline-block bg-green-100 text-mmgreen px-4 py-1.5 rounded-full text-xs font-bold tracking-widest uppercase mb-3 border border-green-200">
-                                    Pre-Aprobado
-                                </div>
-                                <p class="text-xs text-slate-400 font-medium tracking-widest uppercase">DETALLE DE OFERTA</p>
-                                <p class="text-sm text-slate-600 font-bold mt-1" id="out-fecha-doc">DD/MM/YYYY</p>
+                        <div class="flex justify-between items-center mb-10">
+                            <img src="https://raw.githubusercontent.com/jarodlopez/Ventas-MM/refs/heads/main/MM-Logo-N.png" crossorigin="anonymous" alt="MultiMoney" class="h-12 object-contain">
+                            <div class="inline-block bg-green-50 text-mmgreen px-5 py-2 rounded-full text-sm font-black tracking-widest uppercase border-2 border-green-200 shadow-sm">
+                                PRE-APROBADO
                             </div>
                         </div>
 
-                        <div class="mb-8 border-l-4 border-slate-800 pl-6 py-1">
-                            <h2 id="out-cliente" class="text-3xl font-bold text-slate-800 capitalize leading-snug break-words">Nombre del Cliente</h2>
+                        <div class="text-center mb-8">
+                            <h2 class="text-[2.2rem] leading-tight font-black text-slate-900 tracking-tight">¡Felicidades, <br><span id="out-cliente" class="text-mmgreen">Nombre del Cliente</span>!</h2>
                         </div>
 
-                        <div class="bg-mmdark text-white rounded-2xl p-8 mb-6 flex flex-col justify-center shadow-2xl relative overflow-hidden border border-slate-700">
-                            <div class="absolute -right-10 -top-10 w-48 h-48 bg-mmgreen opacity-20 rounded-full blur-3xl z-0"></div>
+                        <div class="bg-slate-900 text-white rounded-[2.5rem] p-12 mb-10 flex flex-col items-center justify-center shadow-2xl relative overflow-hidden border border-slate-800">
+                            <div class="absolute -right-20 -top-20 w-64 h-64 bg-mmgreen opacity-20 rounded-full blur-3xl z-0 pointer-events-none"></div>
                             
-                            <div class="relative z-10">
-                                <p class="text-sm text-slate-300 font-semibold tracking-widest uppercase mb-2">Monto Total Pre-Aprobado</p>
-                                <p id="out-monto" class="text-5xl md:text-6xl font-bold text-mmgreen tracking-tighter leading-none py-2">N/D</p>
+                            <div class="relative z-10 text-center w-full">
+                                <p class="text-lg text-slate-300 font-bold tracking-widest uppercase mb-4">Tu línea de crédito es de:</p>
+                                <p id="out-monto" class="text-6xl font-black text-mmgreen tracking-tighter leading-none py-2 drop-shadow-lg">N/D</p>
                             </div>
                         </div>
 
-                        <div class="bg-slate-50 rounded-2xl p-6 mb-10 border border-slate-200 shadow-sm grid grid-cols-2 gap-8 divide-x divide-slate-300">
-                            <div>
-                                <p class="text-xs text-slate-500 font-bold tracking-widest uppercase mb-2">Monto Disponible</p>
-                                <p id="out-disponer" class="text-3xl font-bold text-slate-800 tracking-tight">N/D</p>
+                        <div class="text-center mb-12 flex-grow flex flex-col justify-center items-center">
+                            
+                            <p class="text-sm text-slate-500 font-bold tracking-widest uppercase mb-2">Cuotas estimadas desde</p>
+                            <p class="text-5xl font-black text-slate-900 tracking-tighter mb-6"><span id="out-pago">N/D</span> <span class="text-2xl text-slate-500 font-semibold tracking-normal">/ mes</span></p>
+                            
+                            <div class="bg-slate-100 text-slate-600 px-6 py-3 rounded-full font-semibold text-lg inline-flex items-center gap-2 mb-10 border border-slate-200">
+                                <svg class="w-5 h-5 text-mmgreen" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                                Plazos flexibles para pagar (hasta <span id="out-plazo">60</span> meses).
                             </div>
-                            <div class="pl-8">
-                                <p class="text-xs text-slate-500 font-bold tracking-widest uppercase mb-2">Cuota Mensual</p>
-                                <p id="out-pago" class="text-3xl font-bold text-slate-800 tracking-tight">N/D</p>
-                                <p class="text-[11px] text-slate-400 mt-1">Ciclo de pago: <span id="out-ciclo" class="font-bold text-slate-500">N/D</span></p>
+
+                            <div class="bg-mmgreen text-white text-2xl font-black py-5 px-14 rounded-full shadow-[0_12px_30px_rgba(0,177,0,0.4)] tracking-tight">
+                                Obtener mi dinero ahora
                             </div>
+                            <p class="text-xs text-slate-400 mt-5 font-medium flex items-center justify-center gap-1.5">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                                Proceso seguro, confidencial y sin anticipos.
+                            </p>
                         </div>
 
-                        <div class="grid grid-cols-2 gap-x-12 gap-y-10 mb-12 flex-grow">
-                            <div class="border-b-2 border-slate-100 pb-4">
-                                <p class="text-xs text-slate-500 font-bold tracking-widest uppercase mb-2">Tasa Mensual</p>
-                                <p id="out-tasa" class="text-2xl font-bold text-slate-800">N/D</p>
-                            </div>
-                            <div class="border-b-2 border-slate-100 pb-4">
-                                <p class="text-xs text-slate-500 font-bold tracking-widest uppercase mb-2">Plazo</p>
-                                <p class="text-2xl font-bold text-slate-800">60 meses</p>
-                            </div>
-                            <div class="border-b-2 border-slate-100 pb-4">
-                                <p class="text-xs text-slate-500 font-bold tracking-widest uppercase mb-2">Comisión por Desembolso</p>
-                                <p id="out-comision" class="text-2xl font-bold text-slate-800">N/D</p>
-                            </div>
-                            <div class="border-b-2 border-slate-100 pb-4">
-                                <p class="text-xs text-slate-500 font-bold tracking-widest uppercase mb-2">Fecha de primer Pago</p>
-                                <p id="out-fecha" class="text-2xl font-bold text-slate-800">N/D</p>
-                            </div>
-                        </div>
-
-                        <div class="mt-auto pt-6 border-t border-slate-200">
-                            <p class="text-[10px] text-slate-400 leading-relaxed text-justify">
-                                <strong>IMPORTANTE:</strong> Esta información es estrictamente comercial y confidencial. Representa una oferta pre-aprobada válida únicamente por 24 horas y no constituye una obligación contractual firme para MultiMoney. Las tasas de interés, comisiones, montos y cuotas proyectadas están sujetos a verificación documental final y aprobación por parte del comité de riesgo crediticio de MultiMoney, por lo que podrían variar previo a la formalización del contrato definitivo. La cuota mensual estimada incluye impuestos aplicables salvo indicación contraria.
+                        <div class="mt-auto pt-6 border-t border-slate-200 text-justify">
+                            <p class="text-[9px] text-slate-400 leading-relaxed">
+                                <strong>CONDICIONES Y AVISO LEGAL:</strong> Esta imagen es estrictamente comercial y confidencial. Oferta pre-aprobada válida por 24 horas. <strong>Tasa mensual: <span id="out-tasa">N/D</span>% (IVA incluido). Comisión por desembolso: <span id="out-comision">N/D</span>%.</strong> Ciclo de pago sugerido: <span id="out-ciclo">N/D</span>. Fecha estimada de primer pago: <span id="out-fecha">N/D</span>. Las condiciones finales (incluyendo el CAT), así como la aprobación final de la línea, están sujetas a la validación de capacidad de pago y políticas del comité de riesgo crediticio de MultiMoney, previo a la firma del contrato definitivo.
                             </p>
                         </div>
                     </div>
@@ -189,9 +168,6 @@
     </div>
 
     <script>
-        const fechaActual = new Date().toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' });
-        document.getElementById('out-fecha-doc').innerText = fechaActual;
-
         function extraerDato(texto, regex, sufijo = '', prefijo = '') {
             const match = texto.match(regex);
             if (match && match[1]) {
@@ -209,35 +185,35 @@
             const cleanText = rawText.replace(/\n/g, ' ').replace(/\s+/g, ' ');
 
             const regexMonto = /Monto L(?:í|i)nea de Cr(?:é|e)dito:\s*[\$\s]*([\d,]+(?:.\d{1,2})?)\s*MXN/i;
-            const regexTasa = /Tasa Mensual:\s*([\d.]+)\s*%?\s*(?:IVAI)?/i;
-            const regexComision = /Comisi(?:ó|o)n por Desembolso:\s*([\d.]+)\s*%?\s*(?:IVAI)?/i;
+            const regexTasa = /Tasa Mensual:\s*([\d.]+)\s*%?\s*(?:IVAI)?/i; // Solo saca el número
+            const regexComision = /Comisi(?:ó|o)n por Desembolso:\s*([\d.]+)\s*%?\s*(?:IVAI)?/i; // Solo saca el número
             const regexFecha = /Fecha Primer Pago:\s*([\d/]+)/i;
             const regexCiclo = /Ciclo:\s*(\d+)/i;
-            const regexDisponer = /Monto Por Disponer:\s*[\$\s]*([\d,]+(?:.\d{1,2})?)\s*MXN/i;
+            const regexPlazo = /Plazo:\s*(\d+)\s*Meses/i;
             const regexPago = /Pago Mensual(?: ser(?:í|i)a)?:\s*[\$\s]*([\d,]+(?:.\d{1,2})?)\s*MXN/i;
 
             document.getElementById('out-cliente').innerText = clienteInput;
             document.getElementById('out-monto').innerText = extraerDato(cleanText, regexMonto, ' MXN', '$');
-            document.getElementById('out-tasa').innerText = extraerDato(cleanText, regexTasa, '% IVAI');
-            document.getElementById('out-comision').innerText = extraerDato(cleanText, regexComision, '% IVAI');
+            document.getElementById('out-pago').innerText = extraerDato(cleanText, regexPago, '', '$');
+            
+            // Datos del footer legal
+            document.getElementById('out-plazo').innerText = extraerDato(cleanText, regexPlazo);
+            document.getElementById('out-tasa').innerText = extraerDato(cleanText, regexTasa);
+            document.getElementById('out-comision').innerText = extraerDato(cleanText, regexComision);
             document.getElementById('out-fecha').innerText = extraerDato(cleanText, regexFecha);
             document.getElementById('out-ciclo').innerText = extraerDato(cleanText, regexCiclo);
-            document.getElementById('out-disponer').innerText = extraerDato(cleanText, regexDisponer, ' MXN', '$');
-            document.getElementById('out-pago').innerText = extraerDato(cleanText, regexPago, ' MXN', '$');
         }
 
         function getNombreArchivo(extension) {
             let cliente = document.getElementById('input-cliente').value.trim();
             cliente = cliente ? cliente.replace(/\s+/g, '_') : 'Preferente';
-            return `Oferta_MultiMoney_${cliente}.${extension}`;
+            return `Aprobacion_MultiMoney_${cliente}.${extension}`; // Cambiamos el nombre del archivo a algo más atractivo
         }
 
         function descargarPDF() {
             generarOferta(); 
-            // Esperar a que las fuentes se carguen antes de exportar
             document.fonts.ready.then(() => {
                 const element = document.getElementById('pdf-content');
-                
                 const opt = {
                     margin:       0,
                     filename:     getNombreArchivo('pdf'),
@@ -245,17 +221,14 @@
                     html2canvas:  { scale: 2, useCORS: true, logging: false, backgroundColor: '#ffffff', scrollY: 0 },
                     jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
                 };
-
                 html2pdf().set(opt).from(element).save();
             });
         }
 
         function descargarImagen() {
             generarOferta();
-            // Evitar cortes visuales subiendo el scroll temporalmente al top antes del canvas
             window.scrollTo(0,0);
             
-            // Esperar a que las fuentes se carguen antes de exportar
             document.fonts.ready.then(() => {
                 const element = document.getElementById('pdf-content');
                 
@@ -278,34 +251,31 @@
             });
         }
 
+        // Copywriting optimizado para acompañar la imagen
         function copiarOferta() {
             generarOferta();
-            const textoCopiado = `🔥 OFERTA MULTIMONEY PRE-APROBADA 🔥
-👤 Cliente: ${document.getElementById('out-cliente').innerText}
+            const textoCopiado = `🎉 ¡Felicidades, ${document.getElementById('out-cliente').innerText}!
 
-💰 Monto Total Autorizado: ${document.getElementById('out-monto').innerText}
-🟢 Disponible para Depósito: ${document.getElementById('out-disponer').innerText}
+Tienes una línea de crédito PRE-APROBADA con MultiMoney.
 
-📈 Tasa Mensual: ${document.getElementById('out-tasa').innerText}
-⏳ Plazo Fijo: 60 meses
-🗓 Estimado Primer Pago: ${document.getElementById('out-fecha').innerText}
+💰 Monto Total: ${document.getElementById('out-monto').innerText}
+🟢 Cuotas desde: ${document.getElementById('out-pago').innerText} / mes
+⏳ Plazos flexibles hasta ${document.getElementById('out-plazo').innerText} meses.
 
-🟢 CUOTA MENSUAL ESTIMADA: ${document.getElementById('out-pago').innerText}
-*(Válido por 24 horas. Sujeto a aprobación de comité).*`;
+👉 *Responde a este mensaje* si quieres ver cómo depositarlo en tu cuenta hoy mismo.`;
 
             navigator.clipboard.writeText(textoCopiado).then(() => {
-                alert("Texto comercial copiado para enviar por WhatsApp.");
+                alert("Texto persuasivo copiado para WhatsApp. ¡Pégalo junto a la imagen!");
             });
         }
 
         function limpiarCampos() {
             document.getElementById('input-raw').value = '';
             document.getElementById('input-cliente').value = '';
-            const defaults = ['out-monto', 'out-tasa', 'out-comision', 'out-fecha', 'out-ciclo', 'out-disponer', 'out-pago'];
+            const defaults = ['out-monto', 'out-tasa', 'out-comision', 'out-fecha', 'out-ciclo', 'out-plazo', 'out-pago'];
             defaults.forEach(id => document.getElementById(id).innerText = 'N/D');
-            document.getElementById('out-cliente').innerText = 'Cliente Preferente';
+            document.getElementById('out-cliente').innerText = 'Nombre del Cliente';
         }
     </script>
 </body>
 </html>
- 
