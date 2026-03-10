@@ -138,12 +138,12 @@
 
                         <div class="text-center mb-12 flex-grow flex flex-col justify-center items-center">
                             
-                            <p class="text-sm text-slate-500 font-bold tracking-widest uppercase mb-2">Tu cuota mensual</p>
+                            <p class="text-sm text-slate-500 font-bold tracking-widest uppercase mb-2">Tu cuota mensual fija</p>
                             <p class="text-5xl font-black text-slate-900 tracking-tighter mb-6"><span id="out-pago">N/D</span> <span class="text-2xl text-slate-500 font-semibold tracking-normal">/ mes</span></p>
                             
-                            <div class="bg-slate-100 text-slate-600 px-6 py-3 rounded-full font-semibold text-lg inline-flex items-center gap-2 mb-10 border border-slate-200">
-                                <svg class="w-5 h-5 text-mmgreen" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
-                                Plazo de pago: <span id="out-plazo">60</span> meses.
+                            <div class="bg-slate-100 text-slate-700 px-6 py-3 rounded-full font-semibold text-[15px] inline-flex items-center gap-2 mb-10 border border-slate-200 shadow-sm">
+                                <svg class="w-5 h-5 text-mmgreen" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                <span>Plazo de <span id="out-plazo">60</span> meses con <span class="text-mmgreen font-bold">liquidación anticipada sin penalización</span>.</span>
                             </div>
 
                             <div class="bg-mmgreen text-white text-2xl font-black py-5 px-14 rounded-full shadow-[0_12px_30px_rgba(0,177,0,0.4)] tracking-tight">
@@ -251,21 +251,25 @@
             });
         }
 
-        // Copywriting optimizado y transparente
+        // Copywriting optimizado
         function copiarOferta() {
             generarOferta();
-            const textoCopiado = `🎉 ¡Felicidades, ${document.getElementById('out-cliente').innerText}!
+            
+            // Extraer solo el primer nombre para hacerlo más cercano
+            let nombreCompleto = document.getElementById('out-cliente').innerText;
+            let primerNombre = nombreCompleto.split(' ')[0];
+            if (primerNombre === "Cliente") primerNombre = "Hola";
 
-Tienes una línea de crédito PRE-APROBADA con MultiMoney.
+            const textoCopiado = `¡Hola, ${primerNombre}! 👋 Te comparto el detalle de tu línea de crédito pre-aprobada por ${document.getElementById('out-monto').innerText}.
 
-💰 Monto Total: ${document.getElementById('out-monto').innerText}
-🟢 Cuota mensual fija: ${document.getElementById('out-pago').innerText} / mes
-⏳ Plazo establecido: ${document.getElementById('out-plazo').innerText} meses.
+Lo mejor de tu oferta:
+✅ Tienes la comodidad de pagos fijos a ${document.getElementById('out-plazo').innerText} meses.
+✅ ¡Libertad total! Puedes abonar a capital o liquidar el total antes de tiempo sin ninguna penalización.
 
-👉 *Responde a este mensaje* si quieres ver cómo depositarlo en tu cuenta hoy mismo.`;
+¿Te gustaría que te ayude a recibir el depósito hoy mismo? ⚡`;
 
             navigator.clipboard.writeText(textoCopiado).then(() => {
-                alert("Texto persuasivo copiado para WhatsApp. ¡Pégalo junto a la imagen!");
+                alert("¡Texto de ventas copiado para WhatsApp! Pégalo junto a la imagen.");
             });
         }
 
@@ -279,3 +283,4 @@ Tienes una línea de crédito PRE-APROBADA con MultiMoney.
     </script>
 </body>
 </html>
+ 
