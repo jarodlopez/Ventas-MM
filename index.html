@@ -50,10 +50,8 @@
     const db = firebase.firestore();
     const auth = firebase.auth();
 
-    // NUEVO ESTATUS AÑADIDO: "Expirado"
     const PIPELINE_STATUSES = ["Con oferta", "Acepta oferta", "Long track", "Dispersado", "Rechazado", "Cancelado", "Expirado"];
     
-    // NUEVO MOTIVO AÑADIDO: "Oferta expirada"
     const LOST_REASONS = [
       "No contesta / Inlocalizable",
       "Oferta expirada",
@@ -277,7 +275,7 @@
                 )}
                 
                 {sale.canal === 'UPPER' && (
-                  <span className="bg-indigo-100 text-indigo-700 text-[9px] font-black px-1.5 py-0.5 rounded shadow-sm border border-indigo-200 flex items-center gap-1" title="Lead enviado al Sheet de UPPER">
+                  <span className="bg-indigo-100 text-indigo-700 text-[9px] font-black px-1.5 py-0.5 rounded shadow-sm border border-indigo-200 flex items-center gap-1" title="Lead de campañas UPPER">
                     <i className="fas fa-bolt text-[8px]"></i> UPPER
                   </span>
                 )}
@@ -321,7 +319,6 @@
                  </div>
                )}
                
-               {/* AHORA EXPIRADO TAMBIÉN MUESTRA EL MOTIVO (QUE SERÁ OFERTA EXPIRADA) */}
                {(sale.estatus === 'Rechazado' || sale.estatus === 'Cancelado' || sale.estatus === 'Expirado') && sale.motivo_perdida && (
                  <div className="flex flex-col text-right">
                     <span className="text-[10px] text-red-500 font-bold uppercase block leading-none mb-0.5">Motivo</span>
@@ -336,7 +333,7 @@
                    <i className="fas fa-phone mr-1"></i> {sale.telefono}
                  </span>
                )}
-               {sale.url && <a href={sale.url} target="_blank" className="w-5 h-5 rounded bg-slate-50 flex items-center justify-center text-slate-400 hover:text-blue-600 border border-slate-100"><i className="fas fa-link text-[10px]"></i></a>}
+               {sale.url && <a href={sale.url} target="_blank" className="w-5 h-5 rounded bg-slate-50 flex items-center justify-center text-slate-400 hover:text-blue-600 border border-slate-100" title="Ver en Hubspot"><i className="fas fa-link text-[10px]"></i></a>}
                <button onClick={() => setShowHistory(!showHistory)} className="ml-auto text-[10px] text-blue-500 underline">{showHistory ? 'Ocultar' : 'Bitácora'}</button>
             </div>
             
@@ -464,35 +461,6 @@
 
       const businessData = getBusinessDaysQuincena(currentDate, currentQuincena);
 
-      // =========================================================================
-      // HACK: MOTOR DE ENVÍO INVISIBLE A GOOGLE FORMS
-      // =========================================================================
-      const sendToGoogleForm = (saleData) => {
-          const formId = "1FAIpQLSc609itq9FuNgU11lBycgB_wlQPg2Zf-vRrvTvlEm3Ps5aY0g"; 
-          const formUrl = `https://docs.google.com/forms/d/e/${formId}/formResponse`;
-          
-          const entryFecha = "entry.1619374583";     
-          const entryFolio = "entry.2016779465";     
-          const entryCliente = "entry.1021794384";   
-          const entryCanal = "entry.1815753709";     
-          const entryEstatus = "entry.997349041";    
-
-          const formData = new URLSearchParams();
-          formData.append(entryFecha, new Intl.DateTimeFormat('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date()));
-          formData.append(entryFolio, saleData.folio);
-          formData.append(entryCliente, saleData.nombre_cliente);
-          formData.append(entryCanal, "UPPER");
-          formData.append(entryEstatus, "Con oferta");
-
-          fetch(formUrl, {
-              method: "POST",
-              mode: "no-cors",
-              headers: { "Content-Type": "application/x-www-form-urlencoded" },
-              body: formData.toString()
-          }).then(() => console.log("¡Hack completado! Dato ordenado en el Sheet."))
-          .catch(err => console.error("Error al enviar", err));
-      };
-
       const handleAddSale = async (e) => {
         e.preventDefault();
         const form = e.target;
@@ -500,7 +468,8 @@
         const newPhone = form.phone.value.trim();
         const clientName = form.client.value;
         const amount = Number(form.amount.value);
-        const isUpper = form.isUpper.checked; 
+        // Rescatamos la casilla para Firebase solamente
+        const isUpper = form.isUpper ? form.isUpper.checked : false; 
 
         const isFolioDup = allSales.some(s => s.folio.toLowerCase() === newFolio.toLowerCase());
         if (isFolioDup) return setFormError('Error: Este Folio ya existe en tu pipeline.');
@@ -522,17 +491,12 @@
           estatus: 'Con oferta',
           telefono: newPhone,
           url: form.url.value,
-          canal: isUpper ? 'UPPER' : 'Normal', 
+          canal: isUpper ? 'UPPER' : 'Normal', // Lo etiquetamos en BD
           fecha: new Date().toISOString(), 
           history: [{ date: new Date().toISOString(), action: isUpper ? 'Lead UPPER Creado' : 'Lead Creado', user: 'Agente' }]
         };
 
         await db.collection('sales').add(saleData);
-
-        if (isUpper) {
-            sendToGoogleForm(saleData);
-        }
-        
         setShowForm(false);
       };
 
@@ -578,7 +542,6 @@
            });
         } 
         else if (newStatus === 'Rechazado' || newStatus === 'Cancelado' || newStatus === 'Expirado') {
-           // Selecciona automáticamente "Oferta expirada" si eligen la nueva columna
            setLostReason(newStatus === 'Expirado' ? 'Oferta expirada' : LOST_REASONS[0]); 
            setLostData({ sale, newStatus }); 
         } 
@@ -590,7 +553,6 @@
         }
       };
 
-      // CONFIRMAR OFERTA
       const confirmAcceptOffer = () => {
          if(!acceptOfferData) return;
          
@@ -762,13 +724,13 @@
                  <input name="client" required placeholder="Nombre Cliente" className="w-full border p-2 rounded focus:outline-none focus:border-blue-500" />
                  <input name="amount" type="number" required placeholder="Monto Preaprobado ($)" className="w-full border p-2 rounded focus:outline-none focus:border-blue-500" />
                  <input name="phone" placeholder="Teléfono" className="w-full border p-2 rounded focus:outline-none focus:border-blue-500" />
-                 <input name="url" placeholder="Enlace / Link" className="w-full border p-2 rounded focus:outline-none focus:border-blue-500" />
+                 <input name="url" placeholder="Enlace a Hubspot" className="w-full border p-2 rounded focus:outline-none focus:border-blue-500" />
                  
                  <div className="bg-indigo-50 border border-indigo-100 p-3 rounded-md flex items-center gap-3 mt-2 hover:bg-indigo-100 transition-colors">
                     <input type="checkbox" id="isUpper" name="isUpper" className="w-5 h-5 cursor-pointer accent-indigo-600" />
                     <label htmlFor="isUpper" className="text-sm font-bold text-indigo-900 cursor-pointer select-none">
                        Asignación "UPPER" 
-                       <span className="block text-[10px] text-indigo-600 font-normal mt-0.5">Reportar automáticamente a jefatura (Sheets).</span>
+                       <span className="block text-[10px] text-indigo-600 font-normal mt-0.5">Etiquetar lead como campaña UPPER.</span>
                     </label>
                  </div>
                  
@@ -800,7 +762,7 @@
                  <div><label className="text-[10px] font-bold text-slate-500 uppercase">Teléfono</label>
                  <input name="phone" defaultValue={editSaleData.telefono} className="w-full border p-2 rounded focus:outline-none focus:border-blue-500 text-sm" /></div>
                  
-                 <div><label className="text-[10px] font-bold text-slate-500 uppercase">Enlace</label>
+                 <div><label className="text-[10px] font-bold text-slate-500 uppercase">Enlace a Hubspot</label>
                  <input name="url" defaultValue={editSaleData.url} className="w-full border p-2 rounded focus:outline-none focus:border-blue-500 text-sm" /></div>
                  
                  <div className="flex gap-2 pt-4">
