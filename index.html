@@ -69,6 +69,7 @@
     };
 
     const money = (val) => new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 }).format(val);
+    const moneyUSD = (val) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(val);
     const formatDate = (input) => new Intl.DateTimeFormat('es-MX', { day: '2-digit', month: 'short', hour:'2-digit', minute:'2-digit' }).format(parseDate(input));
 
     const getQuincena = (date) => date.getDate() <= 15 ? 1 : 2;
@@ -143,14 +144,24 @@
       );
     };
 
-    const PlanningModal = ({ isOpen, onClose, meta, setMeta, businessData, year, month, quincena }) => {
-      const [localMeta, setLocalMeta] = useState(meta || 0);
-      useEffect(() => { setLocalMeta(meta || 0); }, [meta, isOpen]);
-      const handleSaveMeta = () => { if(Number(localMeta) !== meta) setMeta(Number(localMeta)); };
+    const PlanningModal = ({ isOpen, onClose, metaData, setMetaData, businessData, year, month, quincena }) => {
+      const [localMeta, setLocalMeta] = useState(metaData);
+      
+      useEffect(() => { setLocalMeta(metaData); }, [metaData, isOpen]);
+
+      const handleSaveMeta = (e) => { 
+        e.preventDefault();
+        setMetaData(localMeta); 
+        onClose();
+      };
+
+      const handleChange = (e) => {
+        setLocalMeta({...localMeta, [e.target.name]: Number(e.target.value)});
+      };
 
       if (!isOpen) return null;
 
-      const dailyGoal = businessData.totalBusinessDays > 0 ? localMeta / businessData.totalBusinessDays : 0;
+      const dailyGoal = businessData.totalBusinessDays > 0 ? localMeta.monto / businessData.totalBusinessDays : 0;
       const projection = [];
       let accum = 0;
       const today = new Date().getDate();
@@ -165,52 +176,141 @@
 
       return (
         <div className="fixed inset-0 glass-modal z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg h-[80vh] flex flex-col overflow-hidden">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
             <div className="p-4 bg-slate-50 border-b flex justify-between items-center">
-              <h2 className="font-bold text-lg text-blue-900">Planificación Q{quincena}</h2>
-              <button onClick={onClose}><i className="fas fa-times text-slate-400"></i></button>
+              <h2 className="font-bold text-lg text-blue-900">Planificación y Bonos Q{quincena}</h2>
+              <button onClick={onClose}><i className="fas fa-times text-slate-400 hover:text-red-500"></i></button>
             </div>
-            <div className="p-4 bg-blue-50 border-b flex gap-2 items-center">
-               <label className="font-bold text-sm text-blue-900">Meta Quincenal ($):</label>
-               <input type="number" value={localMeta} onChange={(e) => setLocalMeta(e.target.value)} onBlur={handleSaveMeta} onKeyDown={(e) => { if(e.key === 'Enter') e.target.blur(); }} className="border-2 border-blue-200 rounded px-2 py-1 font-bold w-36 text-blue-900 focus:outline-none focus:border-blue-500" />
+            
+            <div className="flex-1 overflow-y-auto p-4 flex flex-col md:flex-row gap-6">
+              
+              <div className="flex-1 flex flex-col gap-4">
+                  <div className="bg-blue-50 p-4 rounded-lg border border-blue-100 shadow-sm">
+                      <h3 className="font-bold text-blue-800 text-sm mb-3"><i className="fas fa-bullseye mr-2"></i>Objetivo Base</h3>
+                      <div className="flex gap-4">
+                          <div className="flex-1">
+                              <label className="text-xs font-bold text-blue-700 mb-1 block">Meta al 100% (MXN)</label>
+                              <input type="number" name="monto" value={localMeta.monto} onChange={handleChange} className="w-full border border-blue-200 rounded p-2 font-bold focus:outline-none focus:border-blue-500" />
+                          </div>
+                          <div className="w-1/3">
+                              <label className="text-xs font-bold text-blue-700 mb-1 block">T. de Cambio</label>
+                              <input type="number" step="0.01" name="tipoCambio" value={localMeta.tipoCambio} onChange={handleChange} className="w-full border border-blue-200 rounded p-2 text-center focus:outline-none focus:border-blue-500" />
+                          </div>
+                      </div>
+                  </div>
+
+                  <div className="bg-green-50 p-4 rounded-lg border border-green-100 shadow-sm">
+                      <h3 className="font-bold text-green-800 text-sm mb-3"><i className="fas fa-money-bill-wave mr-2"></i>Esquema de Pago ($)</h3>
+                      <div className="grid grid-cols-2 gap-3">
+                          <div><label className="text-[10px] font-bold text-green-700 uppercase">Pago al 80%</label><input type="number" name="bono80" value={localMeta.bono80} onChange={handleChange} className="w-full border border-green-200 rounded px-2 py-1 focus:outline-none focus:border-green-500 text-sm" /></div>
+                          <div><label className="text-[10px] font-bold text-green-700 uppercase">Pago al 100%</label><input type="number" name="bono100" value={localMeta.bono100} onChange={handleChange} className="w-full border border-green-200 rounded px-2 py-1 focus:outline-none focus:border-green-500 font-bold text-sm" /></div>
+                          <div><label className="text-[10px] font-bold text-green-700 uppercase">Pago al 120%</label><input type="number" name="bono120" value={localMeta.bono120} onChange={handleChange} className="w-full border border-green-200 rounded px-2 py-1 focus:outline-none focus:border-green-500 text-sm" /></div>
+                          <div><label className="text-[10px] font-bold text-green-700 uppercase">Pago al 140%</label><input type="number" name="bono140" value={localMeta.bono140} onChange={handleChange} className="w-full border border-green-200 rounded px-2 py-1 focus:outline-none focus:border-green-500 text-sm" /></div>
+                      </div>
+                  </div>
+              </div>
+
+              <div className="flex-1 bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden flex flex-col h-64 md:h-auto">
+                 <div className="p-2 bg-slate-100 border-b font-bold text-xs text-slate-600 text-center uppercase tracking-wider">Proyección de Venta Diaria</div>
+                 <div className="overflow-y-auto flex-1">
+                  <table className="w-full text-sm">
+                    <thead><tr className="text-left text-[10px] uppercase text-slate-400 bg-slate-50"><th className="p-2 pl-4">Día</th><th className="p-2 text-right pr-4">Acumulado Ideal</th></tr></thead>
+                    <tbody>
+                      {projection.map(row => (
+                        <tr key={row.day} className={`border-b border-slate-100 ${row.isWeekend ? 'bg-slate-50 text-slate-400' : ''} ${row.isToday ? 'bg-blue-50 font-bold' : ''}`}>
+                          <td className="p-2 pl-4 flex items-center gap-2">{row.day} {row.isWeekend && '(Fin)'} {row.isToday && <span className="text-[9px] bg-blue-500 text-white px-1 rounded shadow-sm">HOY</span>}</td>
+                          <td className="p-2 text-right pr-4 font-mono text-xs">{row.isWeekend ? '-' : money(row.expected)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                 </div>
+              </div>
             </div>
-            <div className="flex-1 overflow-y-auto p-2">
-              <table className="w-full text-sm">
-                <thead><tr className="text-left text-xs uppercase text-slate-500"><th className="p-2">Día</th><th className="p-2 text-right">Acumulado Ideal</th></tr></thead>
-                <tbody>
-                  {projection.map(row => (
-                    <tr key={row.day} className={`border-b ${row.isWeekend ? 'bg-slate-50 text-slate-400' : ''} ${row.isToday ? 'bg-blue-100 font-bold border-l-4 border-blue-500' : ''}`}>
-                      <td className="p-2 flex items-center gap-2">{row.day} {row.isWeekend && '(Fin)'} {row.isToday && <span className="text-[10px] bg-blue-500 text-white px-1 rounded">HOY</span>}</td>
-                      <td className="p-2 text-right font-bold">{row.isWeekend ? '-' : money(row.expected)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+
+            <div className="p-4 bg-slate-50 border-t flex justify-end gap-2">
+                <button onClick={onClose} className="px-4 py-2 bg-slate-200 font-bold rounded hover:bg-slate-300">Cancelar</button>
+                <button onClick={handleSaveMeta} className="px-6 py-2 bg-blue-600 text-white font-bold rounded shadow-lg hover:bg-blue-700">Guardar Plan</button>
             </div>
           </div>
         </div>
       );
     };
 
-    const MetricsHeader = ({ sales, meta, businessData, onOpenPlanning }) => {
+    const MetricsHeader = ({ sales, metaData, businessData, onOpenPlanning }) => {
       const sold = sales.filter(s => s.estatus === 'Dispersado').reduce((acc, curr) => acc + (Number(curr.monto_dispersado) || 0), 0);
       const hotMoney = sales.filter(s => s.estatus === 'Acepta oferta' || s.estatus === 'Long track').reduce((acc, curr) => acc + (Number(curr.monto_preaprobado) || 0), 0);
+      
+      const tc = metaData.tipoCambio || 1;
+      const meta = metaData.monto || 0;
+      
       const deficit = sold - meta;
       const isDeficit = deficit < 0;
+      const percent = meta > 0 ? (sold / meta) * 100 : 0;
+
+      // Cálculo del bono en vivo
+      let currentBonus = 0;
+      let nextBonusLvl = "";
+      if (percent >= 140) { currentBonus = metaData.bono140 || 0; nextBonusLvl = "MAX"; }
+      else if (percent >= 120) { currentBonus = metaData.bono120 || 0; nextBonusLvl = "140%"; }
+      else if (percent >= 100) { currentBonus = metaData.bono100 || 0; nextBonusLvl = "120%"; }
+      else if (percent >= 80) { currentBonus = metaData.bono80 || 0; nextBonusLvl = "100%"; }
+      else { nextBonusLvl = "80%"; }
 
       return (
-        <div className="bg-white p-3 shadow-sm border-b flex flex-wrap gap-6 items-center justify-between">
-          <div className="flex gap-6 items-center flex-1">
-             <div><p className="text-[10px] font-bold text-slate-400 uppercase">Real Dispersado</p><p className="text-2xl font-black text-slate-800">{money(sold)}</p></div>
-             <div className="hidden md:block w-px h-10 bg-slate-200"></div>
-             <div><p className="text-[10px] font-bold text-slate-400 uppercase">Diferencia vs Meta</p><p className={`font-bold text-xl ${isDeficit ? 'text-red-600' : 'text-green-600'}`}>{isDeficit ? '' : '+'}{money(deficit)}</p></div>
-             <div className="hidden md:block w-px h-10 bg-slate-200"></div>
-             <div className="hidden md:block"><p className="text-[10px] font-bold text-purple-500 uppercase flex items-center gap-1"><i className="fas fa-fire"></i> Potencial "Caliente"</p><p className="text-xl font-bold text-purple-700">{money(hotMoney)}</p></div>
-             <div className="hidden md:block w-px h-10 bg-slate-200"></div>
-             <div className="hidden md:block"><p className="text-[10px] font-bold text-slate-400 uppercase">Tiempo Restante</p><p className="text-xl font-bold text-slate-700">{businessData.remainingDays} días</p></div>
+        <div className="bg-white p-3 shadow-sm border-b flex flex-wrap gap-4 items-center justify-between">
+          <div className="flex flex-wrap gap-4 items-center flex-1 w-full lg:w-auto">
+             
+             {/* REAL DISPERSADO + USD */}
+             <div className="min-w-[140px]">
+                <p className="text-[10px] font-bold text-slate-400 uppercase">Real Dispersado</p>
+                <p className="text-2xl font-black text-slate-800 leading-none">{money(sold)}</p>
+                <p className="text-[10px] text-green-600 font-bold mt-1 tracking-wide">{moneyUSD(sold / tc)} USD</p>
+             </div>
+             <div className="hidden sm:block w-px h-10 bg-slate-200"></div>
+             
+             {/* BARRA DE TERMÓMETRO */}
+             <div className="flex-1 min-w-[200px] max-w-sm">
+                 <div className="flex justify-between items-end mb-1">
+                     <p className="text-[10px] font-bold text-slate-400 uppercase">Avance Meta</p>
+                     <p className={`text-sm font-black ${percent >= 100 ? 'text-green-600' : 'text-blue-600'}`}>{percent.toFixed(1)}%</p>
+                 </div>
+                 <div className="w-full bg-slate-200 rounded-full h-2.5 overflow-hidden flex">
+                    <div className={`h-2.5 rounded-full transition-all duration-1000 ${percent >= 100 ? 'bg-green-500' : percent >= 80 ? 'bg-blue-500' : 'bg-orange-400'}`} style={{ width: `${Math.min(percent, 100)}%` }}></div>
+                    {percent > 100 && <div className="h-2.5 bg-purple-500 transition-all duration-1000" style={{ width: `${Math.min(percent - 100, 40)}%` }}></div>}
+                 </div>
+                 <div className="flex justify-between mt-1">
+                     <p className="text-[9px] text-slate-400">Restan: {money(Math.max(0, meta - sold))}</p>
+                     <p className="text-[9px] text-slate-400">Meta: {money(meta)}</p>
+                 </div>
+             </div>
+             <div className="hidden lg:block w-px h-10 bg-slate-200"></div>
+
+             {/* BONO EN VIVO */}
+             <div className="bg-green-50 border border-green-200 rounded-lg px-3 py-1 flex items-center gap-3">
+                 <div className="bg-green-100 p-2 rounded-full"><i className="fas fa-sack-dollar text-green-600"></i></div>
+                 <div>
+                     <p className="text-[9px] font-bold text-green-700 uppercase">Bono Ganado</p>
+                     <p className="text-lg font-black text-green-600 leading-none">{moneyUSD(currentBonus)}</p>
+                 </div>
+                 <div className="text-[9px] font-bold text-green-500 ml-2 hidden sm:block border-l border-green-200 pl-2">
+                     Siguiente: {nextBonusLvl}
+                 </div>
+             </div>
+             
+             <div className="hidden lg:block w-px h-10 bg-slate-200"></div>
+
+             {/* CALIENTE */}
+             <div className="hidden sm:block min-w-[120px]">
+                <p className="text-[10px] font-bold text-purple-500 uppercase flex items-center gap-1"><i className="fas fa-fire"></i> Caliente</p>
+                <p className="text-xl font-bold text-purple-700 leading-none">{money(hotMoney)}</p>
+                <p className="text-[9px] text-purple-500 font-bold mt-1">{moneyUSD(hotMoney / tc)} USD</p>
+             </div>
+             
           </div>
-          <button onClick={onOpenPlanning} className="bg-slate-800 text-white px-4 py-2 rounded text-xs font-bold hover:bg-slate-700 shadow-lg">
-            <i className="fas fa-chart-pie mr-2"></i>Planificación
+          
+          <button onClick={onOpenPlanning} className="bg-slate-800 text-white px-4 py-2 rounded text-xs font-bold hover:bg-slate-700 shadow-lg whitespace-nowrap">
+            <i className="fas fa-cogs mr-2"></i>Ajustar Plan
           </button>
         </div>
       );
@@ -374,8 +474,17 @@
       const [currentQuincena, setCurrentQuincena] = useState(new Date().getDate() <= 15 ? 1 : 2);
       
       const [allSales, setAllSales] = useState([]);
-      const [metaQuincenal, setMetaQuincenal] = useState(0);
       const [isPlanningOpen, setIsPlanningOpen] = useState(false);
+      
+      // NUEVO ESTADO PARA METAS (Estructura expandida)
+      const [metaData, setMetaData] = useState({ 
+          monto: 0, 
+          tipoCambio: 18.00, 
+          bono80: 0, 
+          bono100: 0, 
+          bono120: 0, 
+          bono140: 0 
+      });
       
       const [showForm, setShowForm] = useState(false);
       const [formError, setFormError] = useState(''); 
@@ -404,13 +513,25 @@
 
       useEffect(() => {
         const unsub = db.collection('metas').doc(periodKey).onSnapshot(doc => {
-            if(doc.exists) setMetaQuincenal(doc.data().monto);
-            else setMetaQuincenal(0);
+            if(doc.exists) {
+                const data = doc.data();
+                // Si es un agente viejo que solo tenía "monto", respetamos eso y ponemos valores por defecto al resto.
+                setMetaData({
+                    monto: data.monto || 0,
+                    tipoCambio: data.tipoCambio || 18.00,
+                    bono80: data.bono80 || 0,
+                    bono100: data.bono100 || 0,
+                    bono120: data.bono120 || 0,
+                    bono140: data.bono140 || 0
+                });
+            } else {
+                setMetaData({ monto: 0, tipoCambio: 18.00, bono80: 0, bono100: 0, bono120: 0, bono140: 0 });
+            }
         });
         return () => unsub();
       }, [periodKey]);
 
-      const saveMeta = (amount) => db.collection('metas').doc(periodKey).set({ monto: amount, userId: user.uid }, { merge: true });
+      const saveMeta = (dataObj) => db.collection('metas').doc(periodKey).set({ ...dataObj, userId: user.uid }, { merge: true });
 
       const filteredSales = useMemo(() => {
         const viewYear = currentDate.getFullYear();
@@ -468,7 +589,6 @@
         const newPhone = form.phone.value.trim();
         const clientName = form.client.value;
         const amount = Number(form.amount.value);
-        // Rescatamos la casilla para Firebase solamente
         const isUpper = form.isUpper ? form.isUpper.checked : false; 
 
         const isFolioDup = allSales.some(s => s.folio.toLowerCase() === newFolio.toLowerCase());
@@ -491,7 +611,7 @@
           estatus: 'Con oferta',
           telefono: newPhone,
           url: form.url.value,
-          canal: isUpper ? 'UPPER' : 'Normal', // Lo etiquetamos en BD
+          canal: isUpper ? 'UPPER' : 'Normal',
           fecha: new Date().toISOString(), 
           history: [{ date: new Date().toISOString(), action: isUpper ? 'Lead UPPER Creado' : 'Lead Creado', user: 'Agente' }]
         };
@@ -517,7 +637,7 @@
             monto_preaprobado: Number(form.amount.value), 
             telefono: editedPhone,
             url: form.url.value,
-            history: firebase.firestore.FieldValue.arrayUnion({ date: new Date().toISOString(), action: 'Datos de tarjeta editados manualmente', user: 'Agente' })
+            history: firebase.firestore.FieldValue.arrayUnion({ date: new Date().toISOString(), action: 'Datos de tarjeta editados', user: 'Agente' })
         });
         
         setEditSaleData(null);
@@ -640,7 +760,7 @@
             </div>
           </div>
 
-          <MetricsHeader sales={filteredSales} meta={metaQuincenal} businessData={businessData} onOpenPlanning={() => setIsPlanningOpen(true)} />
+          <MetricsHeader sales={filteredSales} metaData={metaData} businessData={businessData} onOpenPlanning={() => setIsPlanningOpen(true)} />
 
           <div className="flex-1 overflow-x-auto p-4 flex gap-4 pipeline-scroll items-start">
              {PIPELINE_STATUSES.map(status => (
@@ -773,7 +893,7 @@
             </div>
           )}
 
-          <PlanningModal isOpen={isPlanningOpen} onClose={() => setIsPlanningOpen(false)} meta={metaQuincenal} setMeta={saveMeta} businessData={businessData} year={currentDate.getFullYear()} month={currentDate.getMonth()} quincena={currentQuincena} />
+          <PlanningModal isOpen={isPlanningOpen} onClose={() => setIsPlanningOpen(false)} metaData={metaData} setMetaData={saveMeta} businessData={businessData} year={currentDate.getFullYear()} month={currentDate.getMonth()} quincena={currentQuincena} />
         </div>
       );
     };
@@ -804,4 +924,4 @@
     root.render(<MainWrapper />);
   </script>
 </body>
-</html> 
+</html>
