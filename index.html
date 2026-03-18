@@ -200,7 +200,7 @@
                   </div>
 
                   <div className="bg-green-50 p-4 rounded-lg border border-green-100 shadow-sm">
-                      <h3 className="font-bold text-green-800 text-sm mb-3"><i className="fas fa-money-bill-wave mr-2"></i>Esquema de Pago ($)</h3>
+                      <h3 className="font-bold text-green-800 text-sm mb-3"><i className="fas fa-money-bill-wave mr-2"></i>Esquema de Pago ($ USD)</h3>
                       <div className="grid grid-cols-2 gap-3">
                           <div><label className="text-[10px] font-bold text-green-700 uppercase">Pago al 80%</label><input type="number" name="bono80" value={localMeta.bono80} onChange={handleChange} className="w-full border border-green-200 rounded px-2 py-1 focus:outline-none focus:border-green-500 text-sm" /></div>
                           <div><label className="text-[10px] font-bold text-green-700 uppercase">Pago al 100%</label><input type="number" name="bono100" value={localMeta.bono100} onChange={handleChange} className="w-full border border-green-200 rounded px-2 py-1 focus:outline-none focus:border-green-500 font-bold text-sm" /></div>
@@ -244,8 +244,6 @@
       const tc = metaData.tipoCambio || 1;
       const meta = metaData.monto || 0;
       
-      const deficit = sold - meta;
-      const isDeficit = deficit < 0;
       const percent = meta > 0 ? (sold / meta) * 100 : 0;
 
       // Cálculo del bono en vivo
@@ -257,59 +255,79 @@
       else if (percent >= 80) { currentBonus = metaData.bono80 || 0; nextBonusLvl = "100%"; }
       else { nextBonusLvl = "80%"; }
 
+      // CONFIGURACIÓN DE LA BARRA VISUAL HASTA EL 150%
+      const maxVisualScale = 150; 
+      const fillVisualWidth = Math.min((percent / maxVisualScale) * 100, 100);
+
       return (
-        <div className="bg-white p-3 shadow-sm border-b flex flex-wrap gap-4 items-center justify-between">
-          <div className="flex flex-wrap gap-4 items-center flex-1 w-full lg:w-auto">
+        <div className="bg-white p-3 shadow-sm border-b flex flex-wrap gap-4 md:gap-6 items-center justify-between">
+          <div className="flex flex-wrap gap-4 md:gap-6 items-center flex-1 w-full lg:w-auto">
              
-             {/* REAL DISPERSADO + USD */}
-             <div className="min-w-[140px]">
+             {/* REAL DISPERSADO */}
+             <div>
                 <p className="text-[10px] font-bold text-slate-400 uppercase">Real Dispersado</p>
                 <p className="text-2xl font-black text-slate-800 leading-none">{money(sold)}</p>
                 <p className="text-[10px] text-green-600 font-bold mt-1 tracking-wide">{moneyUSD(sold / tc)} USD</p>
              </div>
              <div className="hidden sm:block w-px h-10 bg-slate-200"></div>
              
-             {/* BARRA DE TERMÓMETRO */}
-             <div className="flex-1 min-w-[200px] max-w-sm">
+             {/* META 100% */}
+             <div>
+                <p className="text-[10px] font-bold text-slate-400 uppercase">Meta (100%)</p>
+                <p className="text-xl font-bold text-slate-700 leading-none">{money(meta)}</p>
+                <p className="text-[10px] text-slate-400 font-bold mt-1 tracking-wide">{moneyUSD(meta / tc)} USD</p>
+             </div>
+             <div className="hidden md:block w-px h-10 bg-slate-200"></div>
+
+             {/* BARRA DE TERMÓMETRO CON CHECKPOINTS (TRACKING DE PORCENTAJES) */}
+             <div className="flex-1 min-w-[220px] max-w-lg mt-2 mb-1">
                  <div className="flex justify-between items-end mb-1">
-                     <p className="text-[10px] font-bold text-slate-400 uppercase">Avance Meta</p>
+                     <p className="text-[10px] font-bold text-slate-400 uppercase">Progreso Total</p>
                      <p className={`text-sm font-black ${percent >= 100 ? 'text-green-600' : 'text-blue-600'}`}>{percent.toFixed(1)}%</p>
                  </div>
-                 <div className="w-full bg-slate-200 rounded-full h-2.5 overflow-hidden flex">
-                    <div className={`h-2.5 rounded-full transition-all duration-1000 ${percent >= 100 ? 'bg-green-500' : percent >= 80 ? 'bg-blue-500' : 'bg-orange-400'}`} style={{ width: `${Math.min(percent, 100)}%` }}></div>
-                    {percent > 100 && <div className="h-2.5 bg-purple-500 transition-all duration-1000" style={{ width: `${Math.min(percent - 100, 40)}%` }}></div>}
-                 </div>
-                 <div className="flex justify-between mt-1">
-                     <p className="text-[9px] text-slate-400">Restan: {money(Math.max(0, meta - sold))}</p>
-                     <p className="text-[9px] text-slate-400">Meta: {money(meta)}</p>
+                 
+                 <div className="relative w-full bg-slate-200 rounded-full h-3.5 mb-5 mt-1">
+                    {/* El color de la barra cambia según el nivel alcanzado */}
+                    <div 
+                      className={`absolute top-0 left-0 h-full rounded-full transition-all duration-1000 shadow-inner ${percent >= 140 ? 'bg-purple-500' : percent >= 120 ? 'bg-indigo-500' : percent >= 100 ? 'bg-green-500' : percent >= 80 ? 'bg-blue-500' : 'bg-orange-400'}`} 
+                      style={{ width: `${fillVisualWidth}%` }}
+                    ></div>
+                    
+                    {/* Ticks/Marcadores del 80%, 100%, 120% y 140% */}
+                    {[80, 100, 120, 140].map(mark => (
+                        <div key={mark} className="absolute top-0 bottom-0 border-l-2 border-white/60 z-10" style={{ left: `${(mark / maxVisualScale) * 100}%` }}>
+                            <span className={`absolute top-4 -translate-x-1/2 text-[9px] font-bold whitespace-nowrap ${percent >= mark ? 'text-slate-800' : 'text-slate-400'}`}>
+                                {mark}%
+                            </span>
+                        </div>
+                    ))}
                  </div>
              </div>
              <div className="hidden lg:block w-px h-10 bg-slate-200"></div>
 
              {/* BONO EN VIVO */}
-             <div className="bg-green-50 border border-green-200 rounded-lg px-3 py-1 flex items-center gap-3">
-                 <div className="bg-green-100 p-2 rounded-full"><i className="fas fa-sack-dollar text-green-600"></i></div>
+             <div className="bg-green-50 border border-green-200 rounded-lg px-3 py-1 flex items-center gap-2">
+                 <div className="bg-green-100 p-1.5 rounded-full"><i className="fas fa-sack-dollar text-green-600 text-sm"></i></div>
                  <div>
-                     <p className="text-[9px] font-bold text-green-700 uppercase">Bono Ganado</p>
+                     <p className="text-[9px] font-bold text-green-700 uppercase">Bono Liberado</p>
                      <p className="text-lg font-black text-green-600 leading-none">{moneyUSD(currentBonus)}</p>
                  </div>
-                 <div className="text-[9px] font-bold text-green-500 ml-2 hidden sm:block border-l border-green-200 pl-2">
+                 <div className="text-[9px] font-bold text-green-500 ml-1 hidden xl:block border-l border-green-200 pl-2">
                      Siguiente: {nextBonusLvl}
                  </div>
              </div>
              
-             <div className="hidden lg:block w-px h-10 bg-slate-200"></div>
+             <div className="hidden xl:block w-px h-10 bg-slate-200"></div>
 
-             {/* CALIENTE */}
-             <div className="hidden sm:block min-w-[120px]">
-                <p className="text-[10px] font-bold text-purple-500 uppercase flex items-center gap-1"><i className="fas fa-fire"></i> Caliente</p>
-                <p className="text-xl font-bold text-purple-700 leading-none">{money(hotMoney)}</p>
-                <p className="text-[9px] text-purple-500 font-bold mt-1">{moneyUSD(hotMoney / tc)} USD</p>
+             {/* DÍAS RESTANTES */}
+             <div className="hidden lg:block">
+                <p className="text-[10px] font-bold text-slate-400 uppercase"><i className="far fa-clock mr-1"></i>Restante</p>
+                <p className="text-lg font-bold text-slate-700 leading-none">{businessData.remainingDays} días</p>
              </div>
-             
+
           </div>
           
-          <button onClick={onOpenPlanning} className="bg-slate-800 text-white px-4 py-2 rounded text-xs font-bold hover:bg-slate-700 shadow-lg whitespace-nowrap">
+          <button onClick={onOpenPlanning} className="bg-slate-800 text-white px-4 py-2 rounded text-xs font-bold hover:bg-slate-700 shadow-lg whitespace-nowrap mt-2 sm:mt-0">
             <i className="fas fa-cogs mr-2"></i>Ajustar Plan
           </button>
         </div>
@@ -476,7 +494,6 @@
       const [allSales, setAllSales] = useState([]);
       const [isPlanningOpen, setIsPlanningOpen] = useState(false);
       
-      // NUEVO ESTADO PARA METAS (Estructura expandida)
       const [metaData, setMetaData] = useState({ 
           monto: 0, 
           tipoCambio: 18.00, 
@@ -515,7 +532,6 @@
         const unsub = db.collection('metas').doc(periodKey).onSnapshot(doc => {
             if(doc.exists) {
                 const data = doc.data();
-                // Si es un agente viejo que solo tenía "monto", respetamos eso y ponemos valores por defecto al resto.
                 setMetaData({
                     monto: data.monto || 0,
                     tipoCambio: data.tipoCambio || 18.00,
@@ -924,4 +940,4 @@
     root.render(<MainWrapper />);
   </script>
 </body>
-</html>
+  </html> 
