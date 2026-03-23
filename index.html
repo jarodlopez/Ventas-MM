@@ -351,6 +351,14 @@
              </div>
              <div className="hidden lg:block w-px h-10 bg-slate-200"></div>
 
+             {/* CALIENTE (RESTAURADO) */}
+             <div className="hidden sm:block">
+                <p className="text-[10px] font-bold text-purple-500 uppercase flex items-center gap-1"><i className="fas fa-fire"></i> Caliente</p>
+                <p className="text-xl font-bold text-purple-700 leading-none">{money(hotMoney)}</p>
+                <p className="text-[10px] text-purple-500 font-bold mt-1 tracking-wide">{moneyUSD(hotMoney / tc)} USD</p>
+             </div>
+             <div className="hidden xl:block w-px h-10 bg-slate-200"></div>
+
              {/* BONO EN VIVO */}
              <div className="bg-green-50 border border-green-200 rounded-lg px-3 py-1 flex items-center gap-2">
                  <div className="bg-green-100 p-1.5 rounded-full"><i className="fas fa-sack-dollar text-green-600 text-sm"></i></div>
