@@ -242,18 +242,43 @@
       const hotMoney = sales.filter(s => s.estatus === 'Acepta oferta' || s.estatus === 'Long track').reduce((acc, curr) => acc + (Number(curr.monto_preaprobado) || 0), 0);
       
       const tc = metaData.tipoCambio || 1;
-      const meta = metaData.monto || 0;
+      const meta = Number(metaData.monto) || 0;
       
       const percent = meta > 0 ? (sold / meta) * 100 : 0;
 
-      // Cálculo del bono en vivo
+      // Cálculo del bono en vivo y cuánto falta para el SIGUIENTE escalón
       let currentBonus = 0;
       let nextBonusLvl = "";
-      if (percent >= 140) { currentBonus = metaData.bono140 || 0; nextBonusLvl = "MAX"; }
-      else if (percent >= 120) { currentBonus = metaData.bono120 || 0; nextBonusLvl = "140%"; }
-      else if (percent >= 100) { currentBonus = metaData.bono100 || 0; nextBonusLvl = "120%"; }
-      else if (percent >= 80) { currentBonus = metaData.bono80 || 0; nextBonusLvl = "100%"; }
-      else { nextBonusLvl = "80%"; }
+      let nextPercent = 0;
+      let missingForNext = 0;
+
+      if (percent >= 140) { 
+          currentBonus = Number(metaData.bono140) || 0; 
+          nextBonusLvl = "MAX"; 
+      }
+      else if (percent >= 120) { 
+          currentBonus = Number(metaData.bono120) || 0; 
+          nextBonusLvl = "140%"; 
+          nextPercent = 140;
+          missingForNext = (meta * 1.4) - sold;
+      }
+      else if (percent >= 100) { 
+          currentBonus = Number(metaData.bono100) || 0; 
+          nextBonusLvl = "120%"; 
+          nextPercent = 120;
+          missingForNext = (meta * 1.2) - sold;
+      }
+      else if (percent >= 80) { 
+          currentBonus = Number(metaData.bono80) || 0; 
+          nextBonusLvl = "100%"; 
+          nextPercent = 100;
+          missingForNext = meta - sold;
+      }
+      else { 
+          nextBonusLvl = "80%"; 
+          nextPercent = 80;
+          missingForNext = (meta * 0.8) - sold;
+      }
 
       // CONFIGURACIÓN DE LA BARRA VISUAL HASTA EL 150%
       const maxVisualScale = 150; 
@@ -293,14 +318,35 @@
                       style={{ width: `${fillVisualWidth}%` }}
                     ></div>
                     
-                    {/* Ticks/Marcadores del 80%, 100%, 120% y 140% */}
-                    {[80, 100, 120, 140].map(mark => (
-                        <div key={mark} className="absolute top-0 bottom-0 border-l-2 border-white/60 z-10" style={{ left: `${(mark / maxVisualScale) * 100}%` }}>
-                            <span className={`absolute top-4 -translate-x-1/2 text-[9px] font-bold whitespace-nowrap ${percent >= mark ? 'text-slate-800' : 'text-slate-400'}`}>
-                                {mark}%
-                            </span>
-                        </div>
-                    ))}
+                    {/* Ticks/Marcadores del 80%, 100%, 120% y 140% con tooltips de faltante */}
+                    {[80, 100, 120, 140].map(mark => {
+                        const montoDeEstaMarca = meta * (mark / 100);
+                        const faltaParaEstaMarca = montoDeEstaMarca - sold;
+                        const tooltipText = faltaParaEstaMarca > 0 
+                            ? `Te faltan ${money(faltaParaEstaMarca)} para llegar al ${mark}%` 
+                            : `¡Ya pasaste la marca del ${mark}%!`;
+
+                        return (
+                            <div key={mark} className="absolute top-0 bottom-0 border-l-2 border-white/60 z-10 group cursor-help" style={{ left: `${(mark / maxVisualScale) * 100}%` }} title={tooltipText}>
+                                <span className={`absolute top-4 -translate-x-1/2 text-[9px] font-bold whitespace-nowrap ${percent >= mark ? 'text-slate-800' : 'text-slate-400 group-hover:text-blue-600'}`}>
+                                    {mark}%
+                                </span>
+                            </div>
+                        )
+                    })}
+                 </div>
+                 
+                 {/* TRACKING INFERIOR DINÁMICO (Próxima Meta) */}
+                 <div className="-mt-1">
+                     {nextPercent > 0 ? (
+                         <p className="text-[10px] text-slate-500 font-medium">
+                             🎯 Faltan <span className="font-bold text-slate-700">{money(missingForNext)}</span> para llegar al {nextPercent}%
+                         </p>
+                     ) : (
+                         <p className="text-[10px] text-purple-600 font-bold">
+                             🚀 ¡Has alcanzado el tope máximo (140%)!
+                         </p>
+                     )}
                  </div>
              </div>
              <div className="hidden lg:block w-px h-10 bg-slate-200"></div>
@@ -940,4 +986,4 @@
     root.render(<MainWrapper />);
   </script>
 </body>
-  </html> 
+</html> 
