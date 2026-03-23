@@ -353,7 +353,7 @@
              </div>
              <div className="hidden lg:block w-px h-10 bg-slate-200"></div>
 
-             {/* CALIENTE (RESTAURADO) */}
+             {/* CALIENTE */}
              <div className="hidden sm:block">
                 <p className="text-[10px] font-bold text-purple-500 uppercase flex items-center gap-1"><i className="fas fa-fire"></i> Caliente</p>
                 <p className="text-xl font-bold text-purple-700 leading-none">{money(hotMoney)}</p>
@@ -420,6 +420,19 @@
         return 'bg-blue-500';
       }
 
+      // LÓGICA NIVEL DIOS: ALERTA DE CONGELAMIENTO (LEADS FRÍOS)
+      // Compara la última vez que se le movió algo al lead (historial) vs hoy. Si pasaron 3 días o más y está en proceso = ¡Alerta de frío!
+      const lastUpdate = sale.history && sale.history.length > 0
+            ? new Date(sale.history[sale.history.length - 1].date)
+            : parseDate(sale.fecha);
+      
+      const today = new Date();
+      // Reseteamos las horas a medianoche para que calcule los días exactos sin importar la hora del día
+      const msPerDay = 1000 * 60 * 60 * 24;
+      const daysStale = Math.floor((new Date(today.getFullYear(), today.getMonth(), today.getDate()) - new Date(lastUpdate.getFullYear(), lastUpdate.getMonth(), lastUpdate.getDate())) / msPerDay);
+      
+      const isStale = ['Con oferta', 'Acepta oferta'].includes(sale.estatus) && daysStale >= 3;
+
       return (
         <div 
           draggable={isDraggable}
@@ -431,7 +444,7 @@
           <div className="pl-2">
             
             <div className="flex justify-between items-start">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <div 
                   onMouseEnter={() => setIsDraggable(true)}
                   onMouseLeave={() => setIsDraggable(false)}
@@ -444,13 +457,20 @@
                 
                 {sale.isCarryOver && (
                   <span className="bg-orange-100 text-orange-700 text-[9px] font-black px-1.5 py-0.5 rounded shadow-sm border border-orange-200 flex items-center gap-1" title="Este lead viene de un periodo anterior">
-                    <i className="fas fa-history text-[8px]"></i> CARRY OVER
+                    <i className="fas fa-history text-[8px]"></i> CARRY
                   </span>
                 )}
                 
                 {sale.canal === 'UPPER' && (
                   <span className="bg-indigo-100 text-indigo-700 text-[9px] font-black px-1.5 py-0.5 rounded shadow-sm border border-indigo-200 flex items-center gap-1" title="Lead de campañas UPPER">
                     <i className="fas fa-bolt text-[8px]"></i> UPPER
+                  </span>
+                )}
+
+                {/* ETIQUETA NIVEL DIOS: ALERTA DE HIELO */}
+                {isStale && (
+                  <span className="bg-cyan-50 text-cyan-600 text-[9px] font-black px-1.5 py-0.5 rounded shadow-sm border border-cyan-200 flex items-center gap-1 animate-pulse" title={`Lleva ${daysStale} días sin movimiento. ¡Llámale!`}>
+                    <i className="fas fa-snowflake text-[8px]"></i> {daysStale} DÍAS FRÍO
                   </span>
                 )}
 
@@ -488,15 +508,15 @@
                
                {sale.estatus === 'Dispersado' && (
                  <div className="flex flex-col text-right">
-                    <span className="text-[10px] text-green-600 font-bold uppercase block leading-none mb-0.5">Dispersado</span>
-                    <span className="font-bold text-green-700 text-sm">{money(sale.monto_dispersado)}</span>
+                     <span className="text-[10px] text-green-600 font-bold uppercase block leading-none mb-0.5">Dispersado</span>
+                     <span className="font-bold text-green-700 text-sm">{money(sale.monto_dispersado)}</span>
                  </div>
                )}
                
                {(sale.estatus === 'Rechazado' || sale.estatus === 'Cancelado' || sale.estatus === 'Expirado') && sale.motivo_perdida && (
                  <div className="flex flex-col text-right">
-                    <span className="text-[10px] text-red-500 font-bold uppercase block leading-none mb-0.5">Motivo</span>
-                    <span className="font-bold text-red-700 text-[10px] truncate max-w-[90px]" title={sale.motivo_perdida}>{sale.motivo_perdida}</span>
+                     <span className="text-[10px] text-red-500 font-bold uppercase block leading-none mb-0.5">Motivo</span>
+                     <span className="font-bold text-red-700 text-[10px] truncate max-w-[90px]" title={sale.motivo_perdida}>{sale.motivo_perdida}</span>
                  </div>
                )}
             </div>
@@ -654,6 +674,23 @@
 
       const businessData = getBusinessDaysQuincena(currentDate, currentQuincena);
 
+      // --- CÁLCULOS NIVEL DIOS (WIN RATE & RUN RATE) ---
+      const wonCount = filteredSales.filter(s => s.estatus === 'Dispersado').length;
+      const lostCount = filteredSales.filter(s => ['Rechazado', 'Cancelado', 'Expirado'].includes(s.estatus)).length;
+      const winRate = (wonCount + lostCount) > 0 ? ((wonCount / (wonCount + lostCount)) * 100).toFixed(0) : 0;
+
+      const meta = Number(metaData.monto) || 0;
+      const soldAmount = filteredSales.filter(s => s.estatus === 'Dispersado').reduce((acc, curr) => acc + (Number(curr.monto_dispersado) || 0), 0);
+      const remainingToMeta = Math.max(0, meta - soldAmount);
+      
+      // Ritmo de venta necesario diario para llegar a la meta
+      const requiredDaily = businessData.remainingDays > 0 ? (remainingToMeta / businessData.remainingDays) : remainingToMeta;
+      // Ritmo de venta original (lo que tenía que vender desde el día 1)
+      const originalDailyGoal = businessData.totalBusinessDays > 0 ? (meta / businessData.totalBusinessDays) : 0;
+      
+      const paceStatus = remainingToMeta === 0 ? 'superado' : (requiredDaily > originalDailyGoal ? 'atrasado' : 'excelente');
+
+
       const handleAddSale = async (e) => {
         e.preventDefault();
         const form = e.target;
@@ -809,20 +846,57 @@
               </div>
             </div>
 
-            <div className="relative flex-1 max-w-xs mx-2 hidden sm:block">
-               <i className="fas fa-search absolute left-3 top-2.5 text-slate-400 text-sm"></i>
-               <input 
-                 type="text" 
-                 placeholder="Buscar por Folio o Cliente..." 
-                 value={searchTerm} 
-                 onChange={(e) => setSearchTerm(e.target.value)}
-                 className="w-full pl-9 pr-3 py-1.5 rounded-full text-sm bg-slate-800 border border-slate-700 text-white outline-none focus:border-blue-500 focus:bg-slate-700 transition-colors"
-               />
-               {searchTerm && (
-                 <button onClick={() => setSearchTerm('')} className="absolute right-3 top-2.5 text-slate-400 hover:text-white">
-                    <i className="fas fa-times text-sm"></i>
-                 </button>
-               )}
+            {/* SECCIÓN ESCRITORIO: KPIS NIVEL DIOS Y BUSCADOR */}
+            <div className="hidden lg:flex flex-1 items-center justify-center gap-4 px-4">
+               
+               {/* KPI: TASA DE BATEO */}
+               <div className="flex items-center gap-2 bg-slate-800/80 px-3 py-1.5 rounded border border-slate-700 shadow-inner" title="Porcentaje de negocios ganados vs. los perdidos">
+                   <i className="fas fa-bullseye text-slate-400 text-sm"></i>
+                   <div className="flex flex-col">
+                       <span className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">Tasa de Bateo</span>
+                       <span className="text-sm font-black text-white leading-none">{winRate}%</span>
+                   </div>
+               </div>
+
+               {/* KPI: RUN RATE (RITMO DIARIO) */}
+               <div className={`flex items-center gap-2 px-3 py-1.5 rounded border shadow-inner ${
+                   paceStatus === 'superado' ? 'bg-green-500/20 border-green-500/50' :
+                   paceStatus === 'atrasado' ? 'bg-red-500/20 border-red-500/50' :
+                   'bg-blue-500/20 border-blue-500/50'
+               }`}>
+                   <i className={`fas text-sm ${
+                       paceStatus === 'superado' ? 'fa-trophy text-green-400' :
+                       paceStatus === 'atrasado' ? 'fa-fire-alt text-red-400 animate-pulse' :
+                       'fa-tachometer-alt text-blue-400'
+                   }`}></i>
+                   <div className="flex flex-col">
+                       <span className={`text-[9px] uppercase font-bold tracking-wider ${
+                           paceStatus === 'superado' ? 'text-green-400' : paceStatus === 'atrasado' ? 'text-red-400' : 'text-blue-400'
+                       }`}>
+                           {paceStatus === 'superado' ? '¡Meta Superada!' : 'Ritmo Diario Requerido'}
+                       </span>
+                       <span className="text-sm font-black text-white leading-none">
+                           {paceStatus === 'superado' ? 'A BUSCAR EL BONO MAX' : `${money(requiredDaily)} / día`}
+                       </span>
+                   </div>
+               </div>
+
+               {/* BUSCADOR */}
+               <div className="relative w-64 ml-4">
+                 <i className="fas fa-search absolute left-3 top-2.5 text-slate-400 text-sm"></i>
+                 <input 
+                   type="text" 
+                   placeholder="Buscar por Folio o Cliente..." 
+                   value={searchTerm} 
+                   onChange={(e) => setSearchTerm(e.target.value)}
+                   className="w-full pl-9 pr-3 py-1.5 rounded-full text-sm bg-slate-800 border border-slate-700 text-white outline-none focus:border-blue-500 focus:bg-slate-700 transition-colors"
+                 />
+                 {searchTerm && (
+                   <button onClick={() => setSearchTerm('')} className="absolute right-3 top-2.5 text-slate-400 hover:text-white">
+                      <i className="fas fa-times text-sm"></i>
+                   </button>
+                 )}
+               </div>
             </div>
             
             <div className="flex gap-2 items-center">
@@ -996,4 +1070,4 @@
     root.render(<MainWrapper />);
   </script>
 </body>
-</html> 
+</html>
