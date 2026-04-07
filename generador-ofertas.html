@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Generador de Tabla de Pagos - MultiMoney</title>
+    <title>Portal UX - MultiMoney</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -24,6 +24,7 @@
     </script>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800;900&display=swap" rel="stylesheet">
     
@@ -32,237 +33,431 @@
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
         
-        /* Contenedor del documento A4 base */
-        #pdf-content {
+        /* Estilos Pestañas */
+        .tab-btn.active { border-bottom: 2px solid #00B100; color: #00B100; background-color: #1e293b; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        /* Estilos PDF Oferta (Herramienta 1) */
+        .watermark {
+            background-image: radial-gradient(#00b100 0.5px, transparent 0.5px);
+            background-size: 15px 15px;
+            opacity: 0.02;
+        }
+        #pdf-content-oferta {
+            box-sizing: border-box;
+            width: 210mm; 
+            min-height: 297mm; 
+            margin: 0 auto;
+            position: relative;
+            background-color: white; 
+            overflow: hidden;
+        }
+
+        /* Estilos PDF Tabla Pagos (Herramienta 2) */
+        #pdf-content-pagos {
             box-sizing: border-box;
             width: 210mm;
             min-height: 297mm;
             margin: 0 auto;
             background-color: white; 
-            color: #1f2937; /* text-gray-800 */
+            color: #1f2937;
         }
-
-        /* Estilos específicos para la tabla al exportar */
-        table { width: 100%; border-collapse: collapse; }
-        thead { display: table-header-group; }
-        tfoot { display: table-row-group; }
-        tr { page-break-inside: avoid; }
-        
-        .table-header th {
-            background-color: #f3f4f6; /* gray-100 */
-            color: #374151; /* gray-700 */
+        #pdf-content-pagos table { 
+            width: 100%; 
+            border-collapse: collapse; 
+            table-layout: fixed; /* Esto arregla la desproporción */
+        }
+        #pdf-content-pagos thead { display: table-header-group; }
+        #pdf-content-pagos tr { page-break-inside: avoid; }
+        #pdf-content-pagos th {
+            background-color: #f9fafb;
+            color: #374151;
             font-weight: 600;
-            padding: 8px 4px;
-            text-align: right;
+            padding: 10px 4px;
+            text-align: center;
             border-bottom: 2px solid #e5e7eb;
             font-size: 10px;
         }
-        .table-header th:first-child, .table-row td:first-child { text-align: left; }
-        .table-header th:nth-child(2), .table-row td:nth-child(2) { text-align: center; }
-
-        .table-row td {
-            padding: 6px 4px;
+        #pdf-content-pagos td {
+            padding: 8px 4px;
             border-bottom: 1px solid #e5e7eb;
-            text-align: right;
+            text-align: center;
             font-size: 10px;
-            color: #4b5563; /* gray-600 */
+            color: #4b5563;
         }
+        #pdf-content-pagos th:first-child, #pdf-content-pagos td:first-child { text-align: left; }
+        #pdf-content-pagos th:last-child, #pdf-content-pagos td:last-child { text-align: right; }
     </style>
 </head>
-<body class="text-slate-200 min-h-screen p-4 md:p-8" onload="generarTabla()">
+<body class="text-slate-200 min-h-screen p-4 md:p-8">
 
-    <div class="max-w-[1400px] mx-auto grid grid-cols-1 xl:grid-cols-12 gap-8">
-        
-        <div class="xl:col-span-4 bg-slate-900 p-6 sm:p-8 rounded-2xl shadow-2xl border border-slate-800 flex flex-col gap-5 text-slate-200 h-fit sticky top-8">
-            
-            <div class="border-b border-slate-800 pb-5">
-                <div class="flex items-center gap-3 mb-2">
-                    <div class="w-3 h-3 rounded-full bg-mmgreen animate-pulse"></div>
-                    <h1 class="text-2xl font-bold text-white tracking-tighter">Proyección de Pagos</h1>
+    <div class="max-w-[1400px] mx-auto mb-6 bg-slate-900 rounded-xl overflow-hidden flex border border-slate-800">
+        <button onclick="switchTab('oferta')" id="btn-oferta" class="tab-btn active flex-1 py-4 text-sm font-bold uppercase tracking-wider text-slate-400 hover:text-white transition-all">
+            1. Generador de Oferta
+        </button>
+        <button onclick="switchTab('pagos')" id="btn-pagos" class="tab-btn flex-1 py-4 text-sm font-bold uppercase tracking-wider text-slate-400 hover:text-white transition-all">
+            2. Proyección de Pagos
+        </button>
+    </div>
+
+    <div id="tab-oferta" class="tab-content active max-w-[1400px] mx-auto">
+        <div class="grid grid-cols-1 xl:grid-cols-12 gap-8">
+            <div class="xl:col-span-4 bg-slate-900 p-6 sm:p-8 rounded-2xl shadow-2xl border border-slate-800 flex flex-col gap-6 text-slate-200">
+                <div class="border-b border-slate-800 pb-5">
+                    <div class="flex items-center gap-3 mb-2">
+                        <div class="w-3 h-3 rounded-full bg-mmgreen animate-pulse"></div>
+                        <h1 class="text-2xl font-bold text-white tracking-tighter">Portal Conversión UX</h1>
+                    </div>
+                    <p class="text-slate-400 text-sm">Diseño optimizado para engagement.</p>
                 </div>
-                <p class="text-slate-400 text-sm">Generador de tablas de amortización.</p>
-            </div>
 
-            <div class="space-y-4">
-                <div class="grid grid-cols-2 gap-4">
-                    <div class="col-span-2">
-                        <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Cliente</label>
-                        <input type="text" id="in-cliente" value="ADRIAN LOPEZ FLORES" class="w-full p-2.5 bg-slate-950 border border-slate-700 text-white rounded-lg focus:ring-1 focus:ring-mmgreen outline-none text-sm">
-                    </div>
-                    <div class="col-span-2">
-                        <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Correo Electrónico</label>
-                        <input type="email" id="in-correo" value="alf2180@gmail.com" class="w-full p-2.5 bg-slate-950 border border-slate-700 text-white rounded-lg focus:ring-1 focus:ring-mmgreen outline-none text-sm">
-                    </div>
+                <div class="space-y-4 flex-grow flex flex-col">
                     <div>
-                        <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">No. Crédito</label>
-                        <input type="text" id="in-credito" value="R-06269" class="w-full p-2.5 bg-slate-950 border border-slate-700 text-white rounded-lg focus:ring-1 focus:ring-mmgreen outline-none text-sm uppercase">
+                        <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Nombre Completo del Cliente</label>
+                        <input type="text" id="input-cliente" placeholder="Ej. Liliana Evangelista Andrade" class="w-full p-3 bg-slate-950 border border-slate-700 text-white rounded-xl focus:ring-2 focus:ring-mmgreen focus:border-mmgreen outline-none transition-all placeholder-slate-600 font-medium">
                     </div>
-                    <div>
-                        <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Monto ($)</label>
-                        <input type="number" id="in-monto" value="116000" class="w-full p-2.5 bg-slate-950 border border-slate-700 text-white rounded-lg focus:ring-1 focus:ring-mmgreen outline-none text-sm">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Plazo (Meses)</label>
-                        <input type="number" id="in-plazo" value="60" class="w-full p-2.5 bg-slate-950 border border-slate-700 text-white rounded-lg focus:ring-1 focus:ring-mmgreen outline-none text-sm">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Tasa Mensual (Sin IVA) %</label>
-                        <input type="number" id="in-tasa" value="3.4185" step="0.0001" class="w-full p-2.5 bg-slate-950 border border-slate-700 text-white rounded-lg focus:ring-1 focus:ring-mmgreen outline-none text-sm">
-                    </div>
-                    <div class="col-span-2">
-                        <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Fecha de Primer Pago</label>
-                        <input type="date" id="in-fecha" value="2026-05-01" class="w-full p-2.5 bg-slate-950 border border-slate-700 text-white rounded-lg focus:ring-1 focus:ring-mmgreen outline-none text-sm">
+
+                    <div class="flex-grow flex flex-col">
+                        <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Datos Brutos del Sistema</label>
+                        <textarea id="input-raw" rows="12" placeholder="Pega los datos aquí..." class="w-full p-4 bg-slate-950 border border-slate-700 text-white rounded-xl focus:ring-2 focus:ring-mmgreen focus:border-mmgreen outline-none transition-all flex-grow font-mono text-xs resize-none placeholder-slate-600 leading-relaxed"></textarea>
                     </div>
                 </div>
+
+                <div class="grid grid-cols-2 gap-3 pt-4 border-t border-slate-800">
+                    <button onclick="generarOferta()" class="col-span-2 bg-mmgreen hover:bg-green-600 text-white font-bold text-lg py-4 rounded-xl transition-all shadow-[0_0_20px_rgba(0,177,0,0.3)]">
+                        Generar Oferta
+                    </button>
+                    <button onclick="limpiarCampos()" class="bg-slate-800 hover:bg-slate-700 text-white font-medium py-3 rounded-xl transition-colors">
+                        Limpiar
+                    </button>
+                    <button onclick="copiarOferta()" class="bg-slate-800 hover:bg-slate-700 text-white font-medium py-3 rounded-xl transition-colors">
+                        Copiar Texto
+                    </button>
+                </div>
             </div>
 
-            <div class="grid grid-cols-1 gap-3 pt-4 border-t border-slate-800 mt-2">
-                <button onclick="generarTabla()" class="bg-mmgreen hover:bg-green-600 text-white font-bold py-3 rounded-xl transition-all shadow-[0_0_15px_rgba(0,177,0,0.3)]">
-                    Calcular Proyección
-                </button>
+            <div class="xl:col-span-8 flex flex-col gap-4">
+                <div class="bg-slate-800 p-4 rounded-2xl border border-slate-700 flex justify-between items-center shadow-lg text-slate-200">
+                    <div class="flex items-center gap-2">
+                        <span class="w-2 h-2 rounded-full bg-mmgreen"></span>
+                        <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-widest">Vista Previa (Cebo Comercial)</h2>
+                    </div>
+                    <div class="flex gap-3">
+                        <button onclick="descargarImagen()" class="text-sm bg-white hover:bg-slate-100 text-slate-900 font-bold py-2 px-6 rounded-lg transition-colors flex items-center gap-2">
+                            Descargar JPG
+                        </button>
+                        <button onclick="descargarPDF()" class="text-sm bg-slate-700 hover:bg-slate-600 text-white font-medium py-2 px-6 rounded-lg transition-colors flex items-center gap-2 shadow-sm">
+                            PDF
+                        </button>
+                    </div>
+                </div>
+
+                <div class="bg-[#0f172a] p-4 md:p-8 rounded-2xl flex-grow overflow-auto no-scrollbar flex justify-center items-start">
+                    <div id="pdf-content-oferta" class="shadow-2xl text-slate-800 flex flex-col">
+                        <div class="absolute inset-0 watermark pointer-events-none z-0"></div>
+                        <div class="absolute top-0 left-0 w-full h-4 bg-mmgreen z-20"></div>
+
+                        <div class="relative z-10 flex flex-col h-full p-[18mm] pt-[25mm]">
+                            <div class="flex justify-between items-center mb-10">
+                                <img src="https://raw.githubusercontent.com/jarodlopez/Ventas-MM/refs/heads/main/MM-Logo-N.png" crossorigin="anonymous" alt="MultiMoney" class="h-12 object-contain">
+                                <div class="inline-block bg-green-50 text-mmgreen px-5 py-2 rounded-full text-sm font-black tracking-widest uppercase border-2 border-green-200 shadow-sm">
+                                    PRE-APROBADO
+                                </div>
+                            </div>
+
+                            <div class="text-center mb-8">
+                                <h2 class="text-[2.2rem] leading-tight font-black text-slate-900 tracking-tight">¡Felicidades, <br><span id="out-cliente" class="text-mmgreen">Nombre del Cliente</span>!</h2>
+                            </div>
+
+                            <div class="bg-slate-900 text-white rounded-[2.5rem] p-12 mb-10 flex flex-col items-center justify-center shadow-2xl relative overflow-hidden border border-slate-800">
+                                <div class="absolute -right-20 -top-20 w-64 h-64 bg-mmgreen opacity-20 rounded-full blur-3xl z-0 pointer-events-none"></div>
+                                <div class="relative z-10 text-center w-full">
+                                    <p class="text-lg text-slate-300 font-bold tracking-widest uppercase mb-4">Tu línea de crédito es de:</p>
+                                    <p id="out-monto" class="text-6xl font-black text-mmgreen tracking-tighter leading-none py-2 drop-shadow-lg">N/D</p>
+                                </div>
+                            </div>
+
+                            <div class="text-center mb-12 flex-grow flex flex-col justify-center items-center">
+                                <p class="text-sm text-slate-500 font-bold tracking-widest uppercase mb-2">Tu cuota mensual fija</p>
+                                <p class="text-5xl font-black text-slate-900 tracking-tighter mb-6"><span id="out-pago">N/D</span> <span class="text-2xl text-slate-500 font-semibold tracking-normal">/ mes</span></p>
+                                
+                                <div class="bg-slate-100 text-slate-700 px-6 py-3 rounded-full font-semibold text-[15px] inline-flex items-center gap-2 mb-10 border border-slate-200 shadow-sm">
+                                    <svg class="w-5 h-5 text-mmgreen" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                    <span>Plazo de <span id="out-plazo">60</span> meses con <span class="text-mmgreen font-bold">liquidación anticipada sin penalización</span>.</span>
+                                </div>
+
+                                <div class="bg-mmgreen text-white text-2xl font-black py-5 px-14 rounded-full shadow-[0_12px_30px_rgba(0,177,0,0.4)] tracking-tight">
+                                    Obtener mi dinero ahora
+                                </div>
+                                <p class="text-xs text-slate-400 mt-5 font-medium flex items-center justify-center gap-1.5">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                                    Proceso seguro, confidencial y sin anticipos.
+                                </p>
+                            </div>
+
+                            <div class="mt-auto pt-6 border-t border-slate-200 text-justify">
+                                <p class="text-[9px] text-slate-400 leading-relaxed">
+                                    <strong>CONDICIONES Y AVISO LEGAL:</strong> Esta imagen es estrictamente comercial y confidencial. Oferta pre-aprobada válida por 24 horas. <strong>Tasa mensual: <span id="out-tasa">N/D</span>% (IVA incluido). Comisión por desembolso: <span id="out-comision">N/D</span>%.</strong> Ciclo de pago sugerido: <span id="out-ciclo">N/D</span>. Fecha estimada de primer pago: <span id="out-fecha">N/D</span>. Las condiciones finales (incluyendo el CAT), así como la aprobación final de la línea, están sujetas a la validación de capacidad de pago y políticas del comité de riesgo crediticio de MultiMoney, previo a la firma del contrato definitivo.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
+    </div>
 
-        <div class="xl:col-span-8 flex flex-col gap-4">
-            
-            <div class="bg-slate-800 p-4 rounded-2xl border border-slate-700 flex justify-between items-center shadow-lg">
-                <div class="flex items-center gap-2">
-                    <span class="w-2 h-2 rounded-full bg-mmgreen"></span>
-                    <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-widest">Documento Listo</h2>
+    <div id="tab-pagos" class="tab-content max-w-[1400px] mx-auto">
+        <div class="grid grid-cols-1 xl:grid-cols-12 gap-8">
+            <div class="xl:col-span-4 bg-slate-900 p-6 sm:p-8 rounded-2xl shadow-2xl border border-slate-800 flex flex-col gap-5 text-slate-200 h-fit sticky top-8">
+                <div class="border-b border-slate-800 pb-5">
+                    <div class="flex items-center gap-3 mb-2">
+                        <div class="w-3 h-3 rounded-full bg-mmgreen animate-pulse"></div>
+                        <h1 class="text-2xl font-bold text-white tracking-tighter">Proyección de Pagos</h1>
+                    </div>
+                    <p class="text-slate-400 text-sm">Tabla financiera PDF (Sin datos sensibles).</p>
                 </div>
-                <button onclick="descargarPDF()" class="text-sm bg-white hover:bg-slate-200 text-slate-900 font-bold py-2 px-6 rounded-lg transition-colors flex items-center gap-2">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-                    Descargar PDF
-                </button>
+
+                <div class="space-y-4">
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="col-span-2">
+                            <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Nombre del Cliente</label>
+                            <input type="text" id="in-cliente-pagos" value="ADRIAN LOPEZ FLORES" class="w-full p-2.5 bg-slate-950 border border-slate-700 text-white rounded-lg focus:ring-1 focus:ring-mmgreen outline-none text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Monto ($)</label>
+                            <input type="number" id="in-monto-pagos" value="116000" class="w-full p-2.5 bg-slate-950 border border-slate-700 text-white rounded-lg focus:ring-1 focus:ring-mmgreen outline-none text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Plazo (Meses)</label>
+                            <input type="number" id="in-plazo-pagos" value="60" class="w-full p-2.5 bg-slate-950 border border-slate-700 text-white rounded-lg focus:ring-1 focus:ring-mmgreen outline-none text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Tasa Mensual (Sin IVA) %</label>
+                            <input type="number" id="in-tasa-pagos" value="3.4185" step="0.0001" class="w-full p-2.5 bg-slate-950 border border-slate-700 text-white rounded-lg focus:ring-1 focus:ring-mmgreen outline-none text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Fecha de Primer Pago</label>
+                            <input type="date" id="in-fecha-pagos" value="2026-05-01" class="w-full p-2.5 bg-slate-950 border border-slate-700 text-white rounded-lg focus:ring-1 focus:ring-mmgreen outline-none text-sm">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 gap-3 pt-4 border-t border-slate-800 mt-2">
+                    <button onclick="generarTablaPagos()" class="bg-mmgreen hover:bg-green-600 text-white font-bold py-3 rounded-xl transition-all shadow-[0_0_15px_rgba(0,177,0,0.3)]">
+                        Calcular Proyección
+                    </button>
+                </div>
             </div>
 
-            <div class="bg-[#0f172a] p-4 md:p-8 rounded-2xl flex-grow overflow-auto no-scrollbar flex justify-center items-start">
-                
-                <div id="pdf-content" class="shadow-2xl flex flex-col p-[15mm]">
-                    
-                    <div class="flex justify-between items-end mb-8 border-b-2 border-green-500 pb-4">
-                        <img src="https://raw.githubusercontent.com/jarodlopez/Ventas-MM/refs/heads/main/MM-Logo-N.png" crossorigin="anonymous" alt="MultiMoney" class="h-10 object-contain" style="filter: brightness(0) saturate(100%) hue-rotate(100deg) contrast(100%);">
-                        <h2 class="text-xl font-bold text-gray-800">Proyección de pagos</h2>
+            <div class="xl:col-span-8 flex flex-col gap-4">
+                <div class="bg-slate-800 p-4 rounded-2xl border border-slate-700 flex justify-between items-center shadow-lg">
+                    <div class="flex items-center gap-2">
+                        <span class="w-2 h-2 rounded-full bg-mmgreen"></span>
+                        <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-widest">Documento Listo</h2>
                     </div>
+                    <button onclick="descargarPDFPagos()" class="text-sm bg-white hover:bg-slate-200 text-slate-900 font-bold py-2 px-6 rounded-lg transition-colors flex items-center gap-2">
+                        Descargar PDF
+                    </button>
+                </div>
 
-                    <div class="grid grid-cols-2 gap-8 mb-8 text-[11px]">
-                        <div class="space-y-2">
-                            <div class="flex justify-between border-b border-gray-100 pb-1">
-                                <span class="font-semibold text-gray-600">Fecha de solicitud:</span>
-                                <span id="out-fecha-solicitud" class="font-medium"></span>
+                <div class="bg-[#0f172a] p-4 md:p-8 rounded-2xl flex-grow overflow-auto no-scrollbar flex justify-center items-start">
+                    <div id="pdf-content-pagos" class="shadow-2xl flex flex-col p-[15mm]">
+                        
+                        <div class="flex justify-between items-end mb-8 border-b-2 border-green-500 pb-4">
+                            <img src="https://raw.githubusercontent.com/jarodlopez/Ventas-MM/refs/heads/main/MM-Logo-N.png" crossorigin="anonymous" alt="MultiMoney" class="h-10 object-contain" style="filter: brightness(0) saturate(100%) hue-rotate(100deg) contrast(100%);">
+                            <h2 class="text-xl font-bold text-gray-800">Proyección de pagos</h2>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-8 mb-8 text-[11px]">
+                            <div class="space-y-2">
+                                <div class="flex justify-between border-b border-gray-100 pb-1">
+                                    <span class="font-semibold text-gray-600">Fecha de solicitud:</span>
+                                    <span id="out-fecha-solic" class="font-medium"></span>
+                                </div>
+                                <div class="flex justify-between border-b border-gray-100 pb-1">
+                                    <span class="font-semibold text-gray-600">Cliente:</span>
+                                    <span id="out-cliente-pagos" class="font-medium"></span>
+                                </div>
+                                <div class="flex justify-between border-b border-gray-100 pb-1 opacity-0">
+                                    <span>Espacio</span><span>Espacio</span>
+                                </div>
                             </div>
-                            <div class="flex justify-between border-b border-gray-100 pb-1">
-                                <span class="font-semibold text-gray-600">Número de crédito:</span>
-                                <span id="out-credito1" class="font-medium"></span>
-                            </div>
-                            <div class="flex justify-between border-b border-gray-100 pb-1">
-                                <span class="font-semibold text-gray-600">Cliente:</span>
-                                <span id="out-cliente" class="font-medium"></span>
-                            </div>
-                            <div class="flex justify-between border-b border-gray-100 pb-1">
-                                <span class="font-semibold text-gray-600">Correo electrónico:</span>
-                                <span id="out-correo" class="font-medium"></span>
+
+                            <div class="space-y-2">
+                                <div class="flex justify-between border-b border-gray-100 pb-1">
+                                    <span class="font-semibold text-gray-600">Saldo total adeudado:</span>
+                                    <span id="out-monto-tot" class="font-bold text-gray-800"></span>
+                                </div>
+                                <div class="flex justify-between border-b border-gray-100 pb-1">
+                                    <span class="font-semibold text-gray-600">Mensualidad:</span>
+                                    <span id="out-mensualidad-pagos" class="font-bold text-green-700"></span>
+                                </div>
+                                <div class="flex justify-between border-b border-gray-100 pb-1">
+                                    <span class="font-semibold text-gray-600">Fecha de próximo pago:</span>
+                                    <span id="out-fecha-prox" class="font-medium"></span>
+                                </div>
+                                <div class="flex justify-between border-b border-gray-100 pb-1">
+                                    <span class="font-semibold text-gray-600">Plazo del crédito:</span>
+                                    <span id="out-plazo-pagos" class="font-medium"></span>
+                                </div>
                             </div>
                         </div>
 
-                        <div class="space-y-2">
-                            <div class="flex justify-between border-b border-gray-100 pb-1">
-                                <span class="font-semibold text-gray-600">Detalles:</span>
-                                <span class="font-medium"></span>
-                            </div>
-                            <div class="flex justify-between border-b border-gray-100 pb-1">
-                                <span class="font-semibold text-gray-600">Saldo total adeudado:</span>
-                                <span id="out-monto-total" class="font-bold text-gray-800"></span>
-                            </div>
-                            <div class="flex justify-between border-b border-gray-100 pb-1">
-                                <span class="font-semibold text-gray-600">Mensualidad:</span>
-                                <span id="out-mensualidad" class="font-bold text-green-700"></span>
-                            </div>
-                            <div class="flex justify-between border-b border-gray-100 pb-1">
-                                <span class="font-semibold text-gray-600">Fecha de próximo pago:</span>
-                                <span id="out-fecha-pago" class="font-medium"></span>
-                            </div>
-                            <div class="flex justify-between border-b border-gray-100 pb-1">
-                                <span class="font-semibold text-gray-600">Plazo del crédito:</span>
-                                <span id="out-plazo" class="font-medium"></span>
-                            </div>
+                        <div class="w-full">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th style="width: 10%;">Mensualidad</th>
+                                        <th style="width: 12%;">Fecha</th>
+                                        <th style="width: 13%;">Monto</th>
+                                        <th style="width: 13%;">Saldo inicial</th>
+                                        <th style="width: 13%;">Interés normal</th>
+                                        <th style="width: 13%;">IVA Interés</th>
+                                        <th style="width: 13%;">Amortización</th>
+                                        <th style="width: 13%;">Saldo final</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tabla-body" class="table-row">
+                                    </tbody>
+                            </table>
+                        </div>
+
+                        <div class="mt-12 text-[10px] text-gray-500 border-t border-gray-200 pt-4 leading-relaxed text-justify pb-10">
+                            <p class="font-bold text-gray-700 mb-1">Importante:</p>
+                            <p>Se aclara que esta es una proyección de pagos relacionada con su crédito, no corresponde a comprobantes ni aplicación de pagos.</p>
+                            <p class="mt-2 text-green-700 font-semibold">Recuerda que en MultiMoney te volvemos a prestar en cuestión de minutos.</p>
+                            <p>Llámanos al 55 92 25 57 65 y habla con uno de nuestros asesores financieros para solicitar más dinero. Ten a mano tu número de crédito para depositarte.</p>
                         </div>
                     </div>
-
-                    <div class="w-full">
-                        <table>
-                            <thead class="table-header">
-                                <tr>
-                                    <th>Mensualidad</th>
-                                    <th>Fecha</th>
-                                    <th>Monto</th>
-                                    <th>Saldo inicial</th>
-                                    <th>Interés normal</th>
-                                    <th>IVA Interés</th>
-                                    <th>Amortización</th>
-                                    <th>Saldo final</th>
-                                </tr>
-                            </thead>
-                            <tbody id="tabla-body" class="table-row">
-                                </tbody>
-                        </table>
-                    </div>
-
-                    <div class="mt-12 text-[10px] text-gray-500 border-t border-gray-200 pt-4 leading-relaxed text-justify pb-10">
-                        <p class="font-bold text-gray-700 mb-1">Importante:</p>
-                        <p>Se aclara que esta es una proyección de pagos relacionada con su crédito, no corresponde a comprobantes ni aplicación de pagos.</p>
-                        <p class="mt-2 text-green-700 font-semibold">Recuerda que en MultiMoney te volvemos a prestar en cuestión de minutos.</p>
-                        <p>Llámanos al 55 92 25 57 65 y habla con uno de nuestros asesores financieros para solicitar más dinero. Ten a mano tu número de crédito para depositarte.</p>
-                    </div>
-
                 </div>
             </div>
         </div>
     </div>
 
     <script>
-        // Formateadores globales
-        const formCurrency = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' });
-        
-        function padZero(num) { return num < 10 ? '0' + num : num; }
-        
-        function formDate(dateObj) {
-            return `${padZero(dateObj.getDate())}/${padZero(dateObj.getMonth() + 1)}/${dateObj.getFullYear()}`;
+        // --- LÓGICA DE PESTAÑAS ---
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+            
+            document.getElementById('tab-' + tabId).classList.add('active');
+            document.getElementById('btn-' + tabId).classList.add('active');
         }
 
-        function generarTabla() {
-            // Obtener inputs
-            const cliente = document.getElementById('in-cliente').value;
-            const correo = document.getElementById('in-correo').value;
-            const credito = document.getElementById('in-credito').value;
-            const monto = parseFloat(document.getElementById('in-monto').value);
-            const plazo = parseInt(document.getElementById('in-plazo').value);
-            const tasaMensual = parseFloat(document.getElementById('in-tasa').value) / 100;
+        // --- LÓGICA HERRAMIENTA 1: OFERTA (INTACTA) ---
+        function extraerDato(texto, regex, sufijo = '', prefijo = '') {
+            const match = texto.match(regex);
+            if (match && match[1]) return `${prefijo}${match[1].trim()}${sufijo}`;
+            return 'N/D';
+        }
+
+        function generarOferta() {
+            const rawText = document.getElementById('input-raw').value;
+            let clienteInput = document.getElementById('input-cliente').value.trim();
+            if(!clienteInput) clienteInput = "Cliente Preferente";
+            const cleanText = rawText.replace(/\n/g, ' ').replace(/\s+/g, ' ');
+
+            const regexMonto = /Monto L(?:í|i)nea de Cr(?:é|e)dito:\s*[\$\s]*([\d,]+(?:.\d{1,2})?)\s*MXN/i;
+            const regexTasa = /Tasa Mensual:\s*([\d.]+)\s*%?\s*(?:IVAI)?/i; 
+            const regexComision = /Comisi(?:ó|o)n por Desembolso:\s*([\d.]+)\s*%?\s*(?:IVAI)?/i; 
+            const regexFecha = /Fecha Primer Pago:\s*([\d/]+)/i;
+            const regexCiclo = /Ciclo:\s*(\d+)/i;
+            const regexPlazo = /Plazo:\s*(\d+)\s*Meses/i;
+            const regexPago = /Pago Mensual(?: ser(?:í|i)a)?:\s*[\$\s]*([\d,]+(?:.\d{1,2})?)\s*MXN/i;
+
+            document.getElementById('out-cliente').innerText = clienteInput;
+            document.getElementById('out-monto').innerText = extraerDato(cleanText, regexMonto, ' MXN', '$');
+            document.getElementById('out-pago').innerText = extraerDato(cleanText, regexPago, '', '$');
+            document.getElementById('out-plazo').innerText = extraerDato(cleanText, regexPlazo);
+            document.getElementById('out-tasa').innerText = extraerDato(cleanText, regexTasa);
+            document.getElementById('out-comision').innerText = extraerDato(cleanText, regexComision);
+            document.getElementById('out-fecha').innerText = extraerDato(cleanText, regexFecha);
+            document.getElementById('out-ciclo').innerText = extraerDato(cleanText, regexCiclo);
+        }
+
+        function getNombreArchivo(extension, inputId) {
+            let cliente = document.getElementById(inputId).value.trim();
+            cliente = cliente ? cliente.replace(/\s+/g, '_') : 'Preferente';
+            return `MultiMoney_${cliente}.${extension}`; 
+        }
+
+        function descargarPDF() {
+            generarOferta(); 
+            document.fonts.ready.then(() => {
+                const element = document.getElementById('pdf-content-oferta');
+                const opt = {
+                    margin:       0,
+                    filename:     getNombreArchivo('pdf', 'input-cliente'),
+                    image:        { type: 'jpeg', quality: 1.0 },
+                    html2canvas:  { scale: 2, useCORS: true, logging: false, backgroundColor: '#ffffff', scrollY: 0 },
+                    jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+                };
+                html2pdf().set(opt).from(element).save();
+            });
+        }
+
+        function descargarImagen() {
+            generarOferta();
+            window.scrollTo(0,0);
+            document.fonts.ready.then(() => {
+                const element = document.getElementById('pdf-content-oferta');
+                html2canvas(element, { scale: 3, useCORS: true, backgroundColor: '#ffffff' }).then(canvas => {
+                    const link = document.createElement('a');
+                    link.download = getNombreArchivo('jpg', 'input-cliente');
+                    link.href = canvas.toDataURL('image/jpeg', 0.95);
+                    link.click();
+                });
+            });
+        }
+
+        function copiarOferta() {
+            generarOferta();
+            let nombreCompleto = document.getElementById('out-cliente').innerText;
+            let primerNombre = nombreCompleto.split(' ')[0];
+            if (primerNombre === "Cliente") primerNombre = "Hola";
+
+            const textoCopiado = `¡Hola, ${primerNombre}! 👋 Te comparto el detalle de tu línea de crédito pre-aprobada por ${document.getElementById('out-monto').innerText}.\n\nLo mejor de tu oferta:\n✅ Tienes la comodidad de pagos fijos a ${document.getElementById('out-plazo').innerText} meses.\n✅ ¡Libertad total! Puedes abonar a capital o liquidar el total antes de tiempo sin ninguna penalización.\n\n¿Te gustaría que te ayude a recibir el depósito hoy mismo? ⚡`;
+
+            navigator.clipboard.writeText(textoCopiado).then(() => alert("¡Texto copiado para WhatsApp!"));
+        }
+
+        function limpiarCampos() {
+            document.getElementById('input-raw').value = '';
+            document.getElementById('input-cliente').value = '';
+            const defaults = ['out-monto', 'out-tasa', 'out-comision', 'out-fecha', 'out-ciclo', 'out-plazo', 'out-pago'];
+            defaults.forEach(id => document.getElementById(id).innerText = 'N/D');
+            document.getElementById('out-cliente').innerText = 'Nombre del Cliente';
+        }
+
+        // --- LÓGICA HERRAMIENTA 2: TABLA DE PAGOS ---
+        const formCurrency = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
+        function padZero(num) { return num < 10 ? '0' + num : num; }
+        function formDate(dateObj) { return `${padZero(dateObj.getDate())}/${padZero(dateObj.getMonth() + 1)}/${dateObj.getFullYear()}`; }
+
+        function generarTablaPagos() {
+            const cliente = document.getElementById('in-cliente-pagos').value;
+            const monto = parseFloat(document.getElementById('in-monto-pagos').value);
+            const plazo = parseInt(document.getElementById('in-plazo-pagos').value);
+            const tasaMensual = parseFloat(document.getElementById('in-tasa-pagos').value) / 100;
             
-            // Ajustar fecha para evitar problemas de zona horaria (fijando horas al mediodía)
-            const inputFecha = document.getElementById('in-fecha').value;
+            const inputFecha = document.getElementById('in-fecha-pagos').value;
             let currentFecha = new Date(inputFecha + 'T12:00:00');
 
-            // Actualizar Cabecera
             const fechaActual = new Date();
             const fechaFormat = `${padZero(fechaActual.getDate())}/${padZero(fechaActual.getMonth()+1)}/${fechaActual.getFullYear()} ${padZero(fechaActual.getHours())}:${padZero(fechaActual.getMinutes())}`;
             
-            document.getElementById('out-fecha-solicitud').innerText = fechaFormat;
-            document.getElementById('out-credito1').innerText = credito;
-            document.getElementById('out-cliente').innerText = cliente;
-            document.getElementById('out-correo').innerText = correo;
-            document.getElementById('out-monto-total').innerText = formCurrency.format(monto);
-            document.getElementById('out-plazo').innerText = plazo;
-            document.getElementById('out-fecha-pago').innerText = formDate(currentFecha);
+            document.getElementById('out-fecha-solic').innerText = fechaFormat;
+            document.getElementById('out-cliente-pagos').innerText = cliente;
+            document.getElementById('out-monto-tot').innerText = formCurrency.format(monto);
+            document.getElementById('out-plazo-pagos').innerText = plazo;
+            document.getElementById('out-fecha-prox').innerText = formDate(currentFecha);
 
-            // Cálculos financieros (Calculando la cuota fija incluyendo IVA en el interés)
             const tasaConIva = tasaMensual * 1.16;
-            
-            // Fórmula PMT estándar (Anualidad)
             const pmt = monto * (tasaConIva * Math.pow(1 + tasaConIva, plazo)) / (Math.pow(1 + tasaConIva, plazo) - 1);
-            document.getElementById('out-mensualidad').innerText = formCurrency.format(pmt);
+            document.getElementById('out-mensualidad-pagos').innerText = formCurrency.format(pmt);
 
-            // Generar las filas
             let htmlFilas = '';
             let saldo = monto;
 
@@ -272,7 +467,6 @@
                 let capital = pmt - interes - iva;
                 let cuotaMensual = pmt;
 
-                // Ajuste de la última cuota para evitar centavos sueltos
                 if (i === plazo) {
                     capital = saldo;
                     cuotaMensual = capital + interes + iva;
@@ -283,43 +477,37 @@
 
                 htmlFilas += `
                     <tr>
-                        <td>${i} de ${plazo}</td>
+                        <td style="text-align:left;">${i} de ${plazo}</td>
                         <td>${formDate(currentFecha)}</td>
                         <td>${formCurrency.format(cuotaMensual)}</td>
                         <td>${formCurrency.format(saldo + capital)}</td>
                         <td>${formCurrency.format(interes)}</td>
                         <td>${formCurrency.format(iva)}</td>
                         <td>${formCurrency.format(capital)}</td>
-                        <td>${formCurrency.format(saldo)}</td>
+                        <td style="text-align:right;">${formCurrency.format(saldo)}</td>
                     </tr>
                 `;
-
-                // Sumar 1 mes a la fecha
                 currentFecha.setMonth(currentFecha.getMonth() + 1);
             }
-
             document.getElementById('tabla-body').innerHTML = htmlFilas;
         }
 
-        function descargarPDF() {
-            // Asegurarnos de que la tabla esté actualizada
-            generarTabla();
-            
-            const elemento = document.getElementById('pdf-content');
-            let nombreCliente = document.getElementById('in-cliente').value.trim().replace(/\s+/g, '_');
-            
+        function descargarPDFPagos() {
+            generarTablaPagos();
+            const elemento = document.getElementById('pdf-content-pagos');
             const opt = {
-                margin:       [10, 0, 10, 0], // top, left, bottom, right en mm
-                filename:     `Proyeccion_Pagos_${nombreCliente}.pdf`,
+                margin:       [10, 0, 10, 0], 
+                filename:     getNombreArchivo('pdf', 'in-cliente-pagos').replace('MultiMoney', 'Tabla_Pagos'),
                 image:        { type: 'jpeg', quality: 0.98 },
                 html2canvas:  { scale: 2, useCORS: true },
                 jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' },
-                pagebreak:    { mode: 'css', avoid: 'tr' } // Evita que corte las filas a la mitad
+                pagebreak:    { mode: 'css', avoid: 'tr' } 
             };
-
-            // Crear y guardar el PDF
             html2pdf().set(opt).from(elemento).save();
         }
+
+        // Ejecutar cálculo inicial al cargar
+        window.onload = generarTablaPagos;
     </script>
 </body>
-</html>
+    </html> 
