@@ -712,7 +712,7 @@
 
         await db.collection('sales').add(saleData);
 
-        // --- INICIO: INTEGRACIÓN CON GOOGLE SHEETS PARA UPPER FUNNEL (VERSIÓN IFRAME) ---
+        // --- INICIO: INTEGRACIÓN CON GOOGLE SHEETS PARA UPPER FUNNEL ---
         if (isUpper) {
           const urlAppScript = "https://script.google.com/a/macros/multimoney.com/s/AKfycbwSf_YrRzQ_gbICIXqXxxA94xInq0qoVFgGzehCgtzmzj-uS-BZ-_khNg8kTnyFREUoow/exec";
           
@@ -731,19 +731,17 @@
             asesor: asesorNombre
           }).toString();
 
-          // Creamos el iframe invisible para esquivar las reglas de seguridad
-          const iframe = document.createElement('iframe');
-          iframe.style.display = 'none';
-          iframe.src = `${urlAppScript}?${params}`;
-          
-          document.body.appendChild(iframe);
+          const endpoint = `${urlAppScript}?${params}`;
 
-          console.log("Lead enviado a Google Sheets silenciosamente");
-
-          // Limpiamos el iframe después de 5 segundos
-          setTimeout(() => {
-            document.body.removeChild(iframe);
-          }, 5000);
+          // Enviamos la petición GET de forma silenciosa
+          fetch(endpoint, {
+            method: 'GET',
+            mode: 'no-cors' // Salta restricciones del navegador
+          }).then(() => {
+            console.log("Lead enviado silenciosamente a Google Sheets");
+          }).catch((err) => {
+            console.error("Error al enviar a Sheets:", err);
+          });
         }
         // --- FIN: INTEGRACIÓN CON GOOGLE SHEETS ---
 
