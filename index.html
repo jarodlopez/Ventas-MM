@@ -104,18 +104,7 @@
 
       const handleGoogleLogin = () => {
         const provider = new firebase.auth.GoogleAuthProvider();
-        
-        // --- CAMBIO CLAVE 1: Pedir permiso para escribir en Google Sheets ---
-        provider.addScope('https://www.googleapis.com/auth/spreadsheets');
-        
         auth.signInWithPopup(provider)
-          .then((result) => {
-            // Extraer y guardar el token de acceso de Google para usarlo luego
-            const credential = firebase.auth.GoogleAuthProvider.credentialFromResult(result);
-            if (credential && credential.accessToken) {
-              sessionStorage.setItem('googleSheetToken', credential.accessToken);
-            }
-          })
           .catch(err => setError("Error con Google: " + err.message));
       };
 
@@ -149,7 +138,7 @@
             <div className="w-full flex items-center gap-2 mb-6"><div className="h-px bg-slate-200 flex-1"></div><span className="text-xs text-slate-400 font-bold uppercase">O entra con</span><div className="h-px bg-slate-200 flex-1"></div></div>
 
             <button onClick={handleGoogleLogin} className="w-full bg-slate-50 border border-slate-200 text-slate-700 p-2 rounded font-bold hover:bg-slate-100 flex items-center justify-center gap-2">
-              <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" className="w-5 h-5" /> Google (Obligatorio para UPPER)
+              <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" className="w-5 h-5" /> Google
             </button>
 
             <button onClick={() => { setIsRegistering(!isRegistering); setError(''); }} className="mt-6 text-sm text-blue-600 hover:underline">{isRegistering ? '¿Ya tienes cuenta? Inicia sesión' : '¿No tienes cuenta? Regístrate'}</button>
@@ -721,54 +710,42 @@
           history: [{ date: currentDateISO, action: isUpper ? 'Lead UPPER Creado' : 'Lead Creado', user: 'Agente' }]
         };
 
-        // Guardamos en Firebase primero
         await db.collection('sales').add(saleData);
 
-        // --- CAMBIO CLAVE 2: INTEGRACIÓN DIRECTA CON LA API DE GOOGLE SHEETS ---
+        // --- INICIO: INTEGRACIÓN CON GOOGLE SHEETS PARA UPPER FUNNEL (VERSIÓN IFRAME) ---
         if (isUpper) {
-          // El ID exacto del Google Sheet que me pasaste en tu URL
-          const sheetId = "1V1NAQdDdvqWCVYG3ZCs8-GCFe63pE220yFL7WTLy-4I";
-          const token = sessionStorage.getItem('googleSheetToken');
+          const urlAppScript = "https://script.google.com/a/macros/multimoney.com/s/AKfycbwSf_YrRzQ_gbICIXqXxxA94xInq0qoVFgGzehCgtzmzj-uS-BZ-_khNg8kTnyFREUoow/exec";
           
-          if (!token) {
-            alert("Aviso: El lead se guardó en el CRM, pero no se pudo enviar a Google Sheets. Debes iniciar sesión usando el botón de Google para tener los permisos.");
-          } else {
-            const fechaFormateada = new Intl.DateTimeFormat('es-MX', { 
-              day: '2-digit', month: '2-digit', year: 'numeric', 
-              hour: '2-digit', minute: '2-digit' 
-            }).format(new Date());
-            
-            const asesorNombre = user.email ? user.email.split('@')[0] : 'Asesor';
+          const fechaFormateada = new Intl.DateTimeFormat('es-MX', { 
+            day: '2-digit', month: '2-digit', year: 'numeric', 
+            hour: '2-digit', minute: '2-digit' 
+          }).format(new Date());
+          
+          const asesorNombre = user.email ? user.email.split('@')[0] : 'Asesor';
 
-            // Endpoint oficial de Google Sheets para agregar datos
-            const urlSheetsApi = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/A1:append?valueInputOption=USER_ENTERED`;
+          // Empaquetamos los datos en la URL
+          const params = new URLSearchParams({
+            fecha: fechaFormateada,
+            folio: newFolio,
+            cliente: clientName,
+            asesor: asesorNombre
+          }).toString();
 
-            try {
-              fetch(urlSheetsApi, {
-                method: 'POST',
-                headers: {
-                  'Authorization': `Bearer ${token}`,
-                  'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                  values: [[fechaFormateada, newFolio, clientName, asesorNombre]]
-                })
-              })
-              .then(response => response.json())
-              .then(data => {
-                if(data.error) {
-                   console.error("Error devuelto por Sheets:", data.error);
-                } else {
-                   console.log("Lead UPPER enviado a Google Sheets exitosamente");
-                }
-              })
-              .catch(error => console.error("Error en la petición a Sheets:", error));
-            } catch (error) {
-              console.error("Error al ejecutar fetch a Google Sheets:", error);
-            }
-          }
+          // Creamos el iframe invisible para esquivar las reglas de seguridad
+          const iframe = document.createElement('iframe');
+          iframe.style.display = 'none';
+          iframe.src = `${urlAppScript}?${params}`;
+          
+          document.body.appendChild(iframe);
+
+          console.log("Lead enviado a Google Sheets silenciosamente");
+
+          // Limpiamos el iframe después de 5 segundos
+          setTimeout(() => {
+            document.body.removeChild(iframe);
+          }, 5000);
         }
-        // --- FIN DE LA INTEGRACIÓN DIRECTA ---
+        // --- FIN: INTEGRACIÓN CON GOOGLE SHEETS ---
 
         setShowForm(false);
       };
@@ -942,7 +919,7 @@
             <div className="flex gap-2 items-center">
               <a href="reports.html" className="bg-blue-600 px-3 py-1.5 rounded text-sm font-bold hover:bg-blue-500 shadow-lg text-white"><i className="fas fa-table md:mr-2"></i><span className="hidden md:inline">Reportes</span></a>
               <button onClick={() => {setShowForm(true); setFormError('');}} className="bg-green-600 px-3 py-1.5 rounded text-sm font-bold hover:bg-green-500 shadow-lg"><i className="fas fa-plus md:mr-2"></i><span className="hidden md:inline">Lead</span></button>
-              <button onClick={() => { auth.signOut(); sessionStorage.removeItem('googleSheetToken'); }} className="text-slate-400 hover:text-white px-2" title="Cerrar sesión"><i className="fas fa-sign-out-alt"></i></button>
+              <button onClick={() => auth.signOut()} className="text-slate-400 hover:text-white px-2" title="Cerrar sesión"><i className="fas fa-sign-out-alt"></i></button>
             </div>
           </div>
 
