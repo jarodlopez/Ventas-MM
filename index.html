@@ -67,11 +67,12 @@
     const parseDate = (input) => {
       if (!input) return new Date();
       if (input.toDate) return input.toDate();
-      return new Date(input);
+      const d = new Date(input);
+      return isNaN(d) ? new Date() : d; // FIX: Prevención de NaN si la fecha es inválida
     };
 
-    const money = (val) => new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 }).format(val);
-    const moneyUSD = (val) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(val);
+    const money = (val) => new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 }).format(val || 0);
+    const moneyUSD = (val) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(val || 0);
     const formatDate = (input) => new Intl.DateTimeFormat('es-MX', { day: '2-digit', month: 'short', hour:'2-digit', minute:'2-digit' }).format(parseDate(input));
 
     const getQuincena = (date) => date.getDate() <= 15 ? 1 : 2;
@@ -83,14 +84,16 @@
       const startDay = quincena === 1 ? 1 : 16;
       const endDay = quincena === 1 ? 15 : lastDayOfMonth;
       let totalBusinessDays = 0, remainingDays = 0;
-      const today = new Date(), currentDay = today.getDate(), isCurrentMonth = today.getMonth() === month && today.getFullYear() === year;
+      
+      // FIX: Precisión en el cálculo de días restantes
+      const today = new Date();
+      today.setHours(0,0,0,0);
 
       for (let d = startDay; d <= endDay; d++) {
         const dateCheck = new Date(year, month, d);
         if (dateCheck.getDay() !== 0 && dateCheck.getDay() !== 6) { 
           totalBusinessDays++;
-          if (isCurrentMonth && d >= currentDay) remainingDays++;
-          else if (!isCurrentMonth && new Date() < dateCheck) remainingDays++;
+          if (dateCheck >= today) remainingDays++;
         }
       }
       return { totalBusinessDays, remainingDays, startDay, endDay };
@@ -104,8 +107,7 @@
 
       const handleGoogleLogin = () => {
         const provider = new firebase.auth.GoogleAuthProvider();
-        auth.signInWithPopup(provider)
-          .catch(err => setError("Error con Google: " + err.message));
+        auth.signInWithPopup(provider).catch(err => setError("Error con Google: " + err.message));
       };
 
       const handleEmailAuth = (e) => {
@@ -249,6 +251,7 @@
       
       const percent = meta > 0 ? (sold / meta) * 100 : 0;
 
+      // Cálculo del bono en vivo y cuánto falta para el SIGUIENTE escalón
       let currentBonus = 0;
       let nextBonusLvl = "";
       let nextPercent = 0;
@@ -282,6 +285,7 @@
           missingForNext = (meta * 0.8) - sold;
       }
 
+      // CONFIGURACIÓN DE LA BARRA VISUAL HASTA EL 150%
       const maxVisualScale = 150; 
       const fillVisualWidth = Math.min((percent / maxVisualScale) * 100, 100);
 
@@ -289,6 +293,7 @@
         <div className="bg-white p-3 shadow-sm border-b flex flex-wrap gap-4 md:gap-6 items-center justify-between">
           <div className="flex flex-wrap gap-4 md:gap-6 items-center flex-1 w-full lg:w-auto">
              
+             {/* REAL DISPERSADO */}
              <div>
                 <p className="text-[10px] font-bold text-slate-400 uppercase">Real Dispersado</p>
                 <p className="text-2xl font-black text-slate-800 leading-none">{money(sold)}</p>
@@ -296,6 +301,7 @@
              </div>
              <div className="hidden sm:block w-px h-10 bg-slate-200"></div>
              
+             {/* META 100% */}
              <div>
                 <p className="text-[10px] font-bold text-slate-400 uppercase">Meta (100%)</p>
                 <p className="text-xl font-bold text-slate-700 leading-none">{money(meta)}</p>
@@ -303,6 +309,7 @@
              </div>
              <div className="hidden md:block w-px h-10 bg-slate-200"></div>
 
+             {/* BARRA DE TERMÓMETRO CON CHECKPOINTS (TRACKING DE PORCENTAJES) */}
              <div className="flex-1 min-w-[220px] max-w-lg mt-2 mb-1">
                  <div className="flex justify-between items-end mb-1">
                      <p className="text-[10px] font-bold text-slate-400 uppercase">Progreso Total</p>
@@ -310,11 +317,13 @@
                  </div>
                  
                  <div className="relative w-full bg-slate-200 rounded-full h-3.5 mb-5 mt-1">
+                    {/* El color de la barra cambia según el nivel alcanzado */}
                     <div 
                       className={`absolute top-0 left-0 h-full rounded-full transition-all duration-1000 shadow-inner ${percent >= 140 ? 'bg-purple-500' : percent >= 120 ? 'bg-indigo-500' : percent >= 100 ? 'bg-green-500' : percent >= 80 ? 'bg-blue-500' : 'bg-orange-400'}`} 
                       style={{ width: `${fillVisualWidth}%` }}
                     ></div>
                     
+                    {/* Ticks/Marcadores del 80%, 100%, 120% y 140% con tooltips de faltante */}
                     {[80, 100, 120, 140].map(mark => {
                         const montoDeEstaMarca = meta * (mark / 100);
                         const faltaParaEstaMarca = montoDeEstaMarca - sold;
@@ -332,6 +341,7 @@
                     })}
                  </div>
                  
+                 {/* TRACKING INFERIOR DINÁMICO (Próxima Meta) */}
                  <div className="-mt-1">
                      {nextPercent > 0 ? (
                          <p className="text-[10px] text-slate-500 font-medium">
@@ -346,6 +356,7 @@
              </div>
              <div className="hidden lg:block w-px h-10 bg-slate-200"></div>
 
+             {/* CALIENTE */}
              <div className="hidden sm:block">
                 <p className="text-[10px] font-bold text-purple-500 uppercase flex items-center gap-1"><i className="fas fa-fire"></i> Caliente</p>
                 <p className="text-xl font-bold text-purple-700 leading-none">{money(hotMoney)}</p>
@@ -353,6 +364,7 @@
              </div>
              <div className="hidden xl:block w-px h-10 bg-slate-200"></div>
 
+             {/* BONO EN VIVO */}
              <div className="bg-green-50 border border-green-200 rounded-lg px-3 py-1 flex items-center gap-2">
                  <div className="bg-green-100 p-1.5 rounded-full"><i className="fas fa-sack-dollar text-green-600 text-sm"></i></div>
                  <div>
@@ -366,6 +378,7 @@
              
              <div className="hidden xl:block w-px h-10 bg-slate-200"></div>
 
+             {/* DÍAS RESTANTES */}
              <div className="hidden lg:block">
                 <p className="text-[10px] font-bold text-slate-400 uppercase"><i className="far fa-clock mr-1"></i>Restante</p>
                 <p className="text-lg font-bold text-slate-700 leading-none">{businessData.remainingDays} días</p>
@@ -410,11 +423,14 @@
         return 'bg-blue-500';
       }
 
+      // LÓGICA NIVEL DIOS: ALERTA DE CONGELAMIENTO (LEADS FRÍOS)
+      // Compara la última vez que se le movió algo al lead (historial) vs hoy. Si pasaron 3 días o más y está en proceso = ¡Alerta de frío!
       const lastUpdate = sale.history && sale.history.length > 0
             ? new Date(sale.history[sale.history.length - 1].date)
             : parseDate(sale.fecha);
       
       const today = new Date();
+      // Reseteamos las horas a medianoche para que calcule los días exactos sin importar la hora del día
       const msPerDay = 1000 * 60 * 60 * 24;
       const daysStale = Math.floor((new Date(today.getFullYear(), today.getMonth(), today.getDate()) - new Date(lastUpdate.getFullYear(), lastUpdate.getMonth(), lastUpdate.getDate())) / msPerDay);
       
@@ -454,6 +470,7 @@
                   </span>
                 )}
 
+                {/* ETIQUETA NIVEL DIOS: ALERTA DE HIELO */}
                 {isStale && (
                   <span className="bg-cyan-50 text-cyan-600 text-[9px] font-black px-1.5 py-0.5 rounded shadow-sm border border-cyan-200 flex items-center gap-1 animate-pulse" title={`Lleva ${daysStale} días sin movimiento. ¡Llámale!`}>
                     <i className="fas fa-snowflake text-[8px]"></i> {daysStale} DÍAS FRÍO
@@ -660,6 +677,7 @@
 
       const businessData = getBusinessDaysQuincena(currentDate, currentQuincena);
 
+      // --- CÁLCULOS NIVEL DIOS (WIN RATE & RUN RATE) ---
       const wonCount = filteredSales.filter(s => s.estatus === 'Dispersado').length;
       const lostCount = filteredSales.filter(s => ['Rechazado', 'Cancelado', 'Expirado'].includes(s.estatus)).length;
       const winRate = (wonCount + lostCount) > 0 ? ((wonCount / (wonCount + lostCount)) * 100).toFixed(0) : 0;
@@ -668,12 +686,14 @@
       const soldAmount = filteredSales.filter(s => s.estatus === 'Dispersado').reduce((acc, curr) => acc + (Number(curr.monto_dispersado) || 0), 0);
       const remainingToMeta = Math.max(0, meta - soldAmount);
       
+      // Ritmo de venta necesario diario para llegar a la meta
       const requiredDaily = businessData.remainingDays > 0 ? (remainingToMeta / businessData.remainingDays) : remainingToMeta;
+      // Ritmo de venta original (lo que tenía que vender desde el día 1)
       const originalDailyGoal = businessData.totalBusinessDays > 0 ? (meta / businessData.totalBusinessDays) : 0;
       
       const paceStatus = remainingToMeta === 0 ? 'superado' : (requiredDaily > originalDailyGoal ? 'atrasado' : 'excelente');
 
-
+      // FIX: Try/Catch en operaciones, validaciones correctas de isUpper y validaciones seguras del '.toLowerCase()'
       const handleAddSale = async (e) => {
         e.preventDefault();
         const form = e.target;
@@ -681,9 +701,10 @@
         const newPhone = form.phone.value.trim();
         const clientName = form.client.value;
         const amount = Number(form.amount.value);
-        const isUpper = form.isUpper ? form.isUpper.checked : false; 
+        // FIX: Se extrae el valor del checkbox de forma segura a través de elements
+        const isUpper = form.elements['isUpper']?.checked || false; 
 
-        const isFolioDup = allSales.some(s => s.folio.toLowerCase() === newFolio.toLowerCase());
+        const isFolioDup = allSales.some(s => s.folio && s.folio.toLowerCase() === newFolio.toLowerCase());
         if (isFolioDup) return setFormError('Error: Este Folio ya existe en tu pipeline.');
 
         if (newPhone) {
@@ -692,8 +713,6 @@
         }
 
         setFormError(''); 
-
-        const currentDateISO = new Date().toISOString();
 
         const saleData = {
           userId: user.uid, 
@@ -706,46 +725,16 @@
           telefono: newPhone,
           url: form.url.value,
           canal: isUpper ? 'UPPER' : 'Normal',
-          fecha: currentDateISO, 
-          history: [{ date: currentDateISO, action: isUpper ? 'Lead UPPER Creado' : 'Lead Creado', user: 'Agente' }]
+          fecha: new Date().toISOString(), 
+          history: [{ date: new Date().toISOString(), action: isUpper ? 'Lead UPPER Creado' : 'Lead Creado', user: 'Agente' }]
         };
 
-        await db.collection('sales').add(saleData);
-
-        // --- INICIO: INTEGRACIÓN CON GOOGLE SHEETS PARA UPPER FUNNEL ---
-        if (isUpper) {
-          const urlAppScript = "https://script.google.com/a/macros/multimoney.com/s/AKfycbzUhsVtccnNsrlnkcK-rPodttcgbc-VsEWb7kogIO3XZKC7pdNNGBCYZSyBh-NQq99RD";
-          
-          const fechaFormateada = new Intl.DateTimeFormat('es-MX', { 
-            day: '2-digit', month: '2-digit', year: 'numeric', 
-            hour: '2-digit', minute: '2-digit' 
-          }).format(new Date());
-          
-          const asesorNombre = user.email ? user.email.split('@')[0] : 'Asesor';
-
-          // Empaquetamos los datos en la URL
-          const params = new URLSearchParams({
-            fecha: fechaFormateada,
-            folio: newFolio,
-            cliente: clientName,
-            asesor: asesorNombre
-          }).toString();
-
-          const endpoint = `${urlAppScript}?${params}`;
-
-          // Enviamos la petición GET de forma silenciosa
-          fetch(endpoint, {
-            method: 'GET',
-            mode: 'no-cors' // Salta restricciones del navegador
-          }).then(() => {
-            console.log("Lead enviado silenciosamente a Google Sheets");
-          }).catch((err) => {
-            console.error("Error al enviar a Sheets:", err);
-          });
+        try {
+          await db.collection('sales').add(saleData);
+          setShowForm(false);
+        } catch(err) {
+          setFormError('Error al guardar: ' + err.message);
         }
-        // --- FIN: INTEGRACIÓN CON GOOGLE SHEETS ---
-
-        setShowForm(false);
       };
 
       const handleEditSubmit = async (e) => {
@@ -754,80 +743,98 @@
         const editedFolio = form.folio.value.trim();
         const editedPhone = form.phone.value.trim();
 
-        const isFolioDup = allSales.some(s => s.folio.toLowerCase() === editedFolio.toLowerCase() && s.id !== editSaleData.id);
+        const isFolioDup = allSales.some(s => s.folio && s.folio.toLowerCase() === editedFolio.toLowerCase() && s.id !== editSaleData.id);
         if (isFolioDup) return setFormError('Error: Ese Folio ya lo tiene otra tarjeta.');
 
         setFormError('');
 
-        await db.collection('sales').doc(editSaleData.id).update({
-            folio: editedFolio,
-            nombre_cliente: form.client.value,
-            monto_preaprobado: Number(form.amount.value), 
-            telefono: editedPhone,
-            url: form.url.value,
-            history: firebase.firestore.FieldValue.arrayUnion({ date: new Date().toISOString(), action: 'Datos de tarjeta editados', user: 'Agente' })
-        });
-        
-        setEditSaleData(null);
-      };
-
-      const handleUpdateSale = (id, data) => db.collection('sales').doc(id).update(data);
-      const handleDeleteSale = (id) => db.collection('sales').doc(id).delete();
-
-      const processStatusChange = (sale, newStatus) => {
-        if (sale.estatus === newStatus) return; 
-
-        if (newStatus === 'Acepta oferta') {
-           setRealAmount(sale.monto_preaprobado);
-           setAcceptOfferData(sale); 
-        } 
-        else if (newStatus === 'Dispersado') {
-           handleUpdateSale(sale.id, { 
-             estatus: 'Dispersado', 
-             monto_dispersado: Number(sale.monto_preaprobado), 
-             fecha_dispersion: new Date().toISOString(), 
-             history: firebase.firestore.FieldValue.arrayUnion({ date: new Date().toISOString(), action: `DISPERSADO AUTOMÁTICO: ${money(sale.monto_preaprobado)}`, user: 'Agente' }) 
-           });
-        } 
-        else if (newStatus === 'Rechazado' || newStatus === 'Cancelado' || newStatus === 'Expirado') {
-           setLostReason(newStatus === 'Expirado' ? 'Oferta expirada' : LOST_REASONS[0]); 
-           setLostData({ sale, newStatus }); 
-        } 
-        else {
-           handleUpdateSale(sale.id, { 
-             estatus: newStatus, 
-             history: firebase.firestore.FieldValue.arrayUnion({ date: new Date().toISOString(), action: `Estatus: ${newStatus}`, user: 'Agente' }) 
-           });
+        try {
+          await db.collection('sales').doc(editSaleData.id).update({
+              folio: editedFolio,
+              nombre_cliente: form.client.value,
+              monto_preaprobado: Number(form.amount.value), 
+              telefono: editedPhone,
+              url: form.url.value,
+              history: firebase.firestore.FieldValue.arrayUnion({ date: new Date().toISOString(), action: 'Datos de tarjeta editados', user: 'Agente' })
+          });
+          setEditSaleData(null);
+        } catch(err) {
+          setFormError('Error al actualizar: ' + err.message);
         }
       };
 
-      const confirmAcceptOffer = () => {
+      // FIX: Añadimos .catch para evitar que rompa en background
+      const handleUpdateSale = (id, data) => db.collection('sales').doc(id).update(data).catch(console.error);
+      const handleDeleteSale = (id) => db.collection('sales').doc(id).delete().catch(console.error);
+
+      // FIX: Aseguramos que sea asíncrona la acción de cambiar de estado para mayor estabilidad
+      const processStatusChange = async (sale, newStatus) => {
+        if (sale.estatus === newStatus) return; 
+        
+        try {
+          if (newStatus === 'Acepta oferta') {
+             setRealAmount(sale.monto_preaprobado);
+             setAcceptOfferData(sale); 
+          } 
+          else if (newStatus === 'Dispersado') {
+             await handleUpdateSale(sale.id, { 
+               estatus: 'Dispersado', 
+               monto_dispersado: Number(sale.monto_preaprobado), 
+               fecha_dispersion: new Date().toISOString(), 
+               history: firebase.firestore.FieldValue.arrayUnion({ date: new Date().toISOString(), action: `DISPERSADO AUTOMÁTICO: ${money(sale.monto_preaprobado)}`, user: 'Agente' }) 
+             });
+          } 
+          else if (newStatus === 'Rechazado' || newStatus === 'Cancelado' || newStatus === 'Expirado') {
+             setLostReason(newStatus === 'Expirado' ? 'Oferta expirada' : LOST_REASONS[0]); 
+             setLostData({ sale, newStatus }); 
+          } 
+          else {
+             await handleUpdateSale(sale.id, { 
+               estatus: newStatus, 
+               history: firebase.firestore.FieldValue.arrayUnion({ date: new Date().toISOString(), action: `Estatus: ${newStatus}`, user: 'Agente' }) 
+             });
+          }
+        } catch(err) {
+           console.error("Error al cambiar de estatus", err);
+        }
+      };
+
+      const confirmAcceptOffer = async () => {
          if(!acceptOfferData) return;
          
          const montoInicialRespaldado = acceptOfferData.monto_original || acceptOfferData.monto_preaprobado;
 
-         handleUpdateSale(acceptOfferData.id, { 
-           estatus: 'Acepta oferta', 
-           monto_original: montoInicialRespaldado, 
-           monto_preaprobado: Number(realAmount), 
-           history: firebase.firestore.FieldValue.arrayUnion({ date: new Date().toISOString(), action: `OFERTA ACEPTADA: ${money(realAmount)} (Línea preaprobada: ${money(montoInicialRespaldado)})`, user: 'Agente' }) 
-         });
-         setAcceptOfferData(null);
+         try {
+           await handleUpdateSale(acceptOfferData.id, { 
+             estatus: 'Acepta oferta', 
+             monto_original: montoInicialRespaldado, 
+             monto_preaprobado: Number(realAmount), 
+             history: firebase.firestore.FieldValue.arrayUnion({ date: new Date().toISOString(), action: `OFERTA ACEPTADA: ${money(realAmount)} (Línea preaprobada: ${money(montoInicialRespaldado)})`, user: 'Agente' }) 
+           });
+           setAcceptOfferData(null);
+         } catch(err) {
+           console.error(err);
+         }
       };
 
-      const confirmLostStatus = () => {
+      const confirmLostStatus = async () => {
          if(!lostData) return;
-         handleUpdateSale(lostData.sale.id, {
-            estatus: lostData.newStatus,
-            motivo_perdida: lostReason, 
-            fecha_resolucion: new Date().toISOString(), 
-            history: firebase.firestore.FieldValue.arrayUnion({ 
-              date: new Date().toISOString(), 
-              action: `${lostData.newStatus} | Motivo: ${lostReason}`, 
-              user: 'Agente' 
-            })
-         });
-         setLostData(null);
+         
+         try {
+           await handleUpdateSale(lostData.sale.id, {
+              estatus: lostData.newStatus,
+              motivo_perdida: lostReason, 
+              fecha_resolucion: new Date().toISOString(), 
+              history: firebase.firestore.FieldValue.arrayUnion({ 
+                date: new Date().toISOString(), 
+                action: `${lostData.newStatus} | Motivo: ${lostReason}`, 
+                user: 'Agente' 
+              })
+           });
+           setLostData(null);
+         } catch(err) {
+           console.error(err);
+         }
       };
 
       const handleDragOver = (e) => { e.preventDefault(); e.currentTarget.classList.add('drag-over'); };
@@ -865,8 +872,10 @@
               </div>
             </div>
 
+            {/* SECCIÓN ESCRITORIO: KPIS NIVEL DIOS Y BUSCADOR */}
             <div className="hidden lg:flex flex-1 items-center justify-center gap-4 px-4">
                
+               {/* KPI: TASA DE BATEO */}
                <div className="flex items-center gap-2 bg-slate-800/80 px-3 py-1.5 rounded border border-slate-700 shadow-inner" title="Porcentaje de negocios ganados vs. los perdidos">
                    <i className="fas fa-bullseye text-slate-400 text-sm"></i>
                    <div className="flex flex-col">
@@ -875,6 +884,7 @@
                    </div>
                </div>
 
+               {/* KPI: RUN RATE (RITMO DIARIO) */}
                <div className={`flex items-center gap-2 px-3 py-1.5 rounded border shadow-inner ${
                    paceStatus === 'superado' ? 'bg-green-500/20 border-green-500/50' :
                    paceStatus === 'atrasado' ? 'bg-red-500/20 border-red-500/50' :
@@ -897,6 +907,7 @@
                    </div>
                </div>
 
+               {/* BUSCADOR */}
                <div className="relative w-64 ml-4">
                  <i className="fas fa-search absolute left-3 top-2.5 text-slate-400 text-sm"></i>
                  <input 
@@ -955,6 +966,7 @@
              ))}
           </div>
 
+          {/* MODAL: CONFIRMAR MONTO EN "ACEPTA OFERTA" */}
           {acceptOfferData && (
             <div className="fixed inset-0 glass-modal z-50 flex items-center justify-center p-4">
               <div className="bg-white p-5 rounded-lg shadow-xl w-full max-w-sm border-t-4 border-blue-500">
@@ -992,6 +1004,7 @@
             </div>
           )}
 
+          {/* MODAL: NUEVO LEAD */}
           {showForm && (
             <div className="fixed inset-0 glass-modal z-50 flex items-center justify-center p-4">
               <form onSubmit={handleAddSale} className="bg-white rounded-lg shadow-xl w-full max-w-sm p-5 space-y-4">
@@ -1021,6 +1034,7 @@
             </div>
           )}
 
+          {/* MODAL: EDITAR LEAD */}
           {editSaleData && (
             <div className="fixed inset-0 glass-modal z-50 flex items-center justify-center p-4">
               <form onSubmit={handleEditSubmit} className="bg-white rounded-lg shadow-xl w-full max-w-sm p-5 space-y-4 border-t-4 border-slate-700">
@@ -1082,4 +1096,4 @@
     root.render(<MainWrapper />);
   </script>
 </body>
-</html> 
+</html>
