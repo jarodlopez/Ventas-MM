@@ -71,14 +71,14 @@ export default async function handler(req, res) {
 
   try {
     const response = await openai.chat.completions.create({
-      model: "gpt-5.4-mini", // Alias estable, sin snapshot de fecha
+      model: "gpt-4o-mini", // <-- EL ARREGLO CLAVE (Modelo real y ultra rápido)
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: promptDinamico }
       ],
-      temperature: 0.4, // Menos alucinaciones, más seguro para finanzas
-      max_completion_tokens: 150, // Límite de salida actualizado
-      response_format: { type: "json_object" } // Output garantizado en JSON
+      temperature: 0.4, 
+      max_tokens: 150, // <-- Arreglado a max_tokens por compatibilidad SDK
+      response_format: { type: "json_object" } 
     });
 
     // Parseamos la respuesta JSON de la IA
@@ -89,7 +89,6 @@ export default async function handler(req, res) {
 
   } catch (error) {
     console.error("Error del Servidor/OpenAI:", error);
-    // Manejo de errores detallado para ayudarte a depurar
     res.status(500).json({ error: error.message || "Error interno del servidor" });
   }
 }
