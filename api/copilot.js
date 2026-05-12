@@ -99,6 +99,25 @@ MOTIVO: [razón breve del estado]
 ACCIÓN SIGUIENTE: [qué debe hacer el asesor y cuándo]
 Máximo 5 líneas. Datos factuales, sin adornos.`,
 
+  // ── NUEVA ACCIÓN ──────────────────────────────────────────────
+  // Toma el borrador del asesor y lo mejora para WhatsApp.
+  // No inventa contexto: solo pule lo que ya escribió.
+  // ─────────────────────────────────────────────────────────────
+  mejorar_mensaje: (ctx) => `
+Borrador del asesor: "${ctx.input}"
+Nombre del cliente: ${ctx.nombre}
+Uso del crédito: ${ctx.uso}
+
+Instrucción: El asesor ya escribió un mensaje para enviarle al cliente. Tu tarea es mejorarlo, NO reemplazarlo con algo distinto. Conserva la intención y el contenido original. Aplica estas mejoras:
+- Corrige tono si suena muy agresivo, desesperado o robótico
+- Mejora la fluidez y naturalidad para WhatsApp
+- Ajusta si es demasiado largo (máximo 4 líneas)
+- Mantén el mensaje directo y profesional
+- No agregues información que el asesor no incluyó (no inventes tasas, montos ni beneficios)
+- Si el borrador ya está bien, devuélvelo con ajustes mínimos
+
+El resultado debe sentirse como una versión pulida de lo que el asesor quiso decir, no como un mensaje completamente nuevo.`,
+
 };
 
 // ─────────────────────────────────────────────
