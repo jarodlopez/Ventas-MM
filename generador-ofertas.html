@@ -29,12 +29,22 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800;900&display=swap" rel="stylesheet">
     
     <style>
-        body { font-family: 'Inter', sans-serif; background-color: #0f172a; margin: 0; padding: 20px;} 
+        body { 
+            font-family: 'Inter', sans-serif; 
+            background-color: #0f172a; 
+            margin: 0; 
+            padding: 20px;
+        } 
+        
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
         
         /* Estilos Pestañas */
-        .tab-btn.active { border-bottom: 3px solid #00B100; color: #00B100; background-color: rgba(30, 41, 59, 0.5); }
+        .tab-btn.active { 
+            border-bottom: 3px solid #00B100; 
+            color: #00B100; 
+            background-color: rgba(30, 41, 59, 0.5); 
+        }
         .tab-content { display: none; }
         .tab-content.active { display: block; }
 
@@ -54,7 +64,7 @@
             overflow: hidden;
         }
 
-        /* --- ESTILOS PDF TABLA (Pestaña 2 - Corregidos para html2pdf) --- */
+        /* --- ESTILOS PDF TABLA (Pestaña 2) --- */
         .preview-container {
             background-color: #1e293b;
             padding: 40px;
@@ -70,11 +80,20 @@
             color: #1f2937;
             font-family: Arial, sans-serif;
         }
-        .pdf-header { width: 100%; border-bottom: 2px solid #00B100; margin-bottom: 20px; padding-bottom: 10px; }
+        .pdf-header { 
+            width: 100%; 
+            border-bottom: 2px solid #00B100; 
+            margin-bottom: 20px; 
+            padding-bottom: 10px; 
+        }
         .pdf-header table { width: 100%; border: none; }
         .info-grid { width: 100%; margin-bottom: 20px; }
         .info-grid table { width: 100%; border-collapse: collapse; }
-        .info-grid td { padding: 4px 0; font-size: 11px; border-bottom: 1px solid #f3f4f6; }
+        .info-grid td { 
+            padding: 4px 0; 
+            font-size: 11px; 
+            border-bottom: 1px solid #f3f4f6; 
+        }
         .label-pdf { font-weight: bold; color: #4b5563; width: 40%; }
         .value-pdf { text-align: right; font-weight: 500; color: #111827; }
 
@@ -94,7 +113,14 @@
             border-bottom: 1px solid #e5e7eb;
             color: #374151;
         }
-        .footer-pdf { margin-top: 30px; font-size: 10px; color: #6b7280; border-top: 1px solid #e5e7eb; padding-top: 10px; text-align: justify; }
+        .footer-pdf { 
+            margin-top: 30px; 
+            font-size: 10px; 
+            color: #6b7280; 
+            border-top: 1px solid #e5e7eb; 
+            padding-top: 10px; 
+            text-align: justify; 
+        }
     </style>
 </head>
 <body class="text-slate-200 min-h-screen p-4 md:p-8">
@@ -189,12 +215,10 @@
 
     <div id="tab-pagos" class="tab-content max-w-[1400px] mx-auto">
         <div class="grid grid-cols-1 xl:grid-cols-12 gap-8">
-            
             <div class="xl:col-span-4 bg-slate-900 p-8 rounded-2xl border border-slate-800 h-fit sticky top-8 text-slate-200">
                 <h3 class="text-xl font-bold text-white mb-6 flex items-center gap-2">
                     <span class="w-2 h-6 bg-mmgreen rounded-full"></span> Parámetros del Crédito
                 </h3>
-
                 <div class="space-y-4">
                     <div>
                         <label class="block text-xs font-bold text-slate-400 uppercase mb-2">Cliente</label>
@@ -202,11 +226,11 @@
                     </div>
                     <div class="grid grid-cols-2 gap-4">
                         <div>
-                            <label class="block text-xs font-bold text-slate-400 uppercase mb-2">Monto Solicitado</label>
+                            <label class="block text-xs font-bold text-slate-400 uppercase mb-2">Monto Solicitado ($)</label>
                             <input type="number" id="in-monto-pagos" value="300000" class="w-full p-3 bg-slate-950 border border-slate-700 text-white rounded-lg outline-none">
                         </div>
                         <div>
-                            <label class="block text-xs font-bold text-mmgreen uppercase mb-2">Cuota Contrato</label>
+                            <label class="block text-xs font-bold text-mmgreen uppercase mb-2">Cuota Contrato ($)</label>
                             <input type="number" id="in-mensualidad-pagos" value="13033" class="w-full p-3 bg-slate-950 border border-mmgreen text-white rounded-lg outline-none">
                         </div>
                         <div>
@@ -214,13 +238,17 @@
                             <input type="number" id="in-plazo-pagos" value="60" class="w-full p-3 bg-slate-950 border border-slate-700 text-white rounded-lg outline-none">
                         </div>
                         <div>
+                            <label class="block text-xs font-bold text-slate-400 uppercase mb-2">Comisión % (Manual)</label>
+                            <input type="number" id="in-comision-perc-pagos" value="1.0" step="0.1" class="w-full p-3 bg-slate-950 border border-slate-700 text-white rounded-lg outline-none focus:border-mmgreen">
+                        </div>
+                        <div>
                             <label class="block text-xs font-bold text-slate-400 uppercase mb-2">Tasa Mensual %</label>
                             <input type="number" id="in-tasa-pagos" value="3.25" step="0.01" class="w-full p-3 bg-slate-950 border border-slate-700 text-white rounded-lg outline-none">
                         </div>
-                    </div>
-                    <div>
-                        <label class="block text-xs font-bold text-slate-400 uppercase mb-2">Fecha Inicio</label>
-                        <input type="date" id="in-fecha-pagos" value="2026-05-01" class="w-full p-3 bg-slate-950 border border-slate-700 text-white rounded-lg outline-none">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-400 uppercase mb-2">Fecha Inicio</label>
+                            <input type="date" id="in-fecha-pagos" value="2026-05-01" class="w-full p-3 bg-slate-950 border border-slate-700 text-white rounded-lg outline-none">
+                        </div>
                     </div>
                     <button onclick="generarTablaPagos()" class="w-full bg-mmgreen hover:bg-green-600 text-white font-black py-4 rounded-xl mt-4 shadow-lg transition-transform active:scale-95">
                         RECALCULAR TABLA
@@ -247,7 +275,6 @@
                                 </tr>
                             </table>
                         </div>
-
                         <div class="info-grid">
                             <table>
                                 <tr>
@@ -273,7 +300,6 @@
                                 </tr>
                             </table>
                         </div>
-
                         <table class="tabla-amortizacion">
                             <thead>
                                 <tr>
@@ -288,11 +314,10 @@
                                 </tr>
                             </thead>
                             <tbody id="tabla-body">
-                            </tbody>
+                                </tbody>
                         </table>
-
                         <div class="footer-pdf">
-                            <p><strong>IMPORTANTE:</strong> Esta tabla es una proyección matemática basada en un año de 365 días sobre base comercial de 360 días. Los montos incluyen la capitalización de la comisión por apertura (1% + IVA). No constituye un recibo oficial de pago ni un estado de cuenta legal.</p>
+                            <p><strong>IMPORTANTE:</strong> Esta tabla es una proyección matemática basada en un año de 365 días sobre base comercial de 360 días. Los montos incluyen la capitalización de la comisión por apertura manual + IVA. No constituye un recibo oficial de pago ni un estado de cuenta legal.</p>
                             <p style="margin-top: 10px; color: #00B100; font-weight: bold;">MultiMoney México - Llámanos al 55 92 25 57 65 para atención personalizada.</p>
                         </div>
                     </div>
@@ -306,20 +331,27 @@
         function switchTab(tabId) {
             document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
             document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+            
             document.getElementById('tab-' + tabId).classList.add('active');
             document.getElementById('btn-' + tabId).classList.add('active');
         }
 
-        // --- LÓGICA PESTAÑA 1: OFERTA ---
+        // --- FUNCIONES PESTAÑA 1 (GENERADOR DE OFERTA) ---
         function extraerDato(texto, regex, sufijo = '', prefijo = '') {
             const match = texto.match(regex);
-            if (match && match[1]) return `${prefijo}${match[1].trim()}${sufijo}`;
+            if (match && match[1]) {
+                return `${prefijo}${match[1].trim()}${sufijo}`;
+            }
             return 'N/D';
         }
 
         function generarOferta() {
             const rawText = document.getElementById('input-raw').value.replace(/\n/g, ' ').replace(/\s+/g, ' ');
-            let cliente = document.getElementById('input-cliente').value.trim() || "Cliente Preferente";
+            let cliente = document.getElementById('input-cliente').value.trim();
+            
+            if (!cliente) {
+                cliente = "Cliente Preferente";
+            }
             
             document.getElementById('out-cliente').innerText = cliente;
             document.getElementById('out-monto').innerText = extraerDato(rawText, /Monto L(?:í|i)nea de Cr(?:é|e)dito:\s*[\$\s]*([\d,]+(?:.\d{1,2})?)/i, ' MXN', '$');
@@ -334,28 +366,45 @@
         function descargarPDFOferta() {
             generarOferta(); 
             const element = document.getElementById('pdf-content-oferta');
-            html2pdf().set({
-                margin: 0, filename: 'Oferta_MM.pdf',
+            const opt = {
+                margin: 0,
+                filename: 'Oferta_MM.pdf',
                 image: { type: 'jpeg', quality: 1.0 },
                 html2canvas: { scale: 2, useCORS: true },
                 jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-            }).from(element).save();
+            };
+            html2pdf().set(opt).from(element).save();
         }
 
         function descargarImagen() {
             generarOferta();
-            window.scrollTo(0,0);
-            html2canvas(document.getElementById('pdf-content-oferta'), { scale: 3, useCORS: true }).then(canvas => {
-                const link = document.createElement('a'); link.download = 'Oferta_MM.jpg';
-                link.href = canvas.toDataURL('image/jpeg', 0.95); link.click();
+            window.scrollTo(0, 0);
+            const element = document.getElementById('pdf-content-oferta');
+            
+            html2canvas(element, { 
+                scale: 3, 
+                useCORS: true 
+            }).then(canvas => {
+                const link = document.createElement('a');
+                link.download = 'Oferta_MM.jpg';
+                link.href = canvas.toDataURL('image/jpeg', 0.95);
+                link.click();
             });
         }
 
-        function limpiarCampos() { document.getElementById('input-raw').value = ''; }
-        function copiarOferta() { alert("¡Texto copiado!"); }
+        function limpiarCampos() {
+            document.getElementById('input-raw').value = '';
+        }
 
-        // --- LÓGICA PESTAÑA 2: TABLA DE PAGOS ---
-        const fmt = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' });
+        function copiarOferta() {
+            alert("¡Texto copiado!");
+        }
+
+        // --- FUNCIONES PESTAÑA 2 (PROYECCIÓN DE PAGOS) ---
+        const fmt = new Intl.NumberFormat('es-MX', { 
+            style: 'currency', 
+            currency: 'MXN' 
+        });
 
         function generarTablaPagos() {
             const cliente = document.getElementById('in-cliente-pagos').value;
@@ -363,12 +412,17 @@
             const plazo = parseInt(document.getElementById('in-plazo-pagos').value);
             const tasaMensualNominal = parseFloat(document.getElementById('in-tasa-pagos').value) / 100;
             const cuotaContrato = parseFloat(document.getElementById('in-mensualidad-pagos').value);
+            
+            // Novedad: Obtener el % de comisión desde el input (ej. 1% -> 0.01)
+            const percComisionManual = parseFloat(document.getElementById('in-comision-perc-pagos').value) / 100;
 
-            // LOGICA EXCEL
-            const comision = montoPrincipal * 0.01;
+            // Lógica exacta del Excel
+            const comision = montoPrincipal * percComisionManual;
             const ivaComision = comision * 0.16;
             const saldoInicialReal = montoPrincipal + comision + ivaComision;
-            const tasaAjustada = (tasaMensualNominal * 12 * (365/360)) / 12;
+            
+            // Ajuste base 360/365
+            const tasaAjustada = (tasaMensualNominal * 12 * (365 / 360)) / 12;
 
             const fechaBase = new Date(document.getElementById('in-fecha-pagos').value + 'T12:00:00');
             const hoy = new Date();
@@ -389,20 +443,21 @@
                 let capital = cuotaContrato - interes - iva;
                 let sInicial = saldo;
 
-                if (i === plazo || (saldo - capital) < 1) {
-                    capital = saldo;
-                    saldo = 0;
-                } else {
-                    saldo -= capital;
+                // Si es la última cuota o el saldo es muy cercano a cero, ajustar para que quede en 0
+                if (i === plazo || (saldo - capital) < 1) { 
+                    capital = saldo; 
+                    saldo = 0; 
+                } else { 
+                    saldo -= capital; 
                 }
 
-                const fechaFila = new Date(fechaBase);
+                const fechaFila = new Date(fechaBase); 
                 fechaFila.setMonth(fechaBase.getMonth() + (i - 1));
 
                 html += `
                     <tr>
                         <td style="text-align:center;">${i}</td>
-                        <td style="text-align:center;">${fechaFila.toLocaleDateString('es-MX', {month:'2-digit', year:'numeric', day:'2-digit'})}</td>
+                        <td style="text-align:center;">${fechaFila.toLocaleDateString('es-MX', { month:'2-digit', year:'numeric', day:'2-digit' })}</td>
                         <td style="text-align:right; font-weight:bold;">${fmt.format(cuotaContrato)}</td>
                         <td style="text-align:right;">${fmt.format(sInicial)}</td>
                         <td style="text-align:right;">${fmt.format(interes)}</td>
@@ -415,28 +470,27 @@
             document.getElementById('tabla-body').innerHTML = html;
         }
 
-        async function descargarPDFPagos() {
+        function descargarPDFPagos() {
             generarTablaPagos();
             const element = document.getElementById('pdf-content-pagos');
             
             const opt = {
-                margin: 0,
-                filename: 'Tabla_MultiMoney.pdf',
-                image: { type: 'jpeg', quality: 0.98 },
+                margin: 0, 
+                filename: 'Tabla_MultiMoney.pdf', 
+                image: { type: 'jpeg', quality: 0.98 }, 
                 html2canvas: { 
                     scale: 3, 
                     useCORS: true, 
-                    letterRendering: true,
-                    scrollX: 0,
-                    scrollY: 0
-                },
+                    scrollX: 0, 
+                    scrollY: 0 
+                }, 
                 jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
             };
-
+            
             html2pdf().from(element).set(opt).save();
         }
 
-        window.onload = () => {
+        window.onload = function() {
             generarTablaPagos();
         };
     </script>
