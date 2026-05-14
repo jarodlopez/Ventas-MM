@@ -412,16 +412,12 @@
             const plazo = parseInt(document.getElementById('in-plazo-pagos').value);
             const tasaMensualNominal = parseFloat(document.getElementById('in-tasa-pagos').value) / 100;
             const cuotaContrato = parseFloat(document.getElementById('in-mensualidad-pagos').value);
-            
-            // Novedad: Obtener el % de comisión desde el input (ej. 1% -> 0.01)
             const percComisionManual = parseFloat(document.getElementById('in-comision-perc-pagos').value) / 100;
 
-            // Lógica exacta del Excel
             const comision = montoPrincipal * percComisionManual;
             const ivaComision = comision * 0.16;
             const saldoInicialReal = montoPrincipal + comision + ivaComision;
             
-            // Ajuste base 360/365
             const tasaAjustada = (tasaMensualNominal * 12 * (365 / 360)) / 12;
 
             const fechaBase = new Date(document.getElementById('in-fecha-pagos').value + 'T12:00:00');
@@ -442,11 +438,13 @@
                 let iva = interes * 0.16;
                 let capital = cuotaContrato - interes - iva;
                 let sInicial = saldo;
+                let cuotaMostrada = cuotaContrato;
 
-                // Si es la última cuota o el saldo es muy cercano a cero, ajustar para que quede en 0
-                if (i === plazo || (saldo - capital) < 1) { 
+                // AJUSTE FINAL: En la última cuota forzamos a liquidar todo a 0
+                if (i === plazo || (saldo - capital) < 0.1) { 
                     capital = saldo; 
                     saldo = 0; 
+                    cuotaMostrada = capital + interes + iva; // Recalculamos la cuota mostrada
                 } else { 
                     saldo -= capital; 
                 }
@@ -458,7 +456,7 @@
                     <tr>
                         <td style="text-align:center;">${i}</td>
                         <td style="text-align:center;">${fechaFila.toLocaleDateString('es-MX', { month:'2-digit', year:'numeric', day:'2-digit' })}</td>
-                        <td style="text-align:right; font-weight:bold;">${fmt.format(cuotaContrato)}</td>
+                        <td style="text-align:right; font-weight:bold;">${fmt.format(cuotaMostrada)}</td>
                         <td style="text-align:right;">${fmt.format(sInicial)}</td>
                         <td style="text-align:right;">${fmt.format(interes)}</td>
                         <td style="text-align:right;">${fmt.format(iva)}</td>
