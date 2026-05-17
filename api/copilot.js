@@ -3,10 +3,10 @@ import OpenAI from "openai";
 const openai = new OpenAI({ apiKey: process.env.AI_API_KEY });
 
 // ─────────────────────────────────────────────
-// BASE DE CONOCIMIENTO (NUEVO - Edita para el Hackathon)
+// BASE DE CONOCIMIENTO
 // ─────────────────────────────────────────────
 const CATALOGO_PRODUCTOS = `
-━━━ CATÁLOGO DE PRODUCTOS (Usa esto, NO inventes) ━━━
+━━━ CATÁLOGO DE PRODUCTOS ━━━
 - Montos: Desde $10,000 hasta $400,000 MXN.
 - Tiempos: Depósito en máximo 2 horas, proceso 100% online.
 - Beneficio estrella: Sin penalización por pago anticipado.
@@ -14,7 +14,7 @@ const CATALOGO_PRODUCTOS = `
 `;
 
 // ─────────────────────────────────────────────
-// VALIDACIÓN DE ENTRADA (Tu lógica original)
+// VALIDACIÓN DE ENTRADA
 // ─────────────────────────────────────────────
 const ACCIONES_VALIDAS = [
   "responder_objecion",
@@ -38,131 +38,104 @@ function validateInput(body) {
 }
 
 // ─────────────────────────────────────────────
-// SYSTEM PROMPT (Tu prompt original + Catálogo)
+// SYSTEM PROMPT OPTIMIZADO (Con refinamiento comercial de micro-cierres)
 // ─────────────────────────────────────────────
-const SYSTEM_PROMPT = `Eres el copiloto de ventas de MultiMoney. Generas mensajes de WhatsApp listos para enviar por un asesor financiero humano a clientes reales de crédito personal.
+const SYSTEM_PROMPT = `Tu objetivo es llevar a prospectos hacia el cierre de créditos personales por WhatsApp. 
+Eres un asesor financiero senior de MultiMoney. Te comunicas como un asesor comercial real: directo, ágil, seguro y profesional.
 
 ${CATALOGO_PRODUCTOS}
 
-━━━ REGLAS DURAS — NUNCA las ignores ━━━
-1. CERO saludos. Jamás empieces con "Hola", "Buenos días", "Buen día", "Qué tal" ni nada similar. La conversación ya está abierta.
-2. CERO despedidas. Nada de "Quedo a tus órdenes", "Saludos", "Hasta pronto".
-3. CERO frases de IA/call center: "Entiendo perfectamente", "Comprendo tu situación", "Con mucho gusto", "Es un placer", "Claro que sí", "Sin problema", "Por supuesto".
-4. CERO apertura validando emoción. No empieces reconociendo cómo se siente el cliente — ve al punto.
+━━━ TU ESTILO Y TONO DE WHATSAPP ━━━
+- Entras directo al punto (asume que ya saludaste antes).
+- Usas lenguaje conciso, propio de un chat rápido. Evitas la informalidad excesiva o el tono callejero, pero no suenas corporativo.
+- CALIBRACIÓN DE RITMO: Adapta tu energía, longitud y nivel de detalle según el estilo del cliente y el historial (ej. responde corto a clientes cortos, explica más a clientes analíticos).
+- Evitas por completo formalismos de IA o call center ("Con gusto", "Comprendo tu situación", "Es un placer", "Claro que sí", "Entiendo perfectamente").
+- Mantienes el avance natural de la conversación usando micro-cierres breves, naturales y orientados al siguiente paso. No te despides.
 
-━━━ TÉCNICA REA — BASE DE MANEJO DE OBJECIONES ━━━
-Para cualquier objeción, aplica REA de forma conversacional (no robótica):
-R — RECONOCE: Parafrasea la objeción brevemente con tus palabras.
-E — EMPATIZA: Una frase corta que valide su punto sin exceso.
-A — ASEGURA: Conecta el beneficio específicamente con su situación.
-Termina siempre con una pregunta de micro-cierre natural.
+━━━ METODOLOGÍA REA (Reconoce, Empatiza, Asegura) ━━━
+Para las objeciones, usas REA de forma invisible y fluida en UN SOLO MENSAJE CONVERSACIONAL (no en formato de lista):
+- Reconoce: Valida el punto del cliente sutilmente sin repetir textualmente lo que dijo.
+- Empatiza: Demuestra entendimiento con empatía comercial, no terapéutica ("Es normal revisarlo", "Tiene sentido compararlo", "Muchos clientes hacen esa validación").
+- Asegura: Conecta el beneficio del crédito (rápido, sin penalización) con su necesidad.
 
-━━━ ARGUMENTOS POR USO DEL CRÉDITO ━━━
-- Negocio: retorno sobre inversión, capital hoy = utilidades mañana
-- Gastos médicos: depósito en 2 horas, sin trámites, urgencia resuelta
-- Vacaciones/familia: cuotas cómodas, el disfrute no espera
-- Auto: movilidad, ahorro en transporte, calidad de vida
-- Emergencia/imprevisto: certeza de contar con el dinero cuando lo necesitas
-- Consolidación: un solo pago ordenado, menor estrés financiero
-- Sin uso definido: colchón financiero — no lo necesitas hasta que lo necesitas
+━━━ ARGUMENTOS POR USO ━━━
+- Negocio: Capital hoy = utilidades mañana.
+- Gastos médicos: Depósito en 2 horas, urgencia resuelta.
+- Vacaciones/Auto/Familia: Cuotas cómodas, no afecta liquidez.
+- Consolidación: Un solo pago ordenado, menor estrés.
+- Sin uso/Imprevisto: Colchón financiero, mejor tenerlo listo.
 
-━━━ ESTILO ━━━
-Asesor senior con criterio. Seguro, no ansioso. Claro, no corporativo.
-Varía apertura, longitud y ritmo. Usa el nombre del cliente si está disponible.`;
+━━━ EJEMPLOS DE RESPUESTA (FEW-SHOT) ━━━
+[MAL - Tono IA]: "Comprendo tu situación, Juan. Es completamente normal que la tasa te parezca alta. Sin embargo, te aseguro que nuestro crédito te beneficia porque no hay penalizaciones. ¿Deseas continuar?"
+[BIEN - Tono MultiMoney]: "Es normal que revises la tasa, Juan. La ventaja aquí es que tienes el dinero hoy mismo sin papeleo y si liquidas antes no hay penalización. ¿Hacemos el cálculo de cómo te quedarían las cuotas?"
+
+[MAL - Tono IA]: "Hola de nuevo. Entiendo perfectamente que lo quieras pensar. Quedo a tu disposición por si tienes dudas. Saludos."
+[BIEN - Tono MultiMoney]: "Tómate el tiempo de revisarlo bien. Solo recuerda que la pre-aprobación que revisamos hoy está lista para fondearse en 2 horas. ¿A qué hora te escribo mañana para retomarlo?"`;
 
 // ─────────────────────────────────────────────
-// HELPERS (Tus helpers originales)
+// HELPERS 
 // ─────────────────────────────────────────────
 const renderCtx = (label, value) => (value ? `${label}: ${value}\n` : "");
 const renderHistorial = (h) => (h ? `Historial reciente:\n${h}\n` : "");
 
-const instruccionLongitud = `
-REGLA: Adapta la longitud de tu respuesta al mensaje del cliente:
-- Mensaje corto (<25 chars) → respuesta de 1-2 líneas
-- Mensaje medio (25-120 chars) → 2-3 líneas
-- Mensaje largo (>120 chars) → hasta 4-5 líneas`;
-
-const RECORDATORIO_FINAL = `
-⚠️ ANTES DE GENERAR: Verifica que tu respuesta NO empiece con saludo ("Hola", "Buenos días", etc.) ni despedida. Ve directo al punto. Sin frases de IA.`;
-
 // ─────────────────────────────────────────────
-// PLANTILLAS DE ACCIÓN (¡Restauradas intactas!)
+// PLANTILLAS DE ACCIÓN 
 // ─────────────────────────────────────────────
 const ACCIONES = {
   responder_objecion: (ctx) => `
 Mensaje del cliente: "${ctx.input}"
-${renderCtx("Nombre del cliente", ctx.nombre)}
+${renderCtx("Nombre", ctx.nombre)}
 ${renderCtx("Uso del crédito", ctx.uso)}
 ${renderCtx("Monto aprobado", ctx.monto)}
 ${renderCtx("Tasa", ctx.tasa)}
 ${renderHistorial(ctx.historial)}
-${instruccionLongitud}
 
-Aplica la técnica REA de forma conversacional (no en formato lista, sino como mensaje natural):
-1. RECONOCE la objeción brevemente con tus propias palabras
-2. EMPATIZA con una frase corta — sin exceso ni artificialidad
-3. ASEGURA conectando el beneficio con el uso específico.
-
-Si tienes el nombre del cliente, úsalo una vez de forma natural. Termina con una pregunta de micro-cierre.
-${RECORDATORIO_FINAL}`,
+Objetivo: Aplica la técnica REA de forma conversacional e invisible en respuesta a su objeción. Conecta el beneficio con su uso específico. Si tienes su nombre, úsalo una vez con naturalidad. Cierra con una pregunta corta para avanzar.`,
 
   negociar_tasa: (ctx) => `
 Mensaje del cliente: "${ctx.input}"
-${renderCtx("Nombre del cliente", ctx.nombre)}
+${renderCtx("Nombre", ctx.nombre)}
 ${renderCtx("Tasa ofrecida", ctx.tasa)}
-${renderCtx("Uso del crédito", ctx.uso)}
+${renderCtx("Uso", ctx.uso)}
 ${renderHistorial(ctx.historial)}
-${instruccionLongitud}
 
-Aplica REA de forma conversacional para manejar la objeción de tasa:
-- El cliente ya está pre-aprobado HOY — proceso rápido, sin filas.
-- El costo del tiempo y la burocracia de un banco supera la diferencia en tasa.
-- Sin penalización por pago anticipado.
-Termina con una pregunta concreta: calcular cuotas juntos, o avanzar.
-${RECORDATORIO_FINAL}`,
+Objetivo: Maneja la objeción de tasa usando REA. Recuerda al cliente que ya está pre-aprobado HOY (sin burocracia de bancos) y resalta que no hay penalización por pago anticipado. Termina con una pregunta concreta (ej. calcular cuotas o pedir el siguiente requisito).`,
 
   cerrar_venta: (ctx) => `
 Mensaje del cliente: "${ctx.input}"
 ${renderCtx("Nombre", ctx.nombre)}
 ${renderCtx("Monto", ctx.monto)}
 ${renderHistorial(ctx.historial)}
-${instruccionLongitud}
 
-SITUACIÓN: El cliente muestra intención de avanzar o ya aceptó.
-Si hay intención clara → micro-cierre natural (pedir INE, CLABE, referencias).
-Si hay fricción → resuélvela transmitiendo seguridad (100% en línea, depósito 2 horas).
-${RECORDATORIO_FINAL}`,
+Objetivo: El cliente muestra intención de avanzar. 
+Si hay intención clara → haz un micro-cierre natural pidiendo el siguiente requisito (INE, CLABE, referencias). 
+Si hay fricción → resuélvela transmitiendo seguridad (depósito en 2 horas). Sé directo.`,
 
   seguimiento: (ctx) => `
 Último mensaje / razón de no cierre: "${ctx.input}"
 ${renderCtx("Nombre", ctx.nombre)}
 ${renderCtx("Última interacción", ctx.ultimaInteraccion)}
 ${renderHistorial(ctx.historial)}
-${instruccionLongitud}
 
-Retoma el punto exacto donde quedó — no arranques desde cero.
-No suenes desesperado ni insistente.
-${RECORDATORIO_FINAL}`,
+Objetivo: Retoma el punto exacto donde quedó la conversación. Sé casual, no suenes desesperado ni inicies como si fuera la primera vez que hablan.`,
 
   resumen_crm: (ctx) => `
 Datos del cliente: ${ctx.nombre} | Monto: ${ctx.monto} | Tasa: ${ctx.tasa} | Uso: ${ctx.uso}
 Mensaje / situación clave: "${ctx.input}"
 
-Devuelve una nota CRM. Solo datos factuales, sin subjetividad.`,
+Objetivo: Devuelve una nota CRM. Solo datos factuales, sin subjetividad.`,
 
   mejorar_mensaje: (ctx) => `
 Borrador del asesor:
 "${ctx.input}"
-${renderCtx("Nombre del cliente", ctx.nombre)}
+${renderCtx("Nombre", ctx.nombre)}
 ${renderHistorial(ctx.historial)}
 
-Tu única tarea: convertir este borrador en la mejor versión posible para WhatsApp.
-Elimina saludos, despedidas y frases de call center. Hazlo específico.
-${RECORDATORIO_FINAL}`,
+Objetivo: Convierte este borrador en la versión óptima para WhatsApp. Elimina formalismos corporativos, saludos o despedidas. Hazlo directo, empático y comercial.`,
 };
 
 // ─────────────────────────────────────────────
-// CONTEXTO (Tu lógica original)
+// CONTEXTO
 // ─────────────────────────────────────────────
 function buildContext(body) {
   const { accion, mensajeCliente, datosCliente = {} } = body;
@@ -173,7 +146,7 @@ function buildContext(body) {
   return {
     accion,
     input: mensajeCliente.trim().slice(0, 800),
-    nombre: datosCliente.nombre || "el cliente",
+    nombre: datosCliente.nombre || null,
     monto: datosCliente.monto || null,
     tasa: datosCliente.tasa || null,
     plazo: datosCliente.plazo || null,
@@ -184,7 +157,7 @@ function buildContext(body) {
 }
 
 // ─────────────────────────────────────────────
-// POST-PROCESSING (Limpieza quirúrgica original)
+// POST-PROCESSING (Guardrails intactos)
 // ─────────────────────────────────────────────
 const BANNED_OPENERS = [
   /^hola[,!.]?\s*/i, /^buenos\s+días[,!.]?\s*/i, /^buenas\s+tardes[,!.]?\s*/i, /^buenas\s+noches[,!.]?\s*/i,
@@ -207,15 +180,19 @@ function cleanResponse(text) {
 }
 
 // ─────────────────────────────────────────────
-// TEMPERATURA POR ACCIÓN (Tu lógica original)
+// TEMPERATURA POR ACCIÓN
 // ─────────────────────────────────────────────
 const TEMPERATURE_BY_ACTION = {
-  resumen_crm: 0.2, cerrar_venta: 0.45, negociar_tasa: 0.5,
-  responder_objecion: 0.6, seguimiento: 0.65, mejorar_mensaje: 0.75,
+  resumen_crm: 0.2, 
+  cerrar_venta: 0.45, 
+  negociar_tasa: 0.6,
+  responder_objecion: 0.65,
+  seguimiento: 0.65, 
+  mejorar_mensaje: 0.75,
 };
 
 // ─────────────────────────────────────────────
-// HANDLER PRINCIPAL (Blindado con JSON Schema)
+// HANDLER PRINCIPAL (Schema y compatibilidad garantizados)
 // ─────────────────────────────────────────────
 export default async function handler(req, res) {
   const startTime = Date.now();
@@ -244,8 +221,7 @@ export default async function handler(req, res) {
         { role: "user", content: userPrompt },
       ],
       temperature,
-      max_tokens: 220,
-      // NUEVO: Structured Outputs. Reemplaza tu safeParseJSON y asegura que no se rompa la extensión.
+      max_tokens: 300, 
       response_format: {
         type: "json_schema",
         json_schema: {
@@ -272,7 +248,6 @@ export default async function handler(req, res) {
 
     const parsed = JSON.parse(completion.choices[0].message.content);
     
-    // Mantenemos tu limpieza por si la IA es terca
     parsed.respuesta = cleanResponse(parsed.respuesta) || "Disculpa, ¿podrías darme un poco más de detalle sobre eso?";
 
     const tiempo_respuesta_ms = Date.now() - startTime;
@@ -299,3 +274,4 @@ export default async function handler(req, res) {
     });
   }
 }
+
