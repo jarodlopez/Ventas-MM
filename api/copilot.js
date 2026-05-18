@@ -112,13 +112,21 @@ Mensaje actual del cliente: "${ctx.input}"
 ${renderCtx("Nombre", ctx.nombre)}${ctx.memoriaEstrategica}
 Historial Reciente:\n${ctx.historial}
 
-Misión: Destrabar la objeción específica. Baja su ansiedad validando su punto de vista brevemente, reencuadra utilizando la velocidad/flexibilidad de MultiMoney y devuelve el control de la conversación con una pregunta de avance.`,
+Misión: Rebatir y destrabar la objeción de forma contundente pero conversacional. 
+EJECUCIÓN COMERCIAL (3 Pasos):
+1. VALIDA SIN REPETIR: Acepta su preocupación rápidamente ("Te entiendo", "Es una duda válida") pero NO repitas su objeción para no anclarla en su mente.
+2. REBATE CON LÓGICA: Destruye la objeción usando el [Uso planeado del capital] (si existe) o el beneficio estrella (liquidez inmediata sin burocracia y cero penalizaciones). Haz que la objeción parezca pequeña comparada con el beneficio de resolver su necesidad HOY MISMO.
+3. CALL TO ACTION: No dejes silencios. Devuelve el control inmediatamente con una pregunta corta para avanzar hacia el siguiente requisito o cierre.`,
 
   negociar_tasa: (ctx) => `
 Mensaje actual del cliente: "${ctx.input}"
 ${renderCtx("Nombre", ctx.nombre)}${ctx.memoriaEstrategica}
 
-Misión: Defender el valor (tiempo y conveniencia), no justificar el precio. Pon al cliente a elegir entre el tiempo de fondeo de MultiMoney (hoy) y el proceso burocrático de otras instituciones.`,
+Misión: Ganar el debate lógico sobre la tasa cambiando el enfoque hacia el TIEMPO, LA AUSENCIA DE BUROCRACIA y la FLEXIBILIDAD (sin penalización por liquidar antes).
+EJECUCIÓN COMERCIAL (Sigue estos 3 pasos de forma natural):
+1. DEJA CAER LA GUARDIA: Dale la razón al cliente rápido y sin rodeos. Acepta que el banco tiene tasas más bajas (Ej: "Totalmente [Nombre], el banco siempre será más barato", "Haces bien en comparar la tasa"). Cero defensividad.
+2. EL PIVOTE (REGLA ESTRICTA): Si existe un [Uso planeado del capital] en la Memoria Estratégica, ancla el beneficio ahí (Ej: para urgencias, deudas o lo que diga el contexto, la velocidad vale más que la tasa). PROHIBIDO inventar el uso; si no hay uso registrado en la memoria, enfócate en el beneficio universal: "tener el capital fondeado hoy mismo en tu cuenta sin ir a sucursales". 
+3. EL MICRO-CIERRE: Termina con una pregunta asimétrica que lo haga decidir entre el costo (banco) y el tiempo (nosotros). Ej: "¿Tienes margen para esperar las semanas del banco o aseguramos tu capital hoy?".`,
 
   cerrar_venta: (ctx) => `
 Mensaje actual del cliente: "${ctx.input}"
@@ -137,7 +145,16 @@ Misión: Reactivar momentum comercial. Ve al punto exacto donde se quedaron. Sé
 Resume la intención actual del cliente y la fricción principal basándote en este último mensaje: "${ctx.input}". Devuelve solo hechos.`,
   
   mejorar_mensaje: (ctx) => `
-Haz que este borrador de un asesor junior suene a un closer senior de WhatsApp: "${ctx.input}". Hazlo directo, elimina saludos formales corporativos y oriéntalo al cierre.`,
+Borrador original: "${ctx.input}"
+${renderCtx("Nombre", ctx.nombre)}${ctx.memoriaEstrategica}
+
+Misión: Eres un "Copilot" para un asesor. Tu trabajo es tomar este borrador débil/corporativo y reescribirlo para que suene como un Top Closer de WhatsApp.
+REGLAS ESTRICTAS DE REESCRITURA (BEHAVIORAL DESIGN):
+1. ELIMINA LA BASURA CORPORATIVA: Destruye saludos ("Hola", "Buen día"), frases de servicio al cliente ("Con gusto te apoyo", "Quedo a tus órdenes", "Entiendo tu situación") y despedidas.
+2. INYECTA AUTORIDAD: Cambia palabras débiles ("vamos a intentar", "creo que", "espero") por certezas absolutas ("lo tenemos listo", "avanzamos con", "el siguiente paso es").
+3. ECONOMÍA DE PALABRAS: Reduce la paja. Di lo mismo en la mitad de texto.
+4. MOMENTUM COMERCIAL: Asegúrate de que el mensaje final termine con una pregunta corta y directa o una instrucción clarísima para que el cliente actúe. 
+El resultado debe ser UN SOLO MENSAJE letal, directo y conversacional.`,
 };
 
 // ─────────────────────────────────────────────
@@ -173,7 +190,7 @@ function cleanResponse(text) {
 const TEMPERATURE_BY_ACTION = {
   resumen_crm: 0.1,  
   cerrar_venta: 0.3,   // Bajo determinismo: Necesitamos precisión operativa para pedir documentos
-  negociar_tasa: 0.5,  // Balance entre empatía lógica y cierre
+  negociar_tasa: 0.45, // Balance estratégico estricto para evitar alucinación de contexto
   responder_objecion: 0.6,
   mejorar_mensaje: 0.6,
   seguimiento: 0.7,    // Alta temperatura: Creatividad requerida para revivir clientes en ghosting
@@ -215,7 +232,7 @@ export default async function handler(req, res) {
         { role: "user", content: userPrompt },
       ],
       temperature,
-      max_tokens: 450,
+      max_tokens: 600, // Aumentado para mayor holgura en razonamiento y rebatimiento robusto
       response_format: {
         type: "json_schema",
         json_schema: {
@@ -244,12 +261,16 @@ export default async function handler(req, res) {
                     type: "integer", 
                     description: "Escala 1 al 10 indicando probabilidad de abandono." 
                   },
+                  palanca_de_negociacion_usada: {
+                    type: "string",
+                    description: "El uso del capital detectado en la memoria para reencuadrar. Si no hay, escribe 'tiempo/conveniencia'."
+                  },
                   next_best_action: { 
                     type: "string",
-                    description: "Estrategia de 1 oración. Ej: 'Pedir INE', 'Reencuadrar objeción de tasa con urgencia médica'."
+                    description: "Estrategia de 1 oración. Ej: 'Pedir INE', 'Reencuadrar objeción de tasa'."
                   }
                 },
-                required: ["etapa_detectada", "micro_senal_compra", "nivel_friccion", "riesgo_ghosting", "next_best_action"],
+                required: ["etapa_detectada", "micro_senal_compra", "nivel_friccion", "riesgo_ghosting", "palanca_de_negociacion_usada", "next_best_action"],
                 additionalProperties: false
               },
               respuesta: { 
