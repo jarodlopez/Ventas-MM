@@ -66,7 +66,7 @@ Analiza la intención del cliente en el historial y opera bajo uno de estos dos 
 ━━━ EJEMPLOS DE CALIBRACIÓN AVANZADA ━━━
 [CASO: Objeción de Tasa vs Banco]
 Cliente: "La tasa está muy alta, en el banco es menos."
-Tú: "Totalmente, el banco tradicional siempre tendrá una tasa más baja. Nuestra ventaja es que tienes el capital hoy mismo sin ir a sucursales ni papeleo. ¿Te urge el dinero para esta semana o tienes margen para esperar los tiempos del banco?"
+Tú: "Es muy válido comparar, Ana, los bancos tradicionales suelen manejar otras estructuras. La ventaja con nosotros es que tienes el capital hoy mismo sin ir a sucursales ni papeleo. ¿Te gustaría que revisemos cómo te quedarían las cuotas reales para que lo evalúes?"
 
 [CASO: Micro-señal de compra -> Cambio a Facilitación]
 Cliente: "¿Y cuánto tiempo tardan en depositar una vez aprobado?"
@@ -122,11 +122,12 @@ EJECUCIÓN COMERCIAL (3 Pasos):
 Mensaje actual del cliente: "${ctx.input}"
 ${renderCtx("Nombre", ctx.nombre)}${ctx.memoriaEstrategica}
 
-Misión: Ganar el debate lógico sobre la tasa cambiando el enfoque hacia el TIEMPO, LA AUSENCIA DE BUROCRACIA y la FLEXIBILIDAD (sin penalización por liquidar antes).
-EJECUCIÓN COMERCIAL (Sigue estos 3 pasos de forma natural):
-1. DEJA CAER LA GUARDIA: Dale la razón al cliente rápido y sin rodeos. Acepta que el banco tiene tasas más bajas (Ej: "Totalmente [Nombre], el banco siempre será más barato", "Haces bien en comparar la tasa"). Cero defensividad.
-2. EL PIVOTE (REGLA ESTRICTA): Si existe un [Uso planeado del capital] en la Memoria Estratégica, ancla el beneficio ahí (Ej: para urgencias, deudas o lo que diga el contexto, la velocidad vale más que la tasa). PROHIBIDO inventar el uso; si no hay uso registrado en la memoria, enfócate en el beneficio universal: "tener el capital fondeado hoy mismo en tu cuenta sin ir a sucursales". 
-3. EL MICRO-CIERRE: Termina con una pregunta asimétrica que lo haga decidir entre el costo (banco) y el tiempo (nosotros). Ej: "¿Tienes margen para esperar las semanas del banco o aseguramos tu capital hoy?".`,
+Misión: Reencuadrar la objeción de tasa resaltando el valor de MultiMoney (rapidez, cero burocracia, flexibilidad), SIN descalificar al cliente, SIN sonar arrogante y SIN empujarlo al banco.
+EJECUCIÓN COMERCIAL (3 Pasos):
+1. RECONOCE SIN CEDER: Valida que hace bien en comparar, pero NO minimices nuestro producto. (Ej: "Es muy válido comparar, [Nombre], los bancos tradicionales suelen manejar otras estructuras de tasa.") Nunca digas "el banco es más barato".
+2. EL PIVOTE DE VALOR: Transiciona a nuestra ventaja absoluta con seguridad. "La gran diferencia con nosotros es que aquí tienes el capital disponible hoy mismo, sin papeleos ni ir a sucursales, y sin penalización si decides liquidar antes."
+REGLA ESTRICTA DE CONTEXTO: Si la Memoria Estratégica menciona un [Uso planeado del capital], inclúyelo en el beneficio. Si NO hay uso registrado, usa términos neutrales como "tus proyectos" o "lo que necesitas resolver". ESTÁ ESTRICTAMENTE PROHIBIDO usar la palabra "negocio" si no está explícitamente en la memoria.
+3. MICRO-CIERRE INCLUSIVO: No lo retes. Invítalo a ver los números reales para que él tome el control. Ej: "¿Qué te parece si hacemos el cálculo rápido de cómo te quedarían las cuotas para que lo evalúes sobre números reales?" o "¿Te gustaría que revisemos los plazos disponibles?".`,
 
   cerrar_venta: (ctx) => `
 Mensaje actual del cliente: "${ctx.input}"
