@@ -1,20 +1,20 @@
 import OpenAI from "openai";
 
+// Inicialización del cliente de OpenAI
 const openai = new OpenAI({ apiKey: process.env.AI_API_KEY });
 
 // ─────────────────────────────────────────────
-// BASE DE CONOCIMIENTO
+// 1. BASE DE CONOCIMIENTO (Core Product)
 // ─────────────────────────────────────────────
 const CATALOGO_PRODUCTOS = `
-━━━ CATÁLOGO DE PRODUCTOS ━━━
-- Montos: Desde $10,000 hasta $400,000 MXN.
-- Tiempos: Depósito en máximo 2 horas, proceso 100% online.
-- Beneficio estrella: Sin penalización por pago anticipado.
-- Ampliación: Disponible a partir del 3er pago puntual.
+- Montos: $10,000 a $400,000 MXN.
+- Tiempos: Depósito en máx 2 horas, proceso 100% online.
+- Ventaja competitiva principal: Sin burocracia, sin penalización por pago anticipado (liquidez flexible).
+- Expansión: Posibilidad de ampliación de línea a partir del 3er pago puntual.
 `;
 
 // ─────────────────────────────────────────────
-// VALIDACIÓN DE ENTRADA
+// 2. VALIDACIÓN DE ENTRADA (Security & Routing)
 // ─────────────────────────────────────────────
 const ACCIONES_VALIDAS = [
   "responder_objecion",
@@ -27,219 +27,237 @@ const ACCIONES_VALIDAS = [
 
 function validateInput(body) {
   const errors = [];
-  if (!body || typeof body !== "object") return ["Body inválido"];
+  if (!body || typeof body !== "object") return ["El body de la petición es inválido."];
   if (!body.accion || !ACCIONES_VALIDAS.includes(body.accion)) {
     errors.push(`Acción inválida. Disponibles: ${ACCIONES_VALIDAS.join(", ")}`);
   }
   if (!body.mensajeCliente || typeof body.mensajeCliente !== "string") {
-    errors.push("mensajeCliente es requerido y debe ser string");
+    errors.push("El campo 'mensajeCliente' es requerido y debe ser de tipo string.");
   }
   return errors;
 }
 
 // ─────────────────────────────────────────────
-// SYSTEM PROMPT OPTIMIZADO (Con refinamiento comercial de micro-cierres)
+// 3. SYSTEM PROMPT: COGNITIVE OVERHAUL
 // ─────────────────────────────────────────────
-const SYSTEM_PROMPT = `Tu objetivo es llevar a prospectos hacia el cierre de créditos personales por WhatsApp. 
-Eres un asesor financiero senior de MultiMoney. Te comunicas como un asesor comercial real: directo, ágil, seguro y profesional.
+const SYSTEM_PROMPT = `Eres un Closer Senior de créditos personales en MultiMoney operando por WhatsApp. 
+Tu rol no es "dar servicio al cliente", es evaluar prospectos, eliminar fricción, optimizar el momentum comercial y asegurar el fondeo.
 
 ${CATALOGO_PRODUCTOS}
 
-━━━ TU ESTILO Y TONO DE WHATSAPP ━━━
-- Entras directo al punto (asume que ya saludaste antes).
-- Usas lenguaje conciso, propio de un chat rápido. Evitas la informalidad excesiva o el tono callejero, pero no suenas corporativo.
-- CALIBRACIÓN DE RITMO: Adapta tu energía, longitud y nivel de detalle según el estilo del cliente y el historial (ej. responde corto a clientes cortos, explica más a clientes analíticos).
-- Evitas por completo formalismos de IA o call center ("Con gusto", "Comprendo tu situación", "Es un placer", "Claro que sí", "Entiendo perfectamente").
-- Mantienes el avance natural de la conversación usando micro-cierres breves, naturales y orientados al siguiente paso. No te despides.
+━━━ PRINCIPIOS DE IDENTIDAD (BEHAVIORAL DESIGN) ━━━
+1. ECONOMÍA DE PALABRAS: En WhatsApp menos es más. Usa respuestas asimétricas. Si el cliente escribe 4 palabras, no le envíes un párrafo.
+2. CALIBRACIÓN: Adapta tu energía, longitud y ritmo al cliente sin perder tu autoridad comercial.
+3. MOMENTUM COMERCIAL: Cada mensaje tuyo debe destrabar una fricción o avanzar al siguiente paso operativo. No dejes conversaciones abiertas.
+4. COMUNICACIÓN DIRECTA: Eres humano, rápido y seguro. Cero formalismos corporativos vacíos.
 
-━━━ METODOLOGÍA REA (Reconoce, Empatiza, Asegura) ━━━
-Para las objeciones, usas REA de forma invisible y fluida en UN SOLO MENSAJE CONVERSACIONAL (no en formato de lista):
-- Reconoce: Valida el punto del cliente sutilmente sin repetir textualmente lo que dijo.
-- Empatiza: Demuestra entendimiento con empatía comercial, no terapéutica ("Es normal revisarlo", "Tiene sentido compararlo", "Muchos clientes hacen esa validación").
-- Asegura: Conecta el beneficio del crédito (rápido, sin penalización) con su necesidad.
+━━━ STATE MACHINE: MODOS DE OPERACIÓN ━━━
+Analiza la intención del cliente en el historial y opera bajo uno de estos dos modos estratégicos:
 
-━━━ ARGUMENTOS POR USO ━━━
-- Negocio: Capital hoy = utilidades mañana.
-- Gastos médicos: Depósito en 2 horas, urgencia resuelta.
-- Vacaciones/Auto/Familia: Cuotas cómodas, no afecta liquidez.
-- Consolidación: Un solo pago ordenado, menor estrés.
-- Sin uso/Imprevisto: Colchón financiero, mejor tenerlo listo.
+🔴 MODO PERSUASIÓN (El cliente tiene dudas lógicas, emocionales o de precio):
+- Usa lógica basada en el uso que le dará al dinero.
+- Acepta la objeción con naturalidad (ej. "Es normal comparar", "Entiendo que busques la mejor opción") y reencuadra rápidamente hacia nuestra ventaja: el tiempo y la flexibilidad (sin penalización por liquidar antes).
+- Retoma el control siempre con una pregunta orientada a avanzar.
 
-━━━ EJEMPLOS DE RESPUESTA (FEW-SHOT) ━━━
-[MAL - Tono IA]: "Comprendo tu situación, Juan. Es completamente normal que la tasa te parezca alta. Sin embargo, te aseguro que nuestro crédito te beneficia porque no hay penalizaciones. ¿Deseas continuar?"
-[BIEN - Tono MultiMoney]: "Es normal que revises la tasa, Juan. La ventaja aquí es que tienes el dinero hoy mismo sin papeleo y si liquidas antes no hay penalización. ¿Hacemos el cálculo de cómo te quedarían las cuotas?"
+🟢 MODO FACILITACIÓN (¡CRÍTICO! - Triggered por Micro-señales de Compra):
+- Si el cliente pregunta cosas operativas como: "¿Qué documentos necesito?", "¿Cómo me depositan?", "¿Cuánto pagaría al mes?", "¿Qué sigue?".
+- ACCIÓN ESTRICTA: DEJA DE VENDER. Ya compró. Abandona la persuasión. No justifiques más el producto. Pasa a dar instrucciones directas, claras y pide el siguiente requisito (INE, CLABE, referencias).
 
-[MAL - Tono IA]: "Hola de nuevo. Entiendo perfectamente que lo quieras pensar. Quedo a tu disposición por si tienes dudas. Saludos."
-[BIEN - Tono MultiMoney]: "Tómate el tiempo de revisarlo bien. Solo recuerda que la pre-aprobación que revisamos hoy está lista para fondearse en 2 horas. ¿A qué hora te escribo mañana para retomarlo?"`;
+━━━ EJEMPLOS DE CALIBRACIÓN AVANZADA ━━━
+[CASO: Objeción de Tasa vs Banco]
+Cliente: "La tasa está muy alta, en el banco es menos."
+Tú: "Totalmente, el banco tradicional siempre tendrá una tasa más baja. Nuestra ventaja es que tienes el capital hoy mismo sin ir a sucursales ni papeleo. ¿Te urge el dinero para esta semana o tienes margen para esperar los tiempos del banco?"
+
+[CASO: Micro-señal de compra -> Cambio a Facilitación]
+Cliente: "¿Y cuánto tiempo tardan en depositar una vez aprobado?"
+Tú: "Máximo 2 horas una vez firmes el contrato. ¿Te paso la lista de los 3 documentos que necesito para arrancar?"`;
 
 // ─────────────────────────────────────────────
-// HELPERS 
+// 4. MEMORIA HÍBRIDA & CONTEXT BUILDER
 // ─────────────────────────────────────────────
 const renderCtx = (label, value) => (value ? `${label}: ${value}\n` : "");
-const renderHistorial = (h) => (h ? `Historial reciente:\n${h}\n` : "");
 
-// ─────────────────────────────────────────────
-// PLANTILLAS DE ACCIÓN 
-// ─────────────────────────────────────────────
-const ACCIONES = {
-  responder_objecion: (ctx) => `
-Mensaje del cliente: "${ctx.input}"
-${renderCtx("Nombre", ctx.nombre)}
-${renderCtx("Uso del crédito", ctx.uso)}
-${renderCtx("Monto aprobado", ctx.monto)}
-${renderCtx("Tasa", ctx.tasa)}
-${renderHistorial(ctx.historial)}
-
-Objetivo: Aplica la técnica REA de forma conversacional e invisible en respuesta a su objeción. Conecta el beneficio con su uso específico. Si tienes su nombre, úsalo una vez con naturalidad. Cierra con una pregunta corta para avanzar.`,
-
-  negociar_tasa: (ctx) => `
-Mensaje del cliente: "${ctx.input}"
-${renderCtx("Nombre", ctx.nombre)}
-${renderCtx("Tasa ofrecida", ctx.tasa)}
-${renderCtx("Uso", ctx.uso)}
-${renderHistorial(ctx.historial)}
-
-Objetivo: Maneja la objeción de tasa usando REA. Recuerda al cliente que ya está pre-aprobado HOY (sin burocracia de bancos) y resalta que no hay penalización por pago anticipado. Termina con una pregunta concreta (ej. calcular cuotas o pedir el siguiente requisito).`,
-
-  cerrar_venta: (ctx) => `
-Mensaje del cliente: "${ctx.input}"
-${renderCtx("Nombre", ctx.nombre)}
-${renderCtx("Monto", ctx.monto)}
-${renderHistorial(ctx.historial)}
-
-Objetivo: El cliente muestra intención de avanzar. 
-Si hay intención clara → haz un micro-cierre natural pidiendo el siguiente requisito (INE, CLABE, referencias). 
-Si hay fricción → resuélvela transmitiendo seguridad (depósito en 2 horas). Sé directo.`,
-
-  seguimiento: (ctx) => `
-Último mensaje / razón de no cierre: "${ctx.input}"
-${renderCtx("Nombre", ctx.nombre)}
-${renderCtx("Última interacción", ctx.ultimaInteraccion)}
-${renderHistorial(ctx.historial)}
-
-Objetivo: Retoma el punto exacto donde quedó la conversación. Sé casual, no suenes desesperado ni inicies como si fuera la primera vez que hablan.`,
-
-  resumen_crm: (ctx) => `
-Datos del cliente: ${ctx.nombre} | Monto: ${ctx.monto} | Tasa: ${ctx.tasa} | Uso: ${ctx.uso}
-Mensaje / situación clave: "${ctx.input}"
-
-Objetivo: Devuelve una nota CRM. Solo datos factuales, sin subjetividad.`,
-
-  mejorar_mensaje: (ctx) => `
-Borrador del asesor:
-"${ctx.input}"
-${renderCtx("Nombre", ctx.nombre)}
-${renderHistorial(ctx.historial)}
-
-Objetivo: Convierte este borrador en la versión óptima para WhatsApp. Elimina formalismos corporativos, saludos o despedidas. Hazlo directo, empático y comercial.`,
+const renderStrategicMemory = (datos) => {
+  if (!datos.uso && !datos.monto && !datos.tasa) return "";
+  return `\n[MEMORIA ESTRATÉGICA DEL CLIENTE]
+${renderCtx("Uso planeado del capital", datos.uso)}
+${renderCtx("Monto pre-aprobado", datos.monto)}
+${renderCtx("Tasa asignada", datos.tasa)}\n`;
 };
 
-// ─────────────────────────────────────────────
-// CONTEXTO
-// ─────────────────────────────────────────────
 function buildContext(body) {
   const { accion, mensajeCliente, datosCliente = {} } = body;
+  
+  // Short-Term Memory: Últimos 5 mensajes
   const historialCrudo = datosCliente.historialConversacion;
   const historialProcesado = Array.isArray(historialCrudo) && historialCrudo.length > 0
-      ? historialCrudo.slice(-4).join("\n") : null;
+      ? historialCrudo.slice(-5).join("\n") 
+      : "Sin historial previo.";
 
   return {
     accion,
     input: mensajeCliente.trim().slice(0, 800),
     nombre: datosCliente.nombre || null,
-    monto: datosCliente.monto || null,
-    tasa: datosCliente.tasa || null,
-    plazo: datosCliente.plazo || null,
-    uso: datosCliente.uso || null,
-    ultimaInteraccion: datosCliente.ultimaInteraccion || null,
+    memoriaEstrategica: renderStrategicMemory(datosCliente),
     historial: historialProcesado,
   };
 }
 
 // ─────────────────────────────────────────────
-// POST-PROCESSING (Guardrails intactos)
+// 5. INTENT ENGINE: ACCIONES ORIENTADAS A MISIÓN
 // ─────────────────────────────────────────────
+const ACCIONES = {
+  responder_objecion: (ctx) => `
+Mensaje actual del cliente: "${ctx.input}"
+${renderCtx("Nombre", ctx.nombre)}${ctx.memoriaEstrategica}
+Historial Reciente:\n${ctx.historial}
+
+Misión: Destrabar la objeción específica. Baja su ansiedad validando su punto de vista brevemente, reencuadra utilizando la velocidad/flexibilidad de MultiMoney y devuelve el control de la conversación con una pregunta de avance.`,
+
+  negociar_tasa: (ctx) => `
+Mensaje actual del cliente: "${ctx.input}"
+${renderCtx("Nombre", ctx.nombre)}${ctx.memoriaEstrategica}
+
+Misión: Defender el valor (tiempo y conveniencia), no justificar el precio. Pon al cliente a elegir entre el tiempo de fondeo de MultiMoney (hoy) y el proceso burocrático de otras instituciones.`,
+
+  cerrar_venta: (ctx) => `
+Mensaje actual del cliente: "${ctx.input}"
+${ctx.memoriaEstrategica}
+Historial Reciente:\n${ctx.historial}
+
+Misión: Transicionar al cierre final. Si detectas intención operativa, entra inmediatamente en Modo Facilitación y pide el INE o el siguiente paso transaccional. Ve directo al grano.`,
+
+  seguimiento: (ctx) => `
+Último mensaje / objeción del cliente: "${ctx.input}"
+${renderCtx("Nombre", ctx.nombre)}${ctx.memoriaEstrategica}
+
+Misión: Reactivar momentum comercial. Ve al punto exacto donde se quedaron. Sé casual, asume que está ocupado trabajando, no ofrezcas disculpas ni suenes corporativo.`,
+  
+  resumen_crm: (ctx) => `
+Resume la intención actual del cliente y la fricción principal basándote en este último mensaje: "${ctx.input}". Devuelve solo hechos.`,
+  
+  mejorar_mensaje: (ctx) => `
+Haz que este borrador de un asesor junior suene a un closer senior de WhatsApp: "${ctx.input}". Hazlo directo, elimina saludos formales corporativos y oriéntalo al cierre.`,
+};
+
+// ─────────────────────────────────────────────
+// 6. GUARDRAILS & POST-PROCESSING LIGERO
+// ─────────────────────────────────────────────
+// Elimina saludos robóticos o redundantes de forma barata (RegEx)
 const BANNED_OPENERS = [
-  /^hola[,!.]?\s*/i, /^buenos\s+días[,!.]?\s*/i, /^buenas\s+tardes[,!.]?\s*/i, /^buenas\s+noches[,!.]?\s*/i,
-  /^buen\s+día[,!.]?\s*/i, /^qué\s+tal[,!.]?\s*/i, /^perfecto[,.]?\s*/i, /^claro que sí[,.]?\s*/i,
-  /^sin problema[,.]?\s*/i, /^con gusto[,.]?\s*/i, /^con mucho gusto[,.]?\s*/i, /^entiendo tu situación[,.]?\s*/i,
-  /^comprendo tu situación[,.]?\s*/i, /^por supuesto[,.]?\s*/i, /^encantado[,.]?\s*/i,
+  /^hola[,!.]?\s*/i, /^buenos\s+días[,!.]?\s*/i, /^buenas\s+tardes[,!.]?\s*/i,
+  /^perfecto[,.]?\s*/i, /^claro que sí[,.]?\s*/i, /^sin problema[,.]?\s*/i, 
+  /^con gusto[,.]?\s*/i, /^entiendo[,.]?\s*/i, /^comprendo[,.]?\s*/i
 ];
 
 function cleanResponse(text) {
   if (!text || typeof text !== "string") return "";
   let cleaned = text.trim();
+  
   for (const pattern of BANNED_OPENERS) {
     if (pattern.test(cleaned)) {
       cleaned = cleaned.replace(pattern, "").trim();
       break;
     }
   }
-  if (cleaned.length > 0) cleaned = cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+  
+  if (cleaned.length > 0) {
+    cleaned = cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+  }
   return cleaned.replace(/\n{3,}/g, "\n\n").trim();
 }
 
 // ─────────────────────────────────────────────
-// TEMPERATURA POR ACCIÓN
+// 7. CALIBRACIÓN TÉRMICA POR ESTADO
 // ─────────────────────────────────────────────
 const TEMPERATURE_BY_ACTION = {
-  resumen_crm: 0.2, 
-  cerrar_venta: 0.45, 
-  negociar_tasa: 0.6,
-  responder_objecion: 0.65,
-  seguimiento: 0.65, 
-  mejorar_mensaje: 0.75,
+  resumen_crm: 0.1,  
+  cerrar_venta: 0.3,   // Bajo determinismo: Necesitamos precisión operativa para pedir documentos
+  negociar_tasa: 0.5,  // Balance entre empatía lógica y cierre
+  responder_objecion: 0.6,
+  mejorar_mensaje: 0.6,
+  seguimiento: 0.7,    // Alta temperatura: Creatividad requerida para revivir clientes en ghosting
 };
 
 // ─────────────────────────────────────────────
-// HANDLER PRINCIPAL (Schema y compatibilidad garantizados)
+// 8. HANDLER PRINCIPAL (API ROUTE)
 // ─────────────────────────────────────────────
 export default async function handler(req, res) {
   const startTime = Date.now();
   const requestId = `req_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
 
+  // Headers CORS estándar
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
   if (req.method === "OPTIONS") return res.status(200).end();
-  if (req.method !== "POST") return res.status(405).json({ error: "Método no permitido" });
+  if (req.method !== "POST") return res.status(405).json({ error: "Método HTTP no permitido" });
 
+  // 1. Validación de payload
   const validationErrors = validateInput(req.body);
-  if (validationErrors.length > 0) return res.status(400).json({ error: validationErrors.join(". ") });
+  if (validationErrors.length > 0) {
+    return res.status(400).json({ error: validationErrors.join(" | ") });
+  }
 
+  // 2. Construcción de Contexto y Estrategia
   const ctx = buildContext(req.body);
   const { accion } = ctx;
   const userPrompt = ACCIONES[accion](ctx);
-  const temperature = TEMPERATURE_BY_ACTION[accion] ?? 0.55;
+  const temperature = TEMPERATURE_BY_ACTION[accion] ?? 0.5;
 
   try {
+    // 3. LLM Orchestration & Conversation Intelligence Layer
     const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gpt-4o-mini", // Optimizamos costo/velocidad. Perfecto para Structured Outputs.
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
         { role: "user", content: userPrompt },
       ],
       temperature,
-      max_tokens: 300, 
+      max_tokens: 450,
       response_format: {
         type: "json_schema",
         json_schema: {
-          name: "copilot_response",
+          name: "cognition_and_response",
           strict: true,
           schema: {
             type: "object",
             properties: {
-              respuesta: { type: "string" },
-              tipo_objecion: { 
-                type: ["string", "null"], 
-                enum: ["precio", "desconfianza", "indecision", "falta_de_tiempo", "comparacion", "ghosting", null] 
+              _inteligencia_conversacional: {
+                type: "object",
+                description: "Capa de razonamiento y state machine ejecutada ANTES de redactar la respuesta.",
+                properties: {
+                  etapa_detectada: { 
+                    type: "string", 
+                    enum: ["exploracion", "persuasion_activa", "facilitacion_operativa"] 
+                  },
+                  micro_senal_compra: { 
+                    type: "boolean",
+                    description: "¿El cliente hizo una pregunta logística/operativa que indica readiness para avanzar?"
+                  },
+                  nivel_friccion: { 
+                    type: "integer", 
+                    description: "Escala 1 al 10 indicando qué tan reacio está el cliente." 
+                  },
+                  riesgo_ghosting: { 
+                    type: "integer", 
+                    description: "Escala 1 al 10 indicando probabilidad de abandono." 
+                  },
+                  next_best_action: { 
+                    type: "string",
+                    description: "Estrategia de 1 oración. Ej: 'Pedir INE', 'Reencuadrar objeción de tasa con urgencia médica'."
+                  }
+                },
+                required: ["etapa_detectada", "micro_senal_compra", "nivel_friccion", "riesgo_ghosting", "next_best_action"],
+                additionalProperties: false
               },
-              emocion: { type: ["string", "null"] },
-              tono_sugerido: { type: ["string", "null"] },
-              estado_cliente: { type: ["string", "null"], enum: ["Frío", "Tibio", "Caliente", null] }
+              respuesta: { 
+                type: "string",
+                description: "Mensaje comercial final para WhatsApp redactado basado estrictamente en el next_best_action."
+              }
             },
-            required: ["respuesta", "tipo_objecion", "emocion", "tono_sugerido", "estado_cliente"],
+            required: ["_inteligencia_conversacional", "respuesta"],
             additionalProperties: false
           }
         }
@@ -248,16 +266,15 @@ export default async function handler(req, res) {
 
     const parsed = JSON.parse(completion.choices[0].message.content);
     
-    parsed.respuesta = cleanResponse(parsed.respuesta) || "Disculpa, ¿podrías darme un poco más de detalle sobre eso?";
+    // 4. Limpieza Final (Guardrails)
+    parsed.respuesta = cleanResponse(parsed.respuesta) || "¿Me podrías detallar un poco más ese punto para poder ayudarte?";
 
     const tiempo_respuesta_ms = Date.now() - startTime;
 
+    // 5. Respuesta Final Integrada
     return res.status(200).json({
       respuesta: parsed.respuesta,
-      ...(parsed.tipo_objecion && { tipo_objecion: parsed.tipo_objecion }),
-      ...(parsed.emocion && { emocion: parsed.emocion }),
-      ...(parsed.tono_sugerido && { tono_sugerido: parsed.tono_sugerido }),
-      ...(parsed.estado_cliente && { estado_cliente: parsed.estado_cliente }),
+      inteligencia: parsed._inteligencia_conversacional, // Output crítico para tu backend/CRM
       _meta: {
         accion,
         request_id: requestId,
@@ -267,11 +284,10 @@ export default async function handler(req, res) {
     });
 
   } catch (err) {
-    console.error(`[${requestId}] Error:`, err.message);
+    console.error(`[${requestId}] Error Crítico en Orquestación:`, err.message);
     return res.status(500).json({
-      error: "Error generando respuesta. Intenta de nuevo.",
+      error: "Error procesando el motor cognitivo. Por favor, intente de nuevo.",
       request_id: requestId
     });
   }
 }
-
