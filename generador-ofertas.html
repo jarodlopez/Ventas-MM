@@ -133,7 +133,10 @@
                 <div class="grid grid-cols-2 gap-3 pt-4 border-t border-slate-800">
                     <button onclick="generarOferta()" class="col-span-2 bg-mmgreen hover:bg-green-600 text-white font-bold text-lg py-4 rounded-xl shadow-[0_0_20px_rgba(0,177,0,0.3)]">Generar Oferta</button>
                     <button onclick="limpiarCampos()" class="bg-slate-800 hover:bg-slate-700 text-white font-medium py-3 rounded-xl">Limpiar</button>
-                    <button onclick="copiarOferta()" class="bg-slate-800 hover:bg-slate-700 text-white font-medium py-3 rounded-xl">Copiar Texto</button>
+                    <button onclick="copiarOferta()" class="bg-slate-800 hover:bg-slate-700 text-white font-medium py-3 rounded-xl flex items-center justify-center gap-2">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                        Copiar Texto
+                    </button>
                 </div>
             </div>
 
@@ -314,12 +317,13 @@
             document.getElementById('btn-' + tabId).classList.add('active');
         }
 
-        // --- SCRIPTS PESTAÑA 1 (SIN CAMBIOS) ---
+        // --- SCRIPTS PESTAÑA 1 ---
         function extraerDato(texto, regex, sufijo = '', prefijo = '') {
             const match = texto.match(regex);
             if (match && match[1]) return `${prefijo}${match[1].trim()}${sufijo}`;
             return 'N/D';
         }
+        
         function generarOferta() {
             const rawText = document.getElementById('input-raw').value.replace(/\n/g, ' ').replace(/\s+/g, ' ');
             let cliente = document.getElementById('input-cliente').value.trim() || "Cliente Preferente";
@@ -332,18 +336,85 @@
             document.getElementById('out-fecha').innerText = extraerDato(rawText, /Fecha Primer Pago:\s*([\d/]+)/i);
             document.getElementById('out-ciclo').innerText = extraerDato(rawText, /Ciclo:\s*(\d+)/i);
         }
+        
         function descargarPDFOferta() {
             generarOferta();
             html2pdf().from(document.getElementById('pdf-content-oferta')).set({ margin: 0, filename: 'Oferta_MM.pdf', image: { type: 'jpeg', quality: 1.0 }, html2canvas: { scale: 2, useCORS: true }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }}).save();
         }
+        
         function descargarImagen() {
             generarOferta();
             html2canvas(document.getElementById('pdf-content-oferta'), { scale: 3, useCORS: true }).then(canvas => {
                 const link = document.createElement('a'); link.download = 'Oferta_MM.jpg'; link.href = canvas.toDataURL('image/jpeg', 0.95); link.click();
             });
         }
+        
         function limpiarCampos() { document.getElementById('input-raw').value = ''; }
-        function copiarOferta() { alert("¡Texto copiado!"); }
+        
+        // --- NUEVA LÓGICA DE COPIA (Generador de Mensaje Eufórico para WhatsApp) ---
+        function copiarOferta() {
+            const rawText = document.getElementById('input-raw').value.replace(/\n/g, ' ').replace(/\s+/g, ' ');
+            if (!rawText.trim()) {
+                alert("Por favor ingresa los datos brutos del sistema primero.");
+                return;
+            }
+
+            const extraer = (regex) => {
+                const match = rawText.match(regex);
+                return match ? match[1].trim() : null;
+            };
+
+            // Extracción con fallbacks incorporados
+            let monto_linea = extraer(/(?:Monto L(?:í|i)nea de Cr(?:é|e)dito|Monto M(?:á|a)ximo|LIMITE CREDITO)[\s:]*[\$]?\s*([\d,]+(?:\.\d+)?)/i);
+            let plazo = extraer(/(?:Plazo|PLAZO)[\s:]*(\d+)/i);
+            let tasa_mensual = extraer(/(?:Tasa Mensual|TASA_INTERES_NORMAL|Tasa Inter(?:é|e)s \(mensual con IVA\))[\s:]*([\d\.]+)/i);
+            let comision = extraer(/(?:Comisi(?:ó|o)n por Desembolso|COMISION_DESEMBOLSO)[\s:]*([\d\.]+)/i);
+            let monto_desembolsar = extraer(/(?:Monto Por Disponer|Monto por Desembolsar|MAXIMO_DESEMBOLSO)[\s:]*[\$]?\s*([\d,]+(?:\.\d+)?)/i) || monto_linea;
+            let fecha_primer_pago = extraer(/(?:Fecha Primer Pago|FECHA_PAGO|Fecha 1er pago)[\s:]*([\d\/\-]+)/i);
+            let pago_mensual = extraer(/(?:Pago Mensual(?: ser(?:í|i)a)?|CUOTA)[\s:]*[\$]?\s*([\d,]+(?:\.\d+)?)/i);
+
+            // Reglas de Normalización
+            const formatoMoneda = (val) => {
+                if (!val) return "N/D";
+                let num = parseFloat(val.replace(/[^\d\.]/g, ''));
+                return !isNaN(num) ? new Intl.NumberFormat('en-US').format(num) : "N/D";
+            };
+
+            let comisionStr = "N/D";
+            if (comision !== null) {
+                comisionStr = parseFloat(comision) === 0 ? "Sin comisión por desembolso" : `${comision} %`;
+            }
+
+            let fechaStr = "N/D";
+            if (fecha_primer_pago) {
+                let parts;
+                if (fecha_primer_pago.includes('-')) {
+                    parts = fecha_primer_pago.split('-');
+                    if (parts[0].length === 4) { // YYYY-MM-DD
+                        const m = ["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"][parseInt(parts[1])-1];
+                        fechaStr = `${parseInt(parts[2])} de ${m} de ${parts[0]}`;
+                    } else { fechaStr = fecha_primer_pago; }
+                } else if (fecha_primer_pago.includes('/')) {
+                    parts = fecha_primer_pago.split('/');
+                    if (parts.length === 3) {
+                        const m = ["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"][parseInt(parts[1])-1];
+                        fechaStr = `${parseInt(parts[0])} de ${m} de ${parts[2]}`;
+                    } else { fechaStr = fecha_primer_pago; }
+                } else {
+                    fechaStr = fecha_primer_pago;
+                }
+            }
+
+            // Plantilla Estructurada y Eufórica
+            const mensaje = `🎉🎉 ¡Felicidades! Tenemos excelentes noticias para ti 🎉🎉\n\nTu línea de crédito ya está PREAPROBADA y lista para activarse 🚀\n\n💰 Monto de la línea: ${formatoMoneda(monto_linea)} MXN\n📆 Plazo: ${plazo || 'N/D'} meses\n📉 Tasa mensual: ${tasa_mensual ? tasa_mensual + ' %' : 'N/D %'}\n💸 Comisión por desembolso: ${comisionStr}\n🔓 Monto disponible inmediato: ${formatoMoneda(monto_desembolsar)} MXN\n📅 Primer pago: ${fechaStr}\n💳 Pago mensual: ${formatoMoneda(pago_mensual)} MXN\n\n👉 Siguiente paso: enviarte un link biométrico para que puedas cargar la siguiente información:\n\n• Cuenta CLABE (para depósito)\n• INE\n• Selfie\n• Comprobante de pago\n\n¿Procedemos a enviarte el link en este momento? 📲😊`;
+
+            navigator.clipboard.writeText(mensaje).then(() => {
+                alert("¡Oferta eufórica copiada exitosamente para enviar por WhatsApp! 🎉📲");
+            }).catch(err => {
+                console.error("Error al copiar: ", err);
+                alert("Hubo un error al copiar el texto al portapapeles.");
+            });
+        }
 
         // --- SCRIPTS PESTAÑA 2 (LÓGICA DE DÍAS REALES) ---
         const fmt = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' });
