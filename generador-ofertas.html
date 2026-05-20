@@ -410,7 +410,7 @@
             }
 
             // Plantilla Estructurada y Eufórica incluyendo el nombre del cliente
-            const mensaje = `🎉🎉 ¡Felicidades${saludoCliente}! Tenemos excelentes noticias para ti 🎉🎉\n\nTu línea de crédito ya está PREAPROBADA y lista para activarse 🚀\n\n💰 Monto de la línea: ${formatoMoneda(monto_linea)} MXN\n📆 Plazo: ${plazo || 'N/D'} meses\n📉 Tasa mensual: ${tasa_mensual ? tasa_mensual + ' %' : 'N/D %'}\n💸 Comisión por desembolso: ${comisionStr}\n🔓 Monto disponible inmediato: ${formatoMoneda(monto_desembolsar)} MXN\n📅 Primer pago: ${fechaStr}\n💳 Pago mensual: ${formatoMoneda(pago_mensual)} MXN\n\n👉 Siguiente paso: enviarte un link biométrico para que puedas cargar la siguiente información:\n\n• Cuenta CLABE (para depósito)\n• INE\n• Selfie\n• Comprobante de pago\n\n¿Procedemos a enviarte el link en este momento? 📲😊`;
+            const mensaje = `🎉🎉 ¡Felicidades${saludoCliente}! Tenemos excelentes noticias para ti 🎉🎉\n\nTu línea de crédito ya está PREAPROBADA y lista para activarse 🚀\n\n💰 Monto de la línea: ${formatoMoneda(monto_linea)} MXN\n📆 Plazo: ${plazo || 'N/D'} meses\n📉 Tasa mensual: ${tasa_mensual ? tasa_mensual + ' %' : 'N/D %'}\n💸 Comisión por desembolso: ${comisionStr}\n🔓 Monto disponible inmediato: ${formatoMoneda(monto_desembolsar)} MXN\n📅 Primer pago: ${fechaStr}\n💳 Pago mensual: ${formatoMoneda(pago_mensual)} MXN\n\n👉 Siguiente paso: enviarte un link biométrico para que puedas cargar la siguiente información:\n\n• Cuenta CLABE (para depósito)\n• INE Vigente\n• Selfie\n• Comprobante de Domilicio\n\n¿Procedemos a enviarte el link en este momento? 📲😊`;
 
             navigator.clipboard.writeText(mensaje).then(() => {
                 alert("¡Oferta eufórica copiada exitosamente para enviar por WhatsApp! 🎉📲");
