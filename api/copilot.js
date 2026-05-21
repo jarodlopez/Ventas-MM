@@ -4,7 +4,7 @@ import OpenAI from "openai";
 const openai = new OpenAI({ apiKey: process.env.AI_API_KEY });
 
 // ─────────────────────────────────────────────
-// 1. BASE DE CONOCIMIENTO (Core Product + Playbook)
+// 1. BASE DE CONOCIMIENTO (Chat & Text Native)
 // ─────────────────────────────────────────────
 const CATALOGO_PRODUCTOS = `
 - Montos: $10,000 a $400,000 MXN.
@@ -13,32 +13,32 @@ const CATALOGO_PRODUCTOS = `
 - Expansión: Ampliación de línea a partir del 3er pago puntual.
 `;
 
-const PLAYBOOK_REGLAS = `
-━━━ EL FLUJO DE 7 PASOS (MULTIMONEY PLAYBOOK) ━━━
-1. PRESENTACIÓN: Nombre, "MultiMoney", motivo y "esta llamada será grabada por calidad".
-2. DESCUBRIR NECESIDADES: Sondeo de valor (¿Para qué se usará el crédito?).
-3. PITCH: Conectar el beneficio de las 2hrs y 60 meses con la necesidad.
-4. MANEJO DE OBJECIONES (TÉCNICA REA ESTRICTA): Reconoce (parafrasea), Empatiza (valida), Asegura (resuelve). Mínimo 3 rebotes.
-5. EDUCAR: Explicar biométrico (CLABE, foto INE sin sombras, selfie).
-6. CIERRE: Celebrar, recapitular acuerdos y pedir 2 REFERENCIAS (1 familiar y 1 conocido).
-7. SEGUIMIENTO: Agendar fecha si no cierra.
+const PLAYBOOK_CHAT = `
+━━━ EL FLUJO DE 7 PASOS (ADAPTADO A WHATSAPP) ━━━
+1. PRESENTACIÓN: Mensaje corto. Tu nombre, "MultiMoney" y el motivo del contacto. Cero formalismos largos.
+2. DESCUBRIR NECESIDADES: Una sola pregunta de sondeo al final del mensaje (ej. "¿Para qué tienes pensado usar el crédito?").
+3. PITCH: Conectar el beneficio de las "2hrs y 60 meses" con la necesidad que el cliente escribió.
+4. MANEJO DE OBJECIONES (TÉCNICA REA): Reconoce (valida en texto corto), Empatiza (conecta), Asegura (resuelve). NUNCA mandes párrafos largos.
+5. EDUCAR: Dar instrucciones de biométrico en viñetas (CLABE, foto INE, selfie). Pedir UN documento a la vez para no abrumar.
+6. CIERRE: Celebrar en texto, pedir explícitamente 2 REFERENCIAS (1 familiar y 1 conocido).
+7. SEGUIMIENTO: Mensajes de reactivación cortos ("¿Pudiste revisar el dato?", "Retomamos tu trámite...").
 
 ━━━ CONTEXTO DE BASE DE DATOS ━━━
-- UPPER FUNNEL (Nuevos): Sondeo profundo.
-- GANCHOS (Rechazaron antes): "Logramos mejorar la oferta que dejaste pasar".
-- EXPIRADOS (No terminaron): "Podemos reactivar tu proceso sin empezar de cero".
+- UPPER FUNNEL (Nuevos): Sondeo profundo, descubrir necesidad.
+- GANCHOS (Rechazaron antes): Foco: "Logramos mejorar la oferta que dejaste pasar".
+- EXPIRADOS (No terminaron): Foco: "Podemos reactivar tu proceso donde lo dejamos".
 `;
 
 // ─────────────────────────────────────────────
-// 2. VALIDACIÓN DE ENTRADA (Security & Routing)
+// 2. VALIDACIÓN DE ENTRADA (Mapeado a tu UI)
 // ─────────────────────────────────────────────
 const ACCIONES_VALIDAS = [
-  "responder_objecion",
-  "negociar_tasa",
-  "cerrar_venta",
-  "seguimiento",
-  "resumen_crm",
-  "mejorar_mensaje",
+  "responder_objecion", // Botón: Respuesta a Objeción
+  "negociar_tasa",      // Botón: Negociar Tasa
+  "cerrar_venta",       // Botón: Ir al Cierre
+  "seguimiento",        // Botón: Generar Seguimiento
+  "mejorar_mensaje",    // Botón: Mejorar Borrador
+  "resumen_crm",        // Botón: Generar Resumen
 ];
 
 function validateInput(body) {
@@ -47,27 +47,26 @@ function validateInput(body) {
   if (!body.accion || !ACCIONES_VALIDAS.includes(body.accion)) {
     errors.push(`Acción inválida. Disponibles: ${ACCIONES_VALIDAS.join(", ")}`);
   }
-  if (!body.mensajeCliente || typeof body !== "string" && typeof body.mensajeCliente !== "string") {
+  if (!body.mensajeCliente || typeof body.mensajeCliente !== "string") {
     errors.push("El campo 'mensajeCliente' es requerido y debe ser string.");
   }
   return errors;
 }
 
 // ─────────────────────────────────────────────
-// 3. SYSTEM PROMPT: COGNITIVE OVERHAUL
+// 3. SYSTEM PROMPT: WHATSAPP CLOSER OVERHAUL
 // ─────────────────────────────────────────────
-const SYSTEM_PROMPT = `Eres el "Copilot Senior" de MultiMoney operando por WhatsApp. 
-Tu rol es evaluar prospectos, eliminar fricción y asegurar el fondeo aplicando ESTRICTAMENTE el Playbook Comercial.
+const SYSTEM_PROMPT = `Eres el "Copilot MultiMoney", una IA táctica integrada en una extensión de Chrome para WhatsApp Web.
+Tu rol es darle al Asesor de Ventas los mejores mensajes para copiar/pegar y destrabar ventas por chat.
 
 ${CATALOGO_PRODUCTOS}
-${PLAYBOOK_REGLAS}
+${PLAYBOOK_CHAT}
 
-━━━ PRINCIPIOS DE IDENTIDAD (BEHAVIORAL DESIGN) ━━━
-1. ECONOMÍA DE PALABRAS: Respuestas asimétricas. Si el cliente escribe poco, tú también.
-2. MOMENTUM: Cada mensaje debe destrabar una fricción o avanzar al siguiente paso operativo (1 al 7).
-3. ESTADO MENTAL DEL COPILOTO: 
-   - 🔴 PERSUASIÓN: Si hay dudas, aplica Técnica REA.
-   - 🟢 FACILITACIÓN: Si hay micro-señales de compra ("¿qué sigue?", "¿cómo pagan?"), DEJA DE VENDER. Da instrucciones operativas de inmediato.
+━━━ REGLAS DE FORMATO WHATSAPP (ESTRICTO) ━━━
+1. ASIMETRÍA: Si el cliente escribe 5 palabras, no respondas con 50.
+2. FORMATO: Usa negritas de WhatsApp (asteriscos: *texto*) para resaltar montos o acciones. Usa viñetas cortas si pides requisitos.
+3. PREGUNTAS DE CIERRE: Todo mensaje tuyo DEBE terminar con una pregunta corta para forzar al cliente a responder y mantener el momentum.
+4. CERO PAJA: Elimina frases de call center como "esta llamada es grabada", "le asiste...", "quedo a su disposición". Eres humano y directo.
 `;
 
 // ─────────────────────────────────────────────
@@ -77,11 +76,11 @@ const renderCtx = (label, value) => (value ? `${label}: ${value}\n` : "");
 
 const renderStrategicMemory = (datos) => {
   if (!datos.uso && !datos.monto && !datos.tasa && !datos.tipoBase) return "";
-  return `\n[MEMORIA ESTRATÉGICA DEL CLIENTE]
-${renderCtx("Tipo de Base", datos.tipoBase || "UPPER FUNNEL")}
-${renderCtx("Uso planeado del capital", datos.uso)}
-${renderCtx("Monto pre-aprobado", datos.monto)}
-${renderCtx("Tasa asignada", datos.tasa)}\n`;
+  return `\n[PANEL LATERAL DE CONTEXTO]
+${renderCtx("Tipo de Base", datos.tipoBase)}
+${renderCtx("Uso planeado", datos.uso)}
+${renderCtx("Monto", datos.monto)}
+${renderCtx("Fricción detectada", datos.friccion)}\n`;
 };
 
 function buildContext(body) {
@@ -95,68 +94,60 @@ function buildContext(body) {
   return {
     accion,
     input: mensajeCliente.trim().slice(0, 800),
-    nombre: datosCliente.nombre || null,
+    nombre: datosCliente.nombre || "Cliente",
     memoriaEstrategica: renderStrategicMemory(datosCliente),
     historial: historialProcesado,
   };
 }
 
 // ─────────────────────────────────────────────
-// 5. INTENT ENGINE: ACCIONES ORIENTADAS A MISIÓN
+// 5. INTENT ENGINE: ACCIONES NATIVAS DE CHAT
 // ─────────────────────────────────────────────
 const ACCIONES = {
   responder_objecion: (ctx) => `
-Mensaje actual: "${ctx.input}"
+Último mensaje chat: "${ctx.input}"
 ${renderCtx("Nombre", ctx.nombre)}${ctx.memoriaEstrategica}
 
-Misión: Aplicar el Paso 4 del Playbook (Manejo de Objeciones).
-EJECUCIÓN ESTRICTA (Técnica REA):
-1. [R] RECONOCE: Parafrasea su objeción sin contradecir.
-2. [E] EMPATIZA: Valida que su preocupación es legítima e importante.
-3. [A] ASEGURA: Resuelve usando nuestro beneficio (Rapidez de 2 horas, liquidez hoy, ampliación a futuro).
-TERMINA el mensaje forzando el avance. (La regla dice: rebotar mínimo 3 objeciones).`,
+Misión: Rebatir la objeción en texto aplicando Técnica REA.
+1. [R] Reconoce y [E] Empatiza en la primera línea. (Ej. "Entiendo perfecto ${ctx.nombre}, es normal tener esa duda.")
+2. [A] Asegura en la segunda línea resaltando *liquidez en 2 horas* o el uso del crédito.
+3. Termina con una pregunta corta que invite a la acción.`,
 
   negociar_tasa: (ctx) => `
-Mensaje actual: "${ctx.input}"
+Último mensaje chat: "${ctx.input}"
 ${renderCtx("Nombre", ctx.nombre)}${ctx.memoriaEstrategica}
 
-Misión: Rebatir la objeción de tasa aplicando REA (Playbook Sec. 2.4.C).
-EJECUCIÓN COMERCIAL:
-1. Reconoce y Empatiza: "Es completamente válido que analices el costo, eso habla de que eres responsable".
-2. Asegura (Pivote): Mueve el enfoque de "precio" a "tiempo". Destaca que la ventaja MultiMoney es tener el capital HOY MISMO, sin filas, y con flexibilidad de liquidar antes sin multa.
-3. Micro-cierre: "¿Te parece si hacemos el cálculo rápido de cómo te quedarían las cuotas?".`,
+Misión: Pivote de objeción de tasa por chat.
+No justifiques la tasa con párrafos largos. Valida que es bueno comparar, pero transiciona rápido a nuestra ventaja: "La diferencia con nosotros es que tienes el dinero *hoy mismo* sin ir a sucursales ni penalizaciones."
+Cierra proponiendo enviar una simulación rápida: "¿Te paso los números reales de cómo quedaría tu cuota para que lo valores?".`,
 
   cerrar_venta: (ctx) => `
-Mensaje actual: "${ctx.input}"
+Último mensaje chat: "${ctx.input}"
 ${ctx.memoriaEstrategica}
 
-Misión: Ejecutar el Paso 6 del Playbook (Cierre).
-Si el cliente acepta la oferta, DEBES incluir en tu mensaje:
-1. Celebrar su decisión.
-2. Recapitular que el siguiente paso es la validación.
-3. INSTRUCCIÓN CRÍTICA: Solicitar 2 referencias (1 familiar y 1 conocido).`,
+Misión: Transicionar a la etapa operativa (Paso 6). 
+Redacta un mensaje directo que celebre rápido ("¡Excelente ${ctx.nombre}!") y pide explícitamente el requisito del Playbook: las 2 referencias.
+Ejemplo de tono: "Para avanzar a la validación, pásame por aquí 2 referencias (1 familiar y 1 conocido). Solo ocupo nombre y teléfono. ¿Me las compartes?"`,
 
   seguimiento: (ctx) => `
-Mensaje del cliente: "${ctx.input}"
+Último mensaje chat: "${ctx.input}"
 ${renderCtx("Nombre", ctx.nombre)}${ctx.memoriaEstrategica}
 
-Misión: Paso 7 del Playbook (Seguimiento). Retoma el momentum exacto donde se quedaron. Sé casual. Si es base EXPIRADOS, recuérdale que "podemos reactivar tu proceso sin empezar de cero".`,
+Misión: Mensaje de "push" por WhatsApp. El cliente dejó en visto o pausó. Sé muy casual. Asume que está ocupado. "Hola ${ctx.nombre}, ¿pudiste revisar lo que te mandé? Avisame si le damos luz verde para que quede hoy mismo."`,
   
   resumen_crm: (ctx) => `
-Resume la intención actual del cliente y la fricción principal basándote en este último mensaje: "${ctx.input}". Devuelve solo hechos cortos.`,
+Haz un resumen de 2 líneas de este cliente basado en: "${ctx.input}". Extrae solo: Intención de compra, fricción principal y siguiente paso lógico. Ideal para pegar en Salesforce/Hubspot.`,
   
   mejorar_mensaje: (ctx) => `
-Borrador original: "${ctx.input}"
-Misión: Reescribir para eliminar basura corporativa. Hacerlo sonar como Top Closer de WhatsApp. Reducir texto a la mitad e inyectar autoridad.`,
+Borrador del asesor: "${ctx.input}"
+Misión: El asesor escribió un mensaje robotizado o muy largo. Reescríbelo para que sea un mensaje de WhatsApp letal. Usa *negritas* para resaltar, quita los "quedo a la orden", hazlo más asimétrico y natural.`,
 };
 
 // ─────────────────────────────────────────────
-// 6. GUARDRAILS & POST-PROCESSING (RegEx)
+// 6. GUARDRAILS & CLEANUP
 // ─────────────────────────────────────────────
 const BANNED_OPENERS = [
-  /^hola[,!.]?\s*/i, /^buenos\s+días[,!.]?\s*/i, /^buenas\s+tardes[,!.]?\s*/i,
-  /^perfecto[,.]?\s*/i, /^claro que sí[,.]?\s*/i, /^sin problema[,.]?\s*/i, 
-  /^con gusto[,.]?\s*/i, /^entiendo[,.]?\s*/i, /^comprendo[,.]?\s*/i
+  /^estimado[,!.]?\s*/i, /^quedo a tus órdenes[,!.]?\s*/i, /^le asiste[,!.]?\s*/i
 ];
 
 function cleanResponse(text) {
@@ -168,22 +159,19 @@ function cleanResponse(text) {
       break;
     }
   }
-  if (cleaned.length > 0) {
-    cleaned = cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
-  }
-  return cleaned.replace(/\n{3,}/g, "\n\n").trim();
+  return cleaned.replace(/\n{3,}/g, "\n\n").trim(); // Evitar saltos de línea excesivos
 }
 
 // ─────────────────────────────────────────────
-// 7. CALIBRACIÓN TÉRMICA POR ESTADO
+// 7. TEMPERATURAS
 // ─────────────────────────────────────────────
 const TEMPERATURE_BY_ACTION = {
   resumen_crm: 0.1,  
-  cerrar_venta: 0.2,   // Bajo determinismo para NO olvidar pedir el INE ni las Referencias.
-  negociar_tasa: 0.4,  // Estricto para evitar mentir sobre la tasa.
+  cerrar_venta: 0.2,   
+  negociar_tasa: 0.4,  
   responder_objecion: 0.5,
   mejorar_mensaje: 0.6,
-  seguimiento: 0.7,    // Alta temperatura: Creatividad requerida para revivir clientes.
+  seguimiento: 0.7,    
 };
 
 // ─────────────────────────────────────────────
@@ -218,32 +206,35 @@ export default async function handler(req, res) {
         { role: "user", content: userPrompt },
       ],
       temperature,
-      max_tokens: 600,
+      max_tokens: 400, // Reducido para forzar concisión de chat
       response_format: {
         type: "json_schema",
         json_schema: {
-          name: "cognition_and_response",
+          name: "whatsapp_copilot_response",
           strict: true,
           schema: {
             type: "object",
             properties: {
-              _inteligencia_conversacional: {
+              telemetria: {
                 type: "object",
                 properties: {
                   paso_playbook: { type: "integer", description: "Paso del 1 al 7" },
-                  micro_senal_compra: { type: "boolean" },
-                  tecnica_rea_aplicada: { type: "boolean", description: "¿Se aplicó Reconoce, Empatiza, Asegura?" },
-                  next_best_action: { type: "string" }
+                  tecnica_rea_aplicada: { type: "boolean" },
+                  friccion_detectada: { type: "string", description: "Muy corta, ej. 'Tasa', 'Desconfianza'" }
                 },
-                required: ["paso_playbook", "micro_senal_compra", "tecnica_rea_aplicada", "next_best_action"],
+                required: ["paso_playbook", "tecnica_rea_aplicada", "friccion_detectada"],
                 additionalProperties: false
               },
-              respuesta: { 
+              respuesta_whatsapp: { 
                 type: "string",
-                description: "Mensaje listo para WhatsApp."
+                description: "Mensaje listo para copiar y pegar en WhatsApp. Corto, natural, usando asteriscos para negritas."
+              },
+              consejo_asesor: {
+                type: "string",
+                description: "Tip interno muy corto para el asesor. (Ej. 'Si acepta, pásale el link del biométrico')."
               }
             },
-            required: ["_inteligencia_conversacional", "respuesta"],
+            required: ["telemetria", "respuesta_whatsapp", "consejo_asesor"],
             additionalProperties: false
           }
         }
@@ -252,17 +243,18 @@ export default async function handler(req, res) {
 
     const parsed = JSON.parse(completion.choices[0].message.content);
     
-    // Ejecutar el Guardrail Regex
-    parsed.respuesta = cleanResponse(parsed.respuesta) || "¿Me detallas más ese punto para ayudarte?";
+    // Limpiar respuesta para chat
+    parsed.respuesta_whatsapp = cleanResponse(parsed.respuesta_whatsapp);
 
     return res.status(200).json({
-      respuesta: parsed.respuesta,
-      inteligencia: parsed._inteligencia_conversacional,
+      guion: parsed.respuesta_whatsapp,     // El texto para el textarea de la extensión
+      consejo: parsed.consejo_asesor,       // Para mostrar como tip en la UI
+      telemetria: parsed.telemetria,        // Para actualizar indicadores de la UI
       _meta: { accion, request_id: requestId, tiempo_ms: Date.now() - startTime },
     });
 
   } catch (err) {
     console.error(`[${requestId}] Error:`, err.message);
-    return res.status(500).json({ error: "Fallo en motor cognitivo." });
+    return res.status(500).json({ error: "Fallo en motor cognitivo de chat." });
   }
 }
