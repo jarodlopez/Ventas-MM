@@ -317,24 +317,87 @@
             document.getElementById('btn-' + tabId).classList.add('active');
         }
 
-        // --- SCRIPTS PESTAÑA 1 ---
-        function extraerDato(texto, regex, sufijo = '', prefijo = '') {
-            const match = texto.match(regex);
-            if (match && match[1]) return `${prefijo}${match[1].trim()}${sufijo}`;
-            return 'N/D';
+        // --- MOTOR CENTRAL DE EXTRACCIÓN DE DATOS ---
+        function extraerDatos(rawText) {
+            let text = rawText.replace(/\n/g, ' ').replace(/\s+/g, ' ');
+            
+            let data = {
+                monto_linea: 'N/D',
+                plazo: 'N/D',
+                tasa_mensual: 'N/D',
+                comision: 'N/D',
+                monto_desembolsar: 'N/D',
+                fecha_primer_pago: 'N/D',
+                pago_mensual: 'N/D',
+                ciclo: 'N/D'
+            };
+
+            const extraerUnico = (regex) => {
+                const match = text.match(regex);
+                return match ? match[1].trim() : null;
+            };
+
+            // 1. Detección del Formato "Tabla Oferta Seleccionada"
+            // Extrae la fila de datos que sigue a "Oferta Base"
+            const tableMatch = text.match(/Oferta Base\s+(.*?)\s+(\d+\.\d{2})\s+(\d+\.\d{2})\s+(\d+(?:\.\d+)?)\s+(\d+(?:\.\d+)?)\s+(\d+)\s+(\d+)\s+(\d{4}-\d{2}-\d{2})/i);
+            
+            if (tableMatch) {
+                let producto = tableMatch[1];
+                data.monto_linea = tableMatch[3]; // Monto Máximo
+                
+                let tasaBruta = parseFloat(tableMatch[4]);
+                // Lógica de fallback: si la tasa dice "0", intentar sacarla del nombre del producto
+                if (tasaBruta === 0) {
+                    let tasaMatch = producto.match(/(\d+\.\d+)%/);
+                    data.tasa_mensual = tasaMatch ? tasaMatch[1] : "0";
+                } else {
+                    data.tasa_mensual = tableMatch[4];
+                }
+                
+                data.comision = tableMatch[5];
+                data.plazo = tableMatch[6];
+                data.ciclo = tableMatch[7];
+                data.fecha_primer_pago = tableMatch[8];
+            }
+
+            // 2. Detección de Campos Clásicos (Fallback para el formato normal o campos independientes del nuevo)
+            data.monto_linea = extraerUnico(/(?:Monto L(?:í|i)nea de Cr(?:é|e)dito|Monto M(?:á|a)ximo|LIMITE CREDITO)[\s:]*[\$]?\s*([\d,]+(?:\.\d+)?)/i) || data.monto_linea;
+            data.plazo = extraerUnico(/(?:Plazo|PLAZO)(?:[\s:]*)(\d+)(?:\s*Meses)?/i) || data.plazo;
+            data.tasa_mensual = extraerUnico(/(?:Tasa Mensual|TASA_INTERES_NORMAL)[\s:]*([\d\.]+)/i) || data.tasa_mensual;
+            data.comision = extraerUnico(/(?:Comisi(?:ó|o)n por Desembolso|COMISION_DESEMBOLSO)[\s:]*([\d\.]+)/i) || data.comision;
+            
+            // Campos que aplican para ambos formatos a través de texto explícito
+            data.monto_desembolsar = extraerUnico(/(?:Monto Por Disponer|Monto por Desembolsar|MAXIMO_DESEMBOLSO)[\s:]*[\$]?\s*([\d,]+(?:\.\d+)?)/i) || data.monto_linea;
+            data.pago_mensual = extraerUnico(/(?:Pago Mensual(?: ser(?:í|i)a)?|CUOTA)[\s:]*[\$]?\s*([\d,]+(?:\.\d+)?)/i) || data.pago_mensual;
+            data.fecha_primer_pago = extraerUnico(/(?:Fecha Primer Pago|FECHA_PAGO|Fecha 1er pago)[\s:]*([\d\/\-]+)/i) || data.fecha_primer_pago;
+            data.ciclo = extraerUnico(/Ciclo:\s*(\d+)/i) || data.ciclo;
+
+            return data;
         }
         
+        // --- SCRIPTS PESTAÑA 1 (UI Y EXPORTACIÓN) ---
         function generarOferta() {
-            const rawText = document.getElementById('input-raw').value.replace(/\n/g, ' ').replace(/\s+/g, ' ');
+            const rawText = document.getElementById('input-raw').value;
+            const data = extraerDatos(rawText);
+            
             let cliente = document.getElementById('input-cliente').value.trim() || "Cliente Preferente";
             document.getElementById('out-cliente').innerText = cliente;
-            document.getElementById('out-monto').innerText = extraerDato(rawText, /Monto L(?:í|i)nea de Cr(?:é|e)dito:\s*[\$\s]*([\d,]+(?:.\d{1,2})?)/i, ' MXN', '$');
-            document.getElementById('out-pago').innerText = extraerDato(rawText, /Pago Mensual(?: ser(?:í|i)a)?:\s*[\$\s]*([\d,]+(?:.\d{1,2})?)/i, '', '$');
-            document.getElementById('out-plazo').innerText = extraerDato(rawText, /Plazo:\s*(\d+)\s*Meses/i);
-            document.getElementById('out-tasa').innerText = extraerDato(rawText, /Tasa Mensual:\s*([\d.]+)/i);
-            document.getElementById('out-comision').innerText = extraerDato(rawText, /Comisi(?:ó|o)n por Desembolso:\s*([\d.]+)/i);
-            document.getElementById('out-fecha').innerText = extraerDato(rawText, /Fecha Primer Pago:\s*([\d/]+)/i);
-            document.getElementById('out-ciclo').innerText = extraerDato(rawText, /Ciclo:\s*(\d+)/i);
+
+            const formatoMoneda = (val, agregarMXN = true) => {
+                if (!val || val === 'N/D') return "N/D";
+                let num = parseFloat(val.replace(/[^\d\.]/g, ''));
+                if (isNaN(num)) return "N/D";
+                let formatter = new Intl.NumberFormat('en-US');
+                return agregarMXN ? `$${formatter.format(num)} MXN` : `$${formatter.format(num)}`;
+            };
+
+            document.getElementById('out-monto').innerText = formatoMoneda(data.monto_linea, true);
+            document.getElementById('out-pago').innerText = formatoMoneda(data.pago_mensual, false);
+            document.getElementById('out-plazo').innerText = data.plazo;
+            document.getElementById('out-tasa').innerText = data.tasa_mensual;
+            document.getElementById('out-comision').innerText = data.comision;
+            document.getElementById('out-fecha').innerText = data.fecha_primer_pago;
+            document.getElementById('out-ciclo').innerText = data.ciclo;
         }
         
         function descargarPDFOferta() {
@@ -351,66 +414,52 @@
         
         function limpiarCampos() { document.getElementById('input-raw').value = ''; }
         
-        // --- NUEVA LÓGICA DE COPIA (Generador de Mensaje Eufórico para WhatsApp) ---
+        // --- COPIA DE TEXTO EUFÓRICA PARA WHATSAPP ---
         function copiarOferta() {
-            const rawText = document.getElementById('input-raw').value.replace(/\n/g, ' ').replace(/\s+/g, ' ');
+            const rawText = document.getElementById('input-raw').value;
             if (!rawText.trim()) {
                 alert("Por favor ingresa los datos brutos del sistema primero.");
                 return;
             }
             
-            // Obtener el nombre del cliente
+            const data = extraerDatos(rawText);
+            
             let cliente = document.getElementById('input-cliente').value.trim();
             let saludoCliente = cliente ? ` ${cliente}` : "";
 
-            const extraer = (regex) => {
-                const match = rawText.match(regex);
-                return match ? match[1].trim() : null;
-            };
-
-            // Extracción con fallbacks incorporados
-            let monto_linea = extraer(/(?:Monto L(?:í|i)nea de Cr(?:é|e)dito|Monto M(?:á|a)ximo|LIMITE CREDITO)[\s:]*[\$]?\s*([\d,]+(?:\.\d+)?)/i);
-            let plazo = extraer(/(?:Plazo|PLAZO)[\s:]*(\d+)/i);
-            let tasa_mensual = extraer(/(?:Tasa Mensual|TASA_INTERES_NORMAL|Tasa Inter(?:é|e)s \(mensual con IVA\))[\s:]*([\d\.]+)/i);
-            let comision = extraer(/(?:Comisi(?:ó|o)n por Desembolso|COMISION_DESEMBOLSO)[\s:]*([\d\.]+)/i);
-            let monto_desembolsar = extraer(/(?:Monto Por Disponer|Monto por Desembolsar|MAXIMO_DESEMBOLSO)[\s:]*[\$]?\s*([\d,]+(?:\.\d+)?)/i) || monto_linea;
-            let fecha_primer_pago = extraer(/(?:Fecha Primer Pago|FECHA_PAGO|Fecha 1er pago)[\s:]*([\d\/\-]+)/i);
-            let pago_mensual = extraer(/(?:Pago Mensual(?: ser(?:í|i)a)?|CUOTA)[\s:]*[\$]?\s*([\d,]+(?:\.\d+)?)/i);
-
-            // Reglas de Normalización
-            const formatoMoneda = (val) => {
-                if (!val) return "N/D";
+            const formatoMonedaNum = (val) => {
+                if (!val || val === 'N/D') return "N/D";
                 let num = parseFloat(val.replace(/[^\d\.]/g, ''));
                 return !isNaN(num) ? new Intl.NumberFormat('en-US').format(num) : "N/D";
             };
 
             let comisionStr = "N/D";
-            if (comision !== null) {
-                comisionStr = parseFloat(comision) === 0 ? "Sin comisión por desembolso" : `${comision} %`;
+            if (data.comision !== "N/D") {
+                comisionStr = parseFloat(data.comision) === 0 ? "Sin comisión por desembolso" : `${data.comision} %`;
             }
 
             let fechaStr = "N/D";
-            if (fecha_primer_pago) {
+            if (data.fecha_primer_pago !== "N/D") {
+                let fp = data.fecha_primer_pago;
                 let parts;
-                if (fecha_primer_pago.includes('-')) {
-                    parts = fecha_primer_pago.split('-');
+                if (fp.includes('-')) {
+                    parts = fp.split('-');
                     if (parts[0].length === 4) { // YYYY-MM-DD
                         const m = ["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"][parseInt(parts[1])-1];
                         fechaStr = `${parseInt(parts[2])} de ${m} de ${parts[0]}`;
-                    } else { fechaStr = fecha_primer_pago; }
-                } else if (fecha_primer_pago.includes('/')) {
-                    parts = fecha_primer_pago.split('/');
+                    } else { fechaStr = fp; }
+                } else if (fp.includes('/')) {
+                    parts = fp.split('/');
                     if (parts.length === 3) {
                         const m = ["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"][parseInt(parts[1])-1];
                         fechaStr = `${parseInt(parts[0])} de ${m} de ${parts[2]}`;
-                    } else { fechaStr = fecha_primer_pago; }
+                    } else { fechaStr = fp; }
                 } else {
-                    fechaStr = fecha_primer_pago;
+                    fechaStr = fp;
                 }
             }
 
-            // Plantilla Estructurada y Eufórica incluyendo el nombre del cliente
-            const mensaje = `🎉🎉 ¡Felicidades${saludoCliente}! Tenemos excelentes noticias para ti 🎉🎉\n\nTu línea de crédito ya está PREAPROBADA y lista para activarse 🚀\n\n💰 Monto de la línea: ${formatoMoneda(monto_linea)} MXN\n📆 Plazo: ${plazo || 'N/D'} meses\n📉 Tasa mensual: ${tasa_mensual ? tasa_mensual + ' %' : 'N/D %'}\n💸 Comisión por desembolso: ${comisionStr}\n🔓 Monto disponible inmediato: ${formatoMoneda(monto_desembolsar)} MXN\n📅 Primer pago: ${fechaStr}\n💳 Pago mensual: ${formatoMoneda(pago_mensual)} MXN\n\n👉 Siguiente paso: enviarte un link biométrico para que puedas cargar la siguiente información:\n\n• Cuenta CLABE (para depósito)\n• INE Vigente\n• Selfie\n• Comprobante de Domilicio\n\n¿Procedemos a enviarte el link en este momento? 📲😊`;
+            const mensaje = `🎉🎉 ¡Felicidades${saludoCliente}! Tenemos excelentes noticias para ti 🎉🎉\n\nTu línea de crédito ya está PREAPROBADA y lista para activarse 🚀\n\n💰 Monto de la línea: ${formatoMonedaNum(data.monto_linea)} MXN\n📆 Plazo: ${data.plazo} meses\n📉 Tasa mensual: ${data.tasa_mensual !== 'N/D' ? data.tasa_mensual + ' %' : 'N/D %'}\n💸 Comisión por desembolso: ${comisionStr}\n🔓 Monto disponible inmediato: ${formatoMonedaNum(data.monto_desembolsar)} MXN\n📅 Primer pago: ${fechaStr}\n💳 Pago mensual: ${formatoMonedaNum(data.pago_mensual)} MXN\n\n👉 Siguiente paso: enviarte un link biométrico para que puedas cargar la siguiente información:\n\n• Cuenta CLABE (para depósito)\n• INE\n• Selfie\n• Comprobante de pago\n\n¿Procedemos a enviarte el link en este momento? 📲😊`;
 
             navigator.clipboard.writeText(mensaje).then(() => {
                 alert("¡Oferta eufórica copiada exitosamente para enviar por WhatsApp! 🎉📲");
