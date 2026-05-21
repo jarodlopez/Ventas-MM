@@ -2,19 +2,31 @@ import OpenAI from "openai";
 
 const openai = new OpenAI({ apiKey: process.env.AI_API_KEY });
 
+// ═══════════════════════════════════════════════════════════════════
+// MM SALES COPILOT API — v5.0 "Hackathon Edition"
+// Cambios clave vs v4.x:
+//   • 3 variantes estratégicas por respuesta (empática / directa / educativa)
+//   • Análisis emocional que ALIMENTA la generación (no solo reporta)
+//   • Score de probabilidad de cierre (0-100) con razonamiento
+//   • "Siguiente jugada" táctica para coachear al asesor
+//   • Tono mexicano real, calibrado por hora del día y estado del cliente
+//   • Contrato hacia atrás: `respuesta` sigue siendo el campo principal
+// ═══════════════════════════════════════════════════════════════════
+
 // ─────────────────────────────────────────────
 // BASE DE CONOCIMIENTO
 // ─────────────────────────────────────────────
 const CATALOGO_PRODUCTOS = `
-━━━ CATÁLOGO DE PRODUCTOS ━━━
-- Montos: Desde $10,000 hasta $400,000 MXN.
-- Tiempos: Depósito en máximo 2 horas, proceso 100% online.
-- Beneficio estrella: Sin penalización por pago anticipado.
-- Ampliación: Disponible a partir del 3er pago puntual.
+━━━ CATÁLOGO MULTIMONEY ━━━
+- Montos: $10,000 a $400,000 MXN.
+- Depósito en máximo 2 horas, 100% online.
+- Sin penalización por pago anticipado (diferenciador estrella).
+- Ampliación disponible desde el 3er pago puntual.
+- Pre-aprobación válida 48 horas — después se re-evalúa buró.
 `;
 
 // ─────────────────────────────────────────────
-// VALIDACIÓN DE ENTRADA
+// VALIDACIÓN
 // ─────────────────────────────────────────────
 const ACCIONES_VALIDAS = [
   "responder_objecion",
@@ -38,110 +50,170 @@ function validateInput(body) {
 }
 
 // ─────────────────────────────────────────────
-// SYSTEM PROMPT OPTIMIZADO (Con refinamiento comercial de micro-cierres)
+// CONTEXTO TEMPORAL (México)
 // ─────────────────────────────────────────────
-const SYSTEM_PROMPT = `Tu objetivo es llevar a prospectos hacia el cierre de créditos personales por WhatsApp. 
-Eres un asesor financiero senior de MultiMoney. Te comunicas como un asesor comercial real: directo, ágil, seguro y profesional.
+function getMomentoMexico() {
+  const now = new Date();
+  // Hora CDMX aproximada (UTC-6)
+  const horaCDMX = (now.getUTCHours() - 6 + 24) % 24;
+  const dia = now.getUTCDay(); // 0 dom - 6 sab
+
+  let franja = "tarde";
+  if (horaCDMX >= 6 && horaCDMX < 12) franja = "mañana";
+  else if (horaCDMX >= 12 && horaCDMX < 19) franja = "tarde";
+  else if (horaCDMX >= 19 && horaCDMX < 23) franja = "noche";
+  else franja = "madrugada";
+
+  const finDeSemana = dia === 0 || dia === 6;
+  return { franja, finDeSemana, horaCDMX };
+}
+
+// ─────────────────────────────────────────────
+// SYSTEM PROMPT — Mexicano real, no neutro
+// ─────────────────────────────────────────────
+const SYSTEM_PROMPT = `Eres un asesor financiero senior de MultiMoney México. Llevas años cerrando créditos personales por WhatsApp. Tu trabajo es ayudar al asesor humano a responder mejor, más rápido y con más cierre.
 
 ${CATALOGO_PRODUCTOS}
 
-━━━ TU ESTILO Y TONO DE WHATSAPP ━━━
-- Entras directo al punto (asume que ya saludaste antes).
-- Usas lenguaje conciso, propio de un chat rápido. Evitas la informalidad excesiva o el tono callejero, pero no suenas corporativo.
-- CALIBRACIÓN DE RITMO: Adapta tu energía, longitud y nivel de detalle según el estilo del cliente y el historial (ej. responde corto a clientes cortos, explica más a clientes analíticos).
-- Evitas por completo formalismos de IA o call center ("Con gusto", "Comprendo tu situación", "Es un placer", "Claro que sí", "Entiendo perfectamente").
-- Mantienes el avance natural de la conversación usando micro-cierres breves, naturales y orientados al siguiente paso. No te despides.
+━━━ TU VOZ (esto es lo más importante) ━━━
+Suenas como un mexicano profesional cerrando ventas por chat. NO suenas a:
+- Bot ("Comprendo tu situación", "Es un placer", "Con gusto")
+- Call center ("Estimado cliente", "Le informo que")
+- Coach motivacional ("¡Excelente decisión!", "¡Vamos por más!")
+- Ni traducción del inglés ("Hagamos esto realidad")
 
-━━━ METODOLOGÍA REA (Reconoce, Empatiza, Asegura) ━━━
-Para las objeciones, usas REA de forma invisible y fluida en UN SOLO MENSAJE CONVERSACIONAL (no en formato de lista):
-- Reconoce: Valida el punto del cliente sutilmente sin repetir textualmente lo que dijo.
-- Empatiza: Demuestra entendimiento con empatía comercial, no terapéutica ("Es normal revisarlo", "Tiene sentido compararlo", "Muchos clientes hacen esa validación").
-- Asegura: Conecta el beneficio del crédito (rápido, sin penalización) con su necesidad.
+SÍ suenas a:
+- Asesor real que conoce su producto y respeta el tiempo del cliente
+- Directo sin ser frío, cálido sin ser meloso
+- Usas mexicanismos NATURALES cuando caben: "va", "checa", "te late", "ahorita", "órale", "sale", "qué tal si", "no le saques", "lo armamos rápido"
+- Frases cortas, oraciones de 8-15 palabras máximo en chat
+- Puntuación relajada de WhatsApp (puntos suspensivos OK, signos dobles NO)
 
-━━━ ARGUMENTOS POR USO ━━━
-- Negocio: Capital hoy = utilidades mañana.
-- Gastos médicos: Depósito en 2 horas, urgencia resuelta.
-- Vacaciones/Auto/Familia: Cuotas cómodas, no afecta liquidez.
-- Consolidación: Un solo pago ordenado, menor estrés.
-- Sin uso/Imprevisto: Colchón financiero, mejor tenerlo listo.
+━━━ REGLAS DURAS ━━━
+1. NUNCA inicies con saludo (asume conversación ya en curso).
+2. NUNCA uses bullets ni listas en la respuesta al cliente — es WhatsApp, es prosa.
+3. NUNCA inventes datos que no te dieron (montos, tasas, plazos).
+4. NUNCA prometas aprobación. Trabaja sobre pre-aprobación o lo ya cotizado.
+5. CIERRA SIEMPRE con micro-cierre: una pregunta corta o un siguiente paso claro.
+6. Si tienes el nombre del cliente, úsalo MÁXIMO una vez por mensaje.
 
-━━━ EJEMPLOS DE RESPUESTA (FEW-SHOT) ━━━
-[MAL - Tono IA]: "Comprendo tu situación, Juan. Es completamente normal que la tasa te parezca alta. Sin embargo, te aseguro que nuestro crédito te beneficia porque no hay penalizaciones. ¿Deseas continuar?"
-[BIEN - Tono MultiMoney]: "Es normal que revises la tasa, Juan. La ventaja aquí es que tienes el dinero hoy mismo sin papeleo y si liquidas antes no hay penalización. ¿Hacemos el cálculo de cómo te quedarían las cuotas?"
+━━━ METODOLOGÍA REA INVISIBLE ━━━
+Para objeciones: Reconoce + Empatiza + Asegura, todo fundido en UN mensaje conversacional.
+- Reconoce sin loro ("Es válido que lo pienses", NO "Entiendo que dices que...")
+- Empatiza comercial, no terapéutico ("muchos clientes hacen esa comparación")
+- Asegura conectando beneficio con SU caso ("para tu caso de [uso] esto funciona porque...")
 
-[MAL - Tono IA]: "Hola de nuevo. Entiendo perfectamente que lo quieras pensar. Quedo a tu disposición por si tienes dudas. Saludos."
-[BIEN - Tono MultiMoney]: "Tómate el tiempo de revisarlo bien. Solo recuerda que la pre-aprobación que revisamos hoy está lista para fondearse en 2 horas. ¿A qué hora te escribo mañana para retomarlo?"`;
+━━━ CALIBRACIÓN POR EMOCIÓN DEL CLIENTE ━━━
+- ANSIOSO/URGENTE → Tu respuesta transmite control y velocidad. Frases cortas, datos concretos.
+- DESCONFIADO/ESCÉPTICO → Tu respuesta da prueba social y seguridad. Cifras, garantías, transparencia.
+- INDECISO/TIBIO → Tu respuesta reduce fricción. Una sola pregunta, un solo siguiente paso.
+- INTERESADO/CALIENTE → Tu respuesta cierra. Pide el siguiente requisito YA.
+- MOLESTO/FRUSTRADO → Tu respuesta valida primero, resuelve después. Baja la temperatura.
+- COMPARANDO → Tu respuesta destaca el diferencial (sin penalización, 2 horas, sin buró tradicional).
+
+━━━ EJEMPLOS DE CALIBRACIÓN ━━━
+
+[Cliente ansioso "necesito el dinero para mañana"]
+MAL: "Comprendo la urgencia. Nuestro proceso es rápido y..."
+BIEN: "Si firmas hoy antes de las 5, el depósito te entra mañana mismo. ¿Tienes la INE y CLABE a la mano para arrancar?"
+
+[Cliente desconfiado "¿cómo sé que no es fraude?"]
+MAL: "Te aseguro que somos una empresa seria..."
+BIEN: "Válido que lo preguntes. MultiMoney está regulada por CNBV y operamos desde 2018. El contrato te llega antes de firmar, lo revisas con calma. ¿Te paso la liga oficial?"
+
+[Cliente comparando "el banco me ofrece 22%"]
+MAL: "Nuestra tasa es competitiva porque..."
+BIEN: "Tiene sentido comparar. La diferencia es que aquí el dinero te cae en 2 horas sin trámite presencial, y si liquidas antes no te penalizamos. El banco te tarda 5-10 días. ¿Qué pesa más para ti, la tasa o el tiempo?"
+
+━━━ GENERAS 3 VARIANTES SIEMPRE ━━━
+1. EMPÁTICA: Pone primero el feeling del cliente, luego el beneficio. Para clientes sensibles.
+2. DIRECTA: Va al cierre rápido. Para clientes que ya están listos o el asesor quiere acelerar.
+3. EDUCATIVA: Explica un dato/diferencial concreto. Para clientes analíticos o comparadores.
+
+Cada variante debe SER DIFERENTE en enfoque, no solo en palabras. Si son intercambiables, las hiciste mal.`;
 
 // ─────────────────────────────────────────────
-// HELPERS 
+// HELPERS DE CONTEXTO
 // ─────────────────────────────────────────────
 const renderCtx = (label, value) => (value ? `${label}: ${value}\n` : "");
 const renderHistorial = (h) => (h ? `Historial reciente:\n${h}\n` : "");
 
 // ─────────────────────────────────────────────
-// PLANTILLAS DE ACCIÓN 
+// PLANTILLAS POR ACCIÓN
 // ─────────────────────────────────────────────
 const ACCIONES = {
   responder_objecion: (ctx) => `
+ACCIÓN: Responder objeción
 Mensaje del cliente: "${ctx.input}"
-${renderCtx("Nombre", ctx.nombre)}
-${renderCtx("Uso del crédito", ctx.uso)}
-${renderCtx("Monto aprobado", ctx.monto)}
-${renderCtx("Tasa", ctx.tasa)}
-${renderHistorial(ctx.historial)}
+${renderCtx("Nombre", ctx.nombre)}${renderCtx("Uso del crédito", ctx.uso)}${renderCtx("Monto pre-aprobado", ctx.monto)}${renderCtx("Tasa cotizada", ctx.tasa)}${renderCtx("Plazo", ctx.plazo)}${renderHistorial(ctx.historial)}
+Momento: ${ctx.momento.franja}${ctx.momento.finDeSemana ? " (fin de semana)" : ""}.
 
-Objetivo: Aplica la técnica REA de forma conversacional e invisible en respuesta a su objeción. Conecta el beneficio con su uso específico. Si tienes su nombre, úsalo una vez con naturalidad. Cierra con una pregunta corta para avanzar.`,
+Genera las 3 variantes aplicando REA invisible, conectando con el uso específico del crédito.`,
 
   negociar_tasa: (ctx) => `
+ACCIÓN: Negociar tasa
 Mensaje del cliente: "${ctx.input}"
-${renderCtx("Nombre", ctx.nombre)}
-${renderCtx("Tasa ofrecida", ctx.tasa)}
-${renderCtx("Uso", ctx.uso)}
-${renderHistorial(ctx.historial)}
+${renderCtx("Nombre", ctx.nombre)}${renderCtx("Tasa cotizada", ctx.tasa)}${renderCtx("Uso", ctx.uso)}${renderCtx("Monto", ctx.monto)}${renderHistorial(ctx.historial)}
 
-Objetivo: Maneja la objeción de tasa usando REA. Recuerda al cliente que ya está pre-aprobado HOY (sin burocracia de bancos) y resalta que no hay penalización por pago anticipado. Termina con una pregunta concreta (ej. calcular cuotas o pedir el siguiente requisito).`,
+El cliente cuestiona la tasa. Tus 3 variantes deben todas defender el valor sin bajar tasa (no tienes facultad), pero con ángulos distintos:
+- EMPÁTICA: validar y reposicionar al diferencial
+- DIRECTA: cerrar pidiendo siguiente requisito asumiendo aceptación
+- EDUCATIVA: comparativa concreta vs banco/competencia`,
 
   cerrar_venta: (ctx) => `
+ACCIÓN: Cerrar venta
 Mensaje del cliente: "${ctx.input}"
-${renderCtx("Nombre", ctx.nombre)}
-${renderCtx("Monto", ctx.monto)}
-${renderHistorial(ctx.historial)}
+${renderCtx("Nombre", ctx.nombre)}${renderCtx("Monto", ctx.monto)}${renderCtx("Tasa", ctx.tasa)}${renderCtx("Uso", ctx.uso)}${renderHistorial(ctx.historial)}
 
-Objetivo: El cliente muestra intención de avanzar. 
-Si hay intención clara → haz un micro-cierre natural pidiendo el siguiente requisito (INE, CLABE, referencias). 
-Si hay fricción → resuélvela transmitiendo seguridad (depósito en 2 horas). Sé directo.`,
+El cliente muestra señales de cierre. Tus 3 variantes piden siguiente requisito (INE/CLABE/comprobante) con enfoques distintos:
+- EMPÁTICA: cierre suave, da control al cliente
+- DIRECTA: micro-cierre asumiendo, "te paso el link / mándame INE"
+- EDUCATIVA: explica el siguiente paso del proceso completo`,
 
   seguimiento: (ctx) => `
-Último mensaje / razón de no cierre: "${ctx.input}"
-${renderCtx("Nombre", ctx.nombre)}
-${renderCtx("Última interacción", ctx.ultimaInteraccion)}
-${renderHistorial(ctx.historial)}
+ACCIÓN: Seguimiento (cliente no respondió o quedó pendiente)
+Último mensaje / razón: "${ctx.input}"
+${renderCtx("Nombre", ctx.nombre)}${renderCtx("Última interacción", ctx.ultimaInteraccion)}${renderCtx("Monto", ctx.monto)}${renderHistorial(ctx.historial)}
+Momento actual: ${ctx.momento.franja}.
 
-Objetivo: Retoma el punto exacto donde quedó la conversación. Sé casual, no suenes desesperado ni inicies como si fuera la primera vez que hablan.`,
+Tus 3 variantes retoman SIN sonar desesperado, cada una con gancho distinto:
+- EMPÁTICA: respeta el silencio, ofrece ayuda
+- DIRECTA: anclaje de urgencia real (pre-aprobación 48h, tasa vigente)
+- EDUCATIVA: aporta un dato nuevo de valor que mueve la conversación`,
 
   resumen_crm: (ctx) => `
-Datos del cliente: ${ctx.nombre} | Monto: ${ctx.monto} | Tasa: ${ctx.tasa} | Uso: ${ctx.uso}
-Mensaje / situación clave: "${ctx.input}"
-
-Objetivo: Devuelve una nota CRM. Solo datos factuales, sin subjetividad.`,
-
-  mejorar_mensaje: (ctx) => `
-Borrador del asesor:
-"${ctx.input}"
-${renderCtx("Nombre", ctx.nombre)}
+ACCIÓN: Resumen CRM
+Datos: ${ctx.nombre || "S/N"} | Monto: ${ctx.monto || "S/D"} | Tasa: ${ctx.tasa || "S/D"} | Uso: ${ctx.uso || "S/D"}
+Situación clave: "${ctx.input}"
 ${renderHistorial(ctx.historial)}
 
-Objetivo: Convierte este borrador en la versión óptima para WhatsApp. Elimina formalismos corporativos, saludos o despedidas. Hazlo directo, empático y comercial.`,
+Devuelve un resumen CRM factual en 3 variantes:
+- EMPÁTICA: enfocada en estado emocional/relacional del cliente
+- DIRECTA: bullet de acción inmediata para el asesor
+- EDUCATIVA: contexto completo para handoff a otro asesor`,
+
+  mejorar_mensaje: (ctx) => `
+ACCIÓN: Mejorar borrador del asesor
+Borrador original:
+"${ctx.input}"
+${renderCtx("Nombre cliente", ctx.nombre)}${renderHistorial(ctx.historial)}
+
+Reescribe el borrador en 3 versiones, todas eliminando corporativismos:
+- EMPÁTICA: versión más cálida y conectiva
+- DIRECTA: versión más al grano, lista para cierre
+- EDUCATIVA: versión que aporta un dato/diferencial`,
 };
 
 // ─────────────────────────────────────────────
-// CONTEXTO
+// BUILD CONTEXT
 // ─────────────────────────────────────────────
 function buildContext(body) {
   const { accion, mensajeCliente, datosCliente = {} } = body;
   const historialCrudo = datosCliente.historialConversacion;
-  const historialProcesado = Array.isArray(historialCrudo) && historialCrudo.length > 0
-      ? historialCrudo.slice(-4).join("\n") : null;
+  const historialProcesado =
+    Array.isArray(historialCrudo) && historialCrudo.length > 0
+      ? historialCrudo.slice(-4).join("\n")
+      : null;
 
   return {
     accion,
@@ -153,17 +225,22 @@ function buildContext(body) {
     uso: datosCliente.uso || null,
     ultimaInteraccion: datosCliente.ultimaInteraccion || null,
     historial: historialProcesado,
+    momento: getMomentoMexico(),
   };
 }
 
 // ─────────────────────────────────────────────
-// POST-PROCESSING (Guardrails intactos)
+// POST-PROCESSING
 // ─────────────────────────────────────────────
 const BANNED_OPENERS = [
-  /^hola[,!.]?\s*/i, /^buenos\s+días[,!.]?\s*/i, /^buenas\s+tardes[,!.]?\s*/i, /^buenas\s+noches[,!.]?\s*/i,
-  /^buen\s+día[,!.]?\s*/i, /^qué\s+tal[,!.]?\s*/i, /^perfecto[,.]?\s*/i, /^claro que sí[,.]?\s*/i,
-  /^sin problema[,.]?\s*/i, /^con gusto[,.]?\s*/i, /^con mucho gusto[,.]?\s*/i, /^entiendo tu situación[,.]?\s*/i,
-  /^comprendo tu situación[,.]?\s*/i, /^por supuesto[,.]?\s*/i, /^encantado[,.]?\s*/i,
+  /^hola[,!.]?\s*/i, /^buenos\s+días[,!.]?\s*/i, /^buenas\s+tardes[,!.]?\s*/i,
+  /^buenas\s+noches[,!.]?\s*/i, /^buen\s+día[,!.]?\s*/i, /^qué\s+tal[,!.]?\s*/i,
+  /^perfecto[,.]?\s*/i, /^claro que sí[,.]?\s*/i, /^sin problema[,.]?\s*/i,
+  /^con gusto[,.]?\s*/i, /^con mucho gusto[,.]?\s*/i,
+  /^entiendo tu situación[,.]?\s*/i, /^comprendo tu situación[,.]?\s*/i,
+  /^entiendo perfectamente[,.]?\s*/i, /^comprendo perfectamente[,.]?\s*/i,
+  /^por supuesto[,.]?\s*/i, /^encantado[,.]?\s*/i, /^estimado[a]?[,.]?\s*/i,
+  /^excelente decisión[,.!]?\s*/i, /^excelente pregunta[,.!]?\s*/i,
 ];
 
 function cleanResponse(text) {
@@ -183,16 +260,16 @@ function cleanResponse(text) {
 // TEMPERATURA POR ACCIÓN
 // ─────────────────────────────────────────────
 const TEMPERATURE_BY_ACTION = {
-  resumen_crm: 0.2, 
-  cerrar_venta: 0.45, 
-  negociar_tasa: 0.6,
-  responder_objecion: 0.65,
-  seguimiento: 0.65, 
+  resumen_crm: 0.2,
+  cerrar_venta: 0.5,
+  negociar_tasa: 0.65,
+  responder_objecion: 0.7,
+  seguimiento: 0.7,
   mejorar_mensaje: 0.75,
 };
 
 // ─────────────────────────────────────────────
-// HANDLER PRINCIPAL (Schema y compatibilidad garantizados)
+// HANDLER PRINCIPAL
 // ─────────────────────────────────────────────
 export default async function handler(req, res) {
   const startTime = Date.now();
@@ -203,15 +280,19 @@ export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
   if (req.method === "OPTIONS") return res.status(200).end();
-  if (req.method !== "POST") return res.status(405).json({ error: "Método no permitido" });
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "Método no permitido" });
+  }
 
   const validationErrors = validateInput(req.body);
-  if (validationErrors.length > 0) return res.status(400).json({ error: validationErrors.join(". ") });
+  if (validationErrors.length > 0) {
+    return res.status(400).json({ error: validationErrors.join(". ") });
+  }
 
   const ctx = buildContext(req.body);
   const { accion } = ctx;
   const userPrompt = ACCIONES[accion](ctx);
-  const temperature = TEMPERATURE_BY_ACTION[accion] ?? 0.55;
+  const temperature = TEMPERATURE_BY_ACTION[accion] ?? 0.6;
 
   try {
     const completion = await openai.chat.completions.create({
@@ -221,56 +302,156 @@ export default async function handler(req, res) {
         { role: "user", content: userPrompt },
       ],
       temperature,
-      max_tokens: 300, 
+      max_tokens: 900, // más espacio para 3 variantes + análisis
       response_format: {
         type: "json_schema",
         json_schema: {
-          name: "copilot_response",
+          name: "copilot_response_v5",
           strict: true,
           schema: {
             type: "object",
             properties: {
-              respuesta: { type: "string" },
-              tipo_objecion: { 
-                type: ["string", "null"], 
-                enum: ["precio", "desconfianza", "indecision", "falta_de_tiempo", "comparacion", "ghosting", null] 
+              // ───── Análisis del cliente (alimenta la generación) ─────
+              analisis_cliente: {
+                type: "object",
+                properties: {
+                  emocion: {
+                    type: "string",
+                    enum: [
+                      "ansioso", "desconfiado", "indeciso",
+                      "interesado", "molesto", "comparando",
+                      "neutral", "entusiasmado",
+                    ],
+                  },
+                  estado_cliente: {
+                    type: "string",
+                    enum: ["Frío", "Tibio", "Caliente"],
+                  },
+                  tipo_objecion: {
+                    type: ["string", "null"],
+                    enum: [
+                      "precio", "desconfianza", "indecision",
+                      "falta_de_tiempo", "comparacion", "ghosting", null,
+                    ],
+                  },
+                  probabilidad_cierre: {
+                    type: "integer",
+                    minimum: 0,
+                    maximum: 100,
+                  },
+                  razon_score: { type: "string" },
+                },
+                required: [
+                  "emocion", "estado_cliente", "tipo_objecion",
+                  "probabilidad_cierre", "razon_score",
+                ],
+                additionalProperties: false,
               },
-              emocion: { type: ["string", "null"] },
-              tono_sugerido: { type: ["string", "null"] },
-              estado_cliente: { type: ["string", "null"], enum: ["Frío", "Tibio", "Caliente", null] }
+              // ───── 3 variantes estratégicas ─────
+              variantes: {
+                type: "object",
+                properties: {
+                  empatica: {
+                    type: "object",
+                    properties: {
+                      mensaje: { type: "string" },
+                      cuando_usar: { type: "string" },
+                    },
+                    required: ["mensaje", "cuando_usar"],
+                    additionalProperties: false,
+                  },
+                  directa: {
+                    type: "object",
+                    properties: {
+                      mensaje: { type: "string" },
+                      cuando_usar: { type: "string" },
+                    },
+                    required: ["mensaje", "cuando_usar"],
+                    additionalProperties: false,
+                  },
+                  educativa: {
+                    type: "object",
+                    properties: {
+                      mensaje: { type: "string" },
+                      cuando_usar: { type: "string" },
+                    },
+                    required: ["mensaje", "cuando_usar"],
+                    additionalProperties: false,
+                  },
+                },
+                required: ["empatica", "directa", "educativa"],
+                additionalProperties: false,
+              },
+              // ───── Coaching para el asesor ─────
+              siguiente_jugada: {
+                type: "string",
+                description: "Coaching corto: qué hacer después según cómo responda el cliente",
+              },
+              variante_recomendada: {
+                type: "string",
+                enum: ["empatica", "directa", "educativa"],
+              },
             },
-            required: ["respuesta", "tipo_objecion", "emocion", "tono_sugerido", "estado_cliente"],
-            additionalProperties: false
-          }
-        }
-      }
+            required: [
+              "analisis_cliente", "variantes",
+              "siguiente_jugada", "variante_recomendada",
+            ],
+            additionalProperties: false,
+          },
+        },
+      },
     });
 
     const parsed = JSON.parse(completion.choices[0].message.content);
-    
-    parsed.respuesta = cleanResponse(parsed.respuesta) || "Disculpa, ¿podrías darme un poco más de detalle sobre eso?";
+
+    // Limpieza de openers prohibidos en las 3 variantes
+    parsed.variantes.empatica.mensaje =
+      cleanResponse(parsed.variantes.empatica.mensaje) ||
+      "Cuéntame un poco más para ayudarte mejor.";
+    parsed.variantes.directa.mensaje =
+      cleanResponse(parsed.variantes.directa.mensaje) ||
+      "¿Avanzamos con el siguiente paso?";
+    parsed.variantes.educativa.mensaje =
+      cleanResponse(parsed.variantes.educativa.mensaje) ||
+      "Te explico el detalle para que decidas con calma.";
+
+    // ───── Compatibilidad hacia atrás ─────
+    // El front-end actual espera `respuesta`. Le damos la variante recomendada.
+    const recomendada = parsed.variante_recomendada || "directa";
+    const respuestaPrincipal =
+      parsed.variantes[recomendada]?.mensaje ||
+      parsed.variantes.directa.mensaje;
 
     const tiempo_respuesta_ms = Date.now() - startTime;
 
     return res.status(200).json({
-      respuesta: parsed.respuesta,
-      ...(parsed.tipo_objecion && { tipo_objecion: parsed.tipo_objecion }),
-      ...(parsed.emocion && { emocion: parsed.emocion }),
-      ...(parsed.tono_sugerido && { tono_sugerido: parsed.tono_sugerido }),
-      ...(parsed.estado_cliente && { estado_cliente: parsed.estado_cliente }),
+      // ── Contrato existente (no romper front) ──
+      respuesta: respuestaPrincipal,
+      tipo_objecion: parsed.analisis_cliente.tipo_objecion || undefined,
+      emocion: parsed.analisis_cliente.emocion,
+      estado_cliente: parsed.analisis_cliente.estado_cliente,
+      tono_sugerido: recomendada,
+
+      // ── Campos nuevos v5 (el front los puede ir adoptando) ──
+      variantes: parsed.variantes,
+      variante_recomendada: recomendada,
+      probabilidad_cierre: parsed.analisis_cliente.probabilidad_cierre,
+      razon_score: parsed.analisis_cliente.razon_score,
+      siguiente_jugada: parsed.siguiente_jugada,
+
       _meta: {
         accion,
         request_id: requestId,
         tiempo_respuesta_ms,
         tokens: completion.usage?.total_tokens,
+        version: "5.0",
       },
     });
-
   } catch (err) {
     console.error(`[${requestId}] Error:`, err.message);
     return res.status(500).json({
       error: "Error generando respuesta. Intenta de nuevo.",
-      request_id: requestId
+      request_id: requestId,
     });
   }
 }
