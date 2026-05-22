@@ -30,6 +30,19 @@
     @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     .dragging { opacity: 0.5; transform: scale(0.98); }
     .drag-over { background-color: rgba(203, 213, 225, 0.8) !important; border: 2px dashed #94a3b8; }
+    
+    /* === NUEVO: Pulso de alerta urgente === */
+    @keyframes urgentPulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+      50% { box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); }
+    }
+    .urgent-pulse { animation: urgentPulse 1.8s infinite; }
+    
+    @keyframes flashBg {
+      0%, 100% { background-color: #fef2f2; }
+      50% { background-color: #fee2e2; }
+    }
+    .urgent-bg { animation: flashBg 2s infinite; }
   </style>
 </head>
 <body class="bg-slate-100 text-slate-900 h-screen flex flex-col overflow-hidden">
@@ -37,7 +50,7 @@
   <div id="root" class="h-full flex flex-col"></div>
 
   <script type="text/babel">
-    const { useState, useEffect, useMemo } = React;
+    const { useState, useEffect, useMemo, useRef } = React;
 
     const firebaseConfig = {
       apiKey: "AIzaSyAAETou6DhYIJJ8cxI13BU1p_l3yGPMilA",
@@ -64,18 +77,104 @@
       "Otro motivo"
     ];
 
+    // === CONFIG DE SEGUIMIENTOS ===
+    const FOLLOWUP_CONFIG = {
+      alertsPerDay: 3,
+      totalDays: 5,
+      maxAttempts: 15, // 3 alertas × 5 días
+      // Horarios de alerta (24h): 10am, 1pm, 5pm
+      alertHours: [10, 13, 17],
+      // Estados que requieren seguimiento activo
+      activeStatuses: ['Con oferta', 'Acepta oferta', 'Long track']
+    };
+
+    const CONTACT_TYPES = [
+      { id: 'call', label: 'Llamada', icon: 'fa-phone', color: 'blue' },
+      { id: 'whatsapp', label: 'WhatsApp', icon: 'fa-whatsapp', color: 'green' },
+      { id: 'email', label: 'Email', icon: 'fa-envelope', color: 'purple' }
+    ];
+
     const parseDate = (input) => {
       if (!input) return new Date();
       if (input.toDate) return input.toDate();
       const d = new Date(input);
-      return isNaN(d) ? new Date() : d; // FIX: Prevención de NaN si la fecha es inválida
+      return isNaN(d) ? new Date() : d;
     };
 
     const money = (val) => new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 }).format(val || 0);
     const moneyUSD = (val) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(val || 0);
     const formatDate = (input) => new Intl.DateTimeFormat('es-MX', { day: '2-digit', month: 'short', hour:'2-digit', minute:'2-digit' }).format(parseDate(input));
+    const formatTime = (input) => new Intl.DateTimeFormat('es-MX', { hour:'2-digit', minute:'2-digit' }).format(parseDate(input));
 
     const getQuincena = (date) => date.getDate() <= 15 ? 1 : 2;
+
+    // === LÓGICA DE SEGUIMIENTOS ===
+    // Determina si un lead requiere contacto AHORA
+    const getFollowupState = (sale) => {
+      if (!FOLLOWUP_CONFIG.activeStatuses.includes(sale.estatus)) {
+        return { needsContact: false, level: 'none' };
+      }
+
+      const now = new Date();
+      const created = parseDate(sale.fecha);
+      const attempts = sale.contactAttempts || [];
+      
+      // Días desde creación
+      const daysSinceCreation = Math.floor((now - created) / (1000 * 60 * 60 * 24));
+      
+      // Si excede el periodo y no hay respuesta
+      if (daysSinceCreation >= FOLLOWUP_CONFIG.totalDays && attempts.length >= FOLLOWUP_CONFIG.maxAttempts) {
+        return { needsContact: true, level: 'expired', message: 'Tiempo agotado - mover a Rechazado', attemptsCount: attempts.length };
+      }
+
+      // Calcular siguiente alerta esperada
+      const nextScheduled = sale.nextContactDue ? parseDate(sale.nextContactDue) : null;
+      
+      if (nextScheduled && nextScheduled <= now) {
+        const overdueMins = Math.floor((now - nextScheduled) / (1000 * 60));
+        if (overdueMins > 60) {
+          return { needsContact: true, level: 'urgent', message: `Contacto vencido hace ${Math.floor(overdueMins/60)}h`, attemptsCount: attempts.length, nextScheduled };
+        }
+        return { needsContact: true, level: 'due', message: 'Contactar ahora', attemptsCount: attempts.length, nextScheduled };
+      }
+
+      // Si no hay schedule pero el lead está activo, calcular si toca alerta
+      if (!nextScheduled) {
+        // Lead nuevo sin intentos = alerta inmediata
+        if (attempts.length === 0) {
+          return { needsContact: true, level: 'urgent', message: 'Lead nuevo - primer contacto pendiente', attemptsCount: 0 };
+        }
+      }
+
+      // Próximo contacto programado pero aún no llega
+      if (nextScheduled) {
+        const mins = Math.floor((nextScheduled - now) / (1000 * 60));
+        if (mins < 60) {
+          return { needsContact: false, level: 'soon', message: `Próximo contacto en ${mins} min`, attemptsCount: attempts.length, nextScheduled };
+        }
+      }
+
+      return { needsContact: false, level: 'ok', attemptsCount: attempts.length, nextScheduled };
+    };
+
+    // Calcula el siguiente horario de alerta basado en config (3 alertas/día)
+    const calculateNextContactTime = () => {
+      const now = new Date();
+      const currentHour = now.getHours();
+      const nextDate = new Date(now);
+      
+      // Buscar la siguiente hora de alerta válida HOY
+      for (const hour of FOLLOWUP_CONFIG.alertHours) {
+        if (hour > currentHour) {
+          nextDate.setHours(hour, 0, 0, 0);
+          return nextDate.toISOString();
+        }
+      }
+      // Si ya pasaron todas las horas del día, primera alerta de mañana
+      nextDate.setDate(nextDate.getDate() + 1);
+      nextDate.setHours(FOLLOWUP_CONFIG.alertHours[0], 0, 0, 0);
+      return nextDate.toISOString();
+    };
 
     const getBusinessDaysQuincena = (targetDate, quincena) => {
       const year = targetDate.getFullYear();
@@ -85,7 +184,6 @@
       const endDay = quincena === 1 ? 15 : lastDayOfMonth;
       let totalBusinessDays = 0, remainingDays = 0;
       
-      // FIX: Precisión en el cálculo de días restantes
       const today = new Date();
       today.setHours(0,0,0,0);
 
@@ -145,6 +243,184 @@
 
             <button onClick={() => { setIsRegistering(!isRegistering); setError(''); }} className="mt-6 text-sm text-blue-600 hover:underline">{isRegistering ? '¿Ya tienes cuenta? Inicia sesión' : '¿No tienes cuenta? Regístrate'}</button>
           </div>
+        </div>
+      );
+    };
+
+    // ====== PANEL FLOTANTE DE ALERTAS ======
+    const AlertsFloatingPanel = ({ alertSales, onContactRegister, onCloseSale, isOpen, setIsOpen }) => {
+      const urgentCount = alertSales.filter(s => {
+        const state = getFollowupState(s);
+        return state.level === 'urgent' || state.level === 'due' || state.level === 'expired';
+      }).length;
+
+      if (!isOpen) {
+        return (
+          <button
+            onClick={() => setIsOpen(true)}
+            className={`fixed bottom-6 right-6 bg-red-600 hover:bg-red-700 text-white rounded-full w-14 h-14 shadow-2xl z-40 flex items-center justify-center ${urgentCount > 0 ? 'urgent-pulse' : ''}`}
+            title="Alertas de seguimiento"
+          >
+            <i className="fas fa-bell text-xl"></i>
+            {urgentCount > 0 && (
+              <span className="absolute -top-1 -right-1 bg-yellow-400 text-red-900 text-xs font-black rounded-full w-6 h-6 flex items-center justify-center shadow-md">
+                {urgentCount}
+              </span>
+            )}
+          </button>
+        );
+      }
+
+      return (
+        <div className="fixed bottom-6 right-6 bg-white rounded-xl shadow-2xl z-40 w-96 max-h-[70vh] flex flex-col border-2 border-red-200">
+          <div className="bg-red-600 text-white p-3 rounded-t-xl flex justify-between items-center">
+            <div>
+              <h3 className="font-bold text-sm flex items-center gap-2"><i className="fas fa-bell"></i> Seguimientos Pendientes</h3>
+              <p className="text-[10px] opacity-90">{urgentCount} requieren atención inmediata</p>
+            </div>
+            <button onClick={() => setIsOpen(false)} className="text-white hover:bg-red-700 w-7 h-7 rounded">
+              <i className="fas fa-times"></i>
+            </button>
+          </div>
+          
+          <div className="flex-1 overflow-y-auto p-2">
+            {alertSales.length === 0 ? (
+              <div className="text-center py-8 text-slate-400">
+                <i className="fas fa-check-circle text-3xl text-green-400 mb-2"></i>
+                <p className="text-sm font-bold">¡Todo al día!</p>
+                <p className="text-xs">No hay seguimientos pendientes</p>
+              </div>
+            ) : (
+              alertSales.map(sale => {
+                const state = getFollowupState(sale);
+                const bgColor = state.level === 'expired' ? 'bg-purple-50 border-purple-300' :
+                                state.level === 'urgent' ? 'bg-red-50 border-red-300 urgent-bg' : 
+                                state.level === 'due' ? 'bg-orange-50 border-orange-300' :
+                                'bg-yellow-50 border-yellow-300';
+                
+                return (
+                  <div key={sale.id} className={`${bgColor} border-l-4 p-3 rounded mb-2`}>
+                    <div className="flex justify-between items-start mb-1">
+                      <div>
+                        <p className="font-bold text-sm text-slate-800">{sale.nombre_cliente}</p>
+                        <p className="text-[10px] text-slate-500 font-mono">{sale.folio} · {money(sale.monto_preaprobado)}</p>
+                      </div>
+                      <span className="text-[9px] bg-white px-2 py-0.5 rounded-full font-bold text-slate-600 border">
+                        {state.attemptsCount}/{FOLLOWUP_CONFIG.maxAttempts}
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-red-600 font-bold mb-2">
+                      <i className="fas fa-exclamation-triangle mr-1"></i> {state.message}
+                    </p>
+                    
+                    {sale.telefono && (
+                      <p className="text-[10px] text-slate-600 mb-2"><i className="fas fa-phone mr-1"></i> {sale.telefono}</p>
+                    )}
+
+                    {state.level === 'expired' ? (
+                      <button 
+                        onClick={() => onCloseSale(sale)}
+                        className="w-full bg-purple-600 text-white text-xs py-1.5 rounded font-bold hover:bg-purple-700"
+                      >
+                        <i className="fas fa-times-circle mr-1"></i> Cerrar como Rechazado
+                      </button>
+                    ) : (
+                      <div className="flex gap-1">
+                        {CONTACT_TYPES.map(ct => (
+                          <button 
+                            key={ct.id}
+                            onClick={() => onContactRegister(sale, ct.id, false)}
+                            className={`flex-1 bg-${ct.color}-600 text-white text-xs py-1.5 rounded font-bold hover:bg-${ct.color}-700`}
+                            title={`Registrar ${ct.label}`}
+                          >
+                            <i className={`fab ${ct.icon}`}></i>
+                            <i className={`fas ${ct.icon}`}></i>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      );
+    };
+
+    // ====== MODAL: REGISTRAR INTENTO DE CONTACTO ======
+    const ContactAttemptModal = ({ sale, contactType, onClose, onConfirm }) => {
+      const [result, setResult] = useState('no_contesta');
+      const [notes, setNotes] = useState('');
+
+      if (!sale || !contactType) return null;
+
+      const contactInfo = CONTACT_TYPES.find(c => c.id === contactType);
+
+      const handleSubmit = (e) => {
+        e.preventDefault();
+        onConfirm(sale, contactType, result, notes);
+      };
+
+      return (
+        <div className="fixed inset-0 glass-modal z-50 flex items-center justify-center p-4">
+          <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow-xl w-full max-w-sm p-5 space-y-4 border-t-4 border-blue-500">
+            <div>
+              <h3 className="font-bold text-lg flex items-center gap-2">
+                <i className={`fas ${contactInfo.icon} text-${contactInfo.color}-600`}></i>
+                Registrar {contactInfo.label}
+              </h3>
+              <p className="text-xs text-slate-500">{sale.nombre_cliente} · {sale.folio}</p>
+            </div>
+
+            <div>
+              <label className="text-xs font-bold text-slate-700 mb-2 block">¿Cuál fue el resultado?</label>
+              <div className="grid grid-cols-1 gap-2">
+                <label className="flex items-center gap-2 p-2 border rounded cursor-pointer hover:bg-red-50">
+                  <input type="radio" name="result" value="no_contesta" checked={result === 'no_contesta'} onChange={e => setResult(e.target.value)} />
+                  <span className="text-sm"><i className="fas fa-phone-slash text-red-500 mr-1"></i> No contestó / No respondió</span>
+                </label>
+                <label className="flex items-center gap-2 p-2 border rounded cursor-pointer hover:bg-yellow-50">
+                  <input type="radio" name="result" value="dejo_recado" checked={result === 'dejo_recado'} onChange={e => setResult(e.target.value)} />
+                  <span className="text-sm"><i className="fas fa-comment-dots text-yellow-600 mr-1"></i> Dejé recado / mensaje</span>
+                </label>
+                <label className="flex items-center gap-2 p-2 border rounded cursor-pointer hover:bg-blue-50">
+                  <input type="radio" name="result" value="hablamos" checked={result === 'hablamos'} onChange={e => setResult(e.target.value)} />
+                  <span className="text-sm"><i className="fas fa-comments text-blue-500 mr-1"></i> Hablé con él/ella - sigue interesado</span>
+                </label>
+                <label className="flex items-center gap-2 p-2 border rounded cursor-pointer hover:bg-green-50">
+                  <input type="radio" name="result" value="agendado" checked={result === 'agendado'} onChange={e => setResult(e.target.value)} />
+                  <span className="text-sm"><i className="fas fa-calendar-check text-green-600 mr-1"></i> Compromiso agendado</span>
+                </label>
+              </div>
+            </div>
+
+            <div>
+              <label className="text-xs font-bold text-slate-700 mb-1 block">Notas (opcional)</label>
+              <textarea 
+                value={notes} 
+                onChange={e => setNotes(e.target.value)}
+                placeholder="Ej: Pidió llamar mañana 4pm..."
+                className="w-full border border-slate-300 rounded p-2 text-sm focus:outline-none focus:border-blue-500"
+                rows="2"
+              />
+            </div>
+
+            <div className="bg-slate-50 p-2 rounded text-[10px] text-slate-600">
+              <i className="fas fa-info-circle mr-1 text-blue-500"></i>
+              {result === 'hablamos' || result === 'agendado'
+                ? 'El sistema dejará de alertarte hasta nuevo seguimiento programado.'
+                : `Se programará el siguiente intento automáticamente (3 alertas por día).`
+              }
+            </div>
+
+            <div className="flex gap-2">
+              <button type="submit" className="flex-1 bg-blue-600 text-white py-2 rounded font-bold hover:bg-blue-700">
+                <i className="fas fa-save mr-1"></i> Guardar Intento
+              </button>
+              <button type="button" onClick={onClose} className="flex-1 bg-slate-200 py-2 rounded font-bold hover:bg-slate-300">Cancelar</button>
+            </div>
+          </form>
         </div>
       );
     };
@@ -251,41 +527,17 @@
       
       const percent = meta > 0 ? (sold / meta) * 100 : 0;
 
-      // Cálculo del bono en vivo y cuánto falta para el SIGUIENTE escalón
       let currentBonus = 0;
       let nextBonusLvl = "";
       let nextPercent = 0;
       let missingForNext = 0;
 
-      if (percent >= 140) { 
-          currentBonus = Number(metaData.bono140) || 0; 
-          nextBonusLvl = "MAX"; 
-      }
-      else if (percent >= 120) { 
-          currentBonus = Number(metaData.bono120) || 0; 
-          nextBonusLvl = "140%"; 
-          nextPercent = 140;
-          missingForNext = (meta * 1.4) - sold;
-      }
-      else if (percent >= 100) { 
-          currentBonus = Number(metaData.bono100) || 0; 
-          nextBonusLvl = "120%"; 
-          nextPercent = 120;
-          missingForNext = (meta * 1.2) - sold;
-      }
-      else if (percent >= 80) { 
-          currentBonus = Number(metaData.bono80) || 0; 
-          nextBonusLvl = "100%"; 
-          nextPercent = 100;
-          missingForNext = meta - sold;
-      }
-      else { 
-          nextBonusLvl = "80%"; 
-          nextPercent = 80;
-          missingForNext = (meta * 0.8) - sold;
-      }
+      if (percent >= 140) { currentBonus = Number(metaData.bono140) || 0; nextBonusLvl = "MAX"; }
+      else if (percent >= 120) { currentBonus = Number(metaData.bono120) || 0; nextBonusLvl = "140%"; nextPercent = 140; missingForNext = (meta * 1.4) - sold; }
+      else if (percent >= 100) { currentBonus = Number(metaData.bono100) || 0; nextBonusLvl = "120%"; nextPercent = 120; missingForNext = (meta * 1.2) - sold; }
+      else if (percent >= 80) { currentBonus = Number(metaData.bono80) || 0; nextBonusLvl = "100%"; nextPercent = 100; missingForNext = meta - sold; }
+      else { nextBonusLvl = "80%"; nextPercent = 80; missingForNext = (meta * 0.8) - sold; }
 
-      // CONFIGURACIÓN DE LA BARRA VISUAL HASTA EL 150%
       const maxVisualScale = 150; 
       const fillVisualWidth = Math.min((percent / maxVisualScale) * 100, 100);
 
@@ -293,7 +545,6 @@
         <div className="bg-white p-3 shadow-sm border-b flex flex-wrap gap-4 md:gap-6 items-center justify-between">
           <div className="flex flex-wrap gap-4 md:gap-6 items-center flex-1 w-full lg:w-auto">
              
-             {/* REAL DISPERSADO */}
              <div>
                 <p className="text-[10px] font-bold text-slate-400 uppercase">Real Dispersado</p>
                 <p className="text-2xl font-black text-slate-800 leading-none">{money(sold)}</p>
@@ -301,7 +552,6 @@
              </div>
              <div className="hidden sm:block w-px h-10 bg-slate-200"></div>
              
-             {/* META 100% */}
              <div>
                 <p className="text-[10px] font-bold text-slate-400 uppercase">Meta (100%)</p>
                 <p className="text-xl font-bold text-slate-700 leading-none">{money(meta)}</p>
@@ -309,7 +559,6 @@
              </div>
              <div className="hidden md:block w-px h-10 bg-slate-200"></div>
 
-             {/* BARRA DE TERMÓMETRO CON CHECKPOINTS (TRACKING DE PORCENTAJES) */}
              <div className="flex-1 min-w-[220px] max-w-lg mt-2 mb-1">
                  <div className="flex justify-between items-end mb-1">
                      <p className="text-[10px] font-bold text-slate-400 uppercase">Progreso Total</p>
@@ -317,13 +566,11 @@
                  </div>
                  
                  <div className="relative w-full bg-slate-200 rounded-full h-3.5 mb-5 mt-1">
-                    {/* El color de la barra cambia según el nivel alcanzado */}
                     <div 
                       className={`absolute top-0 left-0 h-full rounded-full transition-all duration-1000 shadow-inner ${percent >= 140 ? 'bg-purple-500' : percent >= 120 ? 'bg-indigo-500' : percent >= 100 ? 'bg-green-500' : percent >= 80 ? 'bg-blue-500' : 'bg-orange-400'}`} 
                       style={{ width: `${fillVisualWidth}%` }}
                     ></div>
                     
-                    {/* Ticks/Marcadores del 80%, 100%, 120% y 140% con tooltips de faltante */}
                     {[80, 100, 120, 140].map(mark => {
                         const montoDeEstaMarca = meta * (mark / 100);
                         const faltaParaEstaMarca = montoDeEstaMarca - sold;
@@ -341,7 +588,6 @@
                     })}
                  </div>
                  
-                 {/* TRACKING INFERIOR DINÁMICO (Próxima Meta) */}
                  <div className="-mt-1">
                      {nextPercent > 0 ? (
                          <p className="text-[10px] text-slate-500 font-medium">
@@ -356,7 +602,6 @@
              </div>
              <div className="hidden lg:block w-px h-10 bg-slate-200"></div>
 
-             {/* CALIENTE */}
              <div className="hidden sm:block">
                 <p className="text-[10px] font-bold text-purple-500 uppercase flex items-center gap-1"><i className="fas fa-fire"></i> Caliente</p>
                 <p className="text-xl font-bold text-purple-700 leading-none">{money(hotMoney)}</p>
@@ -364,7 +609,6 @@
              </div>
              <div className="hidden xl:block w-px h-10 bg-slate-200"></div>
 
-             {/* BONO EN VIVO */}
              <div className="bg-green-50 border border-green-200 rounded-lg px-3 py-1 flex items-center gap-2">
                  <div className="bg-green-100 p-1.5 rounded-full"><i className="fas fa-sack-dollar text-green-600 text-sm"></i></div>
                  <div>
@@ -378,7 +622,6 @@
              
              <div className="hidden xl:block w-px h-10 bg-slate-200"></div>
 
-             {/* DÍAS RESTANTES */}
              <div className="hidden lg:block">
                 <p className="text-[10px] font-bold text-slate-400 uppercase"><i className="far fa-clock mr-1"></i>Restante</p>
                 <p className="text-lg font-bold text-slate-700 leading-none">{businessData.remainingDays} días</p>
@@ -393,7 +636,7 @@
       );
     };
 
-    const SaleCard = ({ sale, updateSale, deleteSale, onStatusChange, onEdit }) => {
+    const SaleCard = ({ sale, updateSale, deleteSale, onStatusChange, onEdit, onContactAttempt }) => {
       const [showDeleteModal, setShowDeleteModal] = useState(false);
       const [pin, setPin] = useState('');
       const [showHistory, setShowHistory] = useState(false);
@@ -423,14 +666,15 @@
         return 'bg-blue-500';
       }
 
-      // LÓGICA NIVEL DIOS: ALERTA DE CONGELAMIENTO (LEADS FRÍOS)
-      // Compara la última vez que se le movió algo al lead (historial) vs hoy. Si pasaron 3 días o más y está en proceso = ¡Alerta de frío!
+      // === Estado de seguimiento ===
+      const followupState = getFollowupState(sale);
+      const attemptCount = (sale.contactAttempts || []).length;
+
       const lastUpdate = sale.history && sale.history.length > 0
             ? new Date(sale.history[sale.history.length - 1].date)
             : parseDate(sale.fecha);
       
       const today = new Date();
-      // Reseteamos las horas a medianoche para que calcule los días exactos sin importar la hora del día
       const msPerDay = 1000 * 60 * 60 * 24;
       const daysStale = Math.floor((new Date(today.getFullYear(), today.getMonth(), today.getDate()) - new Date(lastUpdate.getFullYear(), lastUpdate.getMonth(), lastUpdate.getDate())) / msPerDay);
       
@@ -441,7 +685,7 @@
           draggable={isDraggable}
           onDragStart={handleDragStart}
           onDragEnd={handleDragEnd}
-          className={`bg-white p-3 rounded-lg shadow-sm border border-slate-200 mb-2 relative group hover:shadow-md transition-all ${isDraggable ? 'cursor-grab' : ''}`}
+          className={`bg-white p-3 rounded-lg shadow-sm border mb-2 relative group hover:shadow-md transition-all ${isDraggable ? 'cursor-grab' : ''} ${followupState.level === 'urgent' || followupState.level === 'due' ? 'border-red-300 ring-2 ring-red-100' : 'border-slate-200'}`}
         >
           <div className={`absolute left-0 top-0 bottom-0 w-1 rounded-l-lg ${getBorderColor()}`}></div>
           <div className="pl-2">
@@ -470,10 +714,23 @@
                   </span>
                 )}
 
-                {/* ETIQUETA NIVEL DIOS: ALERTA DE HIELO */}
                 {isStale && (
                   <span className="bg-cyan-50 text-cyan-600 text-[9px] font-black px-1.5 py-0.5 rounded shadow-sm border border-cyan-200 flex items-center gap-1 animate-pulse" title={`Lleva ${daysStale} días sin movimiento. ¡Llámale!`}>
                     <i className="fas fa-snowflake text-[8px]"></i> {daysStale} DÍAS FRÍO
+                  </span>
+                )}
+
+                {/* === NUEVO: Badge de intentos === */}
+                {FOLLOWUP_CONFIG.activeStatuses.includes(sale.estatus) && (
+                  <span 
+                    className={`text-[9px] font-black px-1.5 py-0.5 rounded shadow-sm border flex items-center gap-1 ${
+                      attemptCount >= FOLLOWUP_CONFIG.maxAttempts ? 'bg-purple-100 text-purple-700 border-purple-200' :
+                      attemptCount >= 10 ? 'bg-orange-100 text-orange-700 border-orange-200' :
+                      'bg-slate-100 text-slate-600 border-slate-200'
+                    }`}
+                    title={`${attemptCount} intentos de ${FOLLOWUP_CONFIG.maxAttempts}`}
+                  >
+                    <i className="fas fa-phone-alt text-[8px]"></i> {attemptCount}/{FOLLOWUP_CONFIG.maxAttempts}
                   </span>
                 )}
 
@@ -485,6 +742,18 @@
             </div>
             
             <h3 className="font-bold text-sm text-slate-800 truncate mt-1 select-text">{sale.nombre_cliente}</h3>
+            
+            {/* === NUEVO: Alerta de contacto pendiente === */}
+            {followupState.needsContact && (
+              <div className={`mt-2 p-1.5 rounded text-[10px] font-bold flex items-center gap-1 ${
+                followupState.level === 'expired' ? 'bg-purple-50 text-purple-700' :
+                followupState.level === 'urgent' ? 'bg-red-50 text-red-700' :
+                'bg-orange-50 text-orange-700'
+              }`}>
+                <i className={`fas ${followupState.level === 'expired' ? 'fa-skull' : 'fa-exclamation-triangle'}`}></i>
+                {followupState.message}
+              </div>
+            )}
             
             <div className="flex justify-between items-end mt-2 bg-slate-50 p-2 rounded border border-slate-100">
                <div className="flex flex-col gap-1">
@@ -523,12 +792,31 @@
                  </div>
                )}
             </div>
+
+            {/* === NUEVO: Botones rápidos de contacto === */}
+            {FOLLOWUP_CONFIG.activeStatuses.includes(sale.estatus) && (
+              <div className="mt-2 flex gap-1">
+                {CONTACT_TYPES.map(ct => (
+                  <button
+                    key={ct.id}
+                    onClick={() => onContactAttempt(sale, ct.id)}
+                    className={`flex-1 bg-${ct.color}-100 text-${ct.color}-700 hover:bg-${ct.color}-200 border border-${ct.color}-200 py-1 rounded text-[10px] font-bold transition-colors`}
+                    title={`Registrar ${ct.label}`}
+                  >
+                    <i className={`fas ${ct.icon}`}></i> {ct.label}
+                  </button>
+                ))}
+              </div>
+            )}
             
             <div className="mt-2 flex flex-wrap gap-1 border-t border-slate-100 pt-2 items-center">
                {sale.telefono && (
-                 <span className="px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100 text-slate-500 text-[10px] flex items-center font-medium select-text">
+                 <a 
+                   href={`tel:${sale.telefono}`}
+                   className="px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100 text-slate-500 text-[10px] flex items-center font-medium hover:bg-blue-50 hover:text-blue-600 select-text"
+                 >
                    <i className="fas fa-phone mr-1"></i> {sale.telefono}
-                 </span>
+                 </a>
                )}
                {sale.url && <a href={sale.url} target="_blank" className="w-5 h-5 rounded bg-slate-50 flex items-center justify-center text-slate-400 hover:text-blue-600 border border-slate-100" title="Ver en Hubspot"><i className="fas fa-link text-[10px]"></i></a>}
                <button onClick={() => setShowHistory(!showHistory)} className="ml-auto text-[10px] text-blue-500 underline">{showHistory ? 'Ocultar' : 'Bitácora'}</button>
@@ -536,9 +824,20 @@
             
             {showHistory && (
               <div className="bg-slate-50 p-2 mt-2 rounded text-[10px]">
-                 <div className="max-h-24 overflow-y-auto pr-1">
+                 <div className="max-h-32 overflow-y-auto pr-1">
+                   {/* Intentos de contacto */}
+                   {sale.contactAttempts && sale.contactAttempts.slice().reverse().map((a, i) => (
+                      <div key={`att-${i}`} className="border-b border-slate-200 pb-1 mb-1 bg-blue-50/50 p-1 rounded">
+                        <span className="font-bold text-blue-700 block">
+                          <i className={`fas ${CONTACT_TYPES.find(c => c.id === a.type)?.icon || 'fa-phone'} mr-1`}></i>
+                          {CONTACT_TYPES.find(c => c.id === a.type)?.label || 'Contacto'} · {formatDate(a.date)}
+                        </span>
+                        <span className="break-words text-slate-600">Resultado: {a.result} {a.notes && `· ${a.notes}`}</span>
+                      </div>
+                   ))}
+                   {/* Historial general */}
                    {sale.history && sale.history.slice().reverse().map((h, i) => (
-                     <div key={i} className="border-b border-slate-200 pb-1 mb-1"><span className="font-bold text-slate-500 block">{formatDate(h.date)}</span><span className="break-words select-text">{h.action}</span></div>
+                     <div key={`hist-${i}`} className="border-b border-slate-200 pb-1 mb-1"><span className="font-bold text-slate-500 block">{formatDate(h.date)}</span><span className="break-words select-text">{h.action}</span></div>
                    ))}
                  </div>
                  <form onSubmit={addComment} className="flex gap-1 mt-2 border-t border-slate-200 pt-2">
@@ -572,14 +871,17 @@
       
       const [allSales, setAllSales] = useState([]);
       const [isPlanningOpen, setIsPlanningOpen] = useState(false);
+      const [alertsPanelOpen, setAlertsPanelOpen] = useState(false);
+      
+      // Tick para refrescar el estado de las alertas cada minuto
+      const [tick, setTick] = useState(0);
+      useEffect(() => {
+        const interval = setInterval(() => setTick(t => t + 1), 60000); // cada minuto
+        return () => clearInterval(interval);
+      }, []);
       
       const [metaData, setMetaData] = useState({ 
-          monto: 0, 
-          tipoCambio: 18.00, 
-          bono80: 0, 
-          bono100: 0, 
-          bono120: 0, 
-          bono140: 0 
+          monto: 0, tipoCambio: 18.00, bono80: 0, bono100: 0, bono120: 0, bono140: 0 
       });
       
       const [showForm, setShowForm] = useState(false);
@@ -593,6 +895,9 @@
       const [lostReason, setLostReason] = useState(LOST_REASONS[0]);
       
       const [editSaleData, setEditSaleData] = useState(null);
+
+      // === NUEVO: Modal de intento de contacto ===
+      const [contactAttempt, setContactAttempt] = useState(null); // {sale, type}
 
       const periodKey = `${user.uid}_${currentDate.getFullYear()}-${currentDate.getMonth()}-${currentQuincena}`;
 
@@ -612,12 +917,9 @@
             if(doc.exists) {
                 const data = doc.data();
                 setMetaData({
-                    monto: data.monto || 0,
-                    tipoCambio: data.tipoCambio || 18.00,
-                    bono80: data.bono80 || 0,
-                    bono100: data.bono100 || 0,
-                    bono120: data.bono120 || 0,
-                    bono140: data.bono140 || 0
+                    monto: data.monto || 0, tipoCambio: data.tipoCambio || 18.00,
+                    bono80: data.bono80 || 0, bono100: data.bono100 || 0,
+                    bono120: data.bono120 || 0, bono140: data.bono140 || 0
                 });
             } else {
                 setMetaData({ monto: 0, tipoCambio: 18.00, bono80: 0, bono100: 0, bono120: 0, bono140: 0 });
@@ -675,9 +977,25 @@
 
       }, [allSales, currentDate, currentQuincena, searchTerm]);
 
+      // === Leads que necesitan atención (todas las quincenas) ===
+      const alertSales = useMemo(() => {
+        return allSales
+          .filter(s => FOLLOWUP_CONFIG.activeStatuses.includes(s.estatus))
+          .filter(s => {
+            const state = getFollowupState(s);
+            return state.needsContact;
+          })
+          .sort((a, b) => {
+            // Más urgentes primero
+            const aLevel = getFollowupState(a).level;
+            const bLevel = getFollowupState(b).level;
+            const order = { 'expired': 0, 'urgent': 1, 'due': 2 };
+            return (order[aLevel] || 99) - (order[bLevel] || 99);
+          });
+      }, [allSales, tick]);
+
       const businessData = getBusinessDaysQuincena(currentDate, currentQuincena);
 
-      // --- CÁLCULOS NIVEL DIOS (WIN RATE & RUN RATE) ---
       const wonCount = filteredSales.filter(s => s.estatus === 'Dispersado').length;
       const lostCount = filteredSales.filter(s => ['Rechazado', 'Cancelado', 'Expirado'].includes(s.estatus)).length;
       const winRate = (wonCount + lostCount) > 0 ? ((wonCount / (wonCount + lostCount)) * 100).toFixed(0) : 0;
@@ -686,14 +1004,11 @@
       const soldAmount = filteredSales.filter(s => s.estatus === 'Dispersado').reduce((acc, curr) => acc + (Number(curr.monto_dispersado) || 0), 0);
       const remainingToMeta = Math.max(0, meta - soldAmount);
       
-      // Ritmo de venta necesario diario para llegar a la meta
       const requiredDaily = businessData.remainingDays > 0 ? (remainingToMeta / businessData.remainingDays) : remainingToMeta;
-      // Ritmo de venta original (lo que tenía que vender desde el día 1)
       const originalDailyGoal = businessData.totalBusinessDays > 0 ? (meta / businessData.totalBusinessDays) : 0;
       
       const paceStatus = remainingToMeta === 0 ? 'superado' : (requiredDaily > originalDailyGoal ? 'atrasado' : 'excelente');
 
-      // FIX: Try/Catch en operaciones, validaciones correctas de isUpper y validaciones seguras del '.toLowerCase()'
       const handleAddSale = async (e) => {
         e.preventDefault();
         const form = e.target;
@@ -701,7 +1016,6 @@
         const newPhone = form.phone.value.trim();
         const clientName = form.client.value;
         const amount = Number(form.amount.value);
-        // FIX: Se extrae el valor del checkbox de forma segura a través de elements
         const isUpper = form.elements['isUpper']?.checked || false; 
 
         const isFolioDup = allSales.some(s => s.folio && s.folio.toLowerCase() === newFolio.toLowerCase());
@@ -726,7 +1040,10 @@
           url: form.url.value,
           canal: isUpper ? 'UPPER' : 'Normal',
           fecha: new Date().toISOString(), 
-          history: [{ date: new Date().toISOString(), action: isUpper ? 'Lead UPPER Creado' : 'Lead Creado', user: 'Agente' }]
+          // === NUEVO: Inicializar seguimientos ===
+          contactAttempts: [],
+          nextContactDue: new Date().toISOString(), // Alerta inmediata para el primer contacto
+          history: [{ date: new Date().toISOString(), action: isUpper ? 'Lead UPPER Creado - Pendiente primer contacto' : 'Lead Creado - Pendiente primer contacto', user: 'Agente' }]
         };
 
         try {
@@ -763,11 +1080,61 @@
         }
       };
 
-      // FIX: Añadimos .catch para evitar que rompa en background
       const handleUpdateSale = (id, data) => db.collection('sales').doc(id).update(data).catch(console.error);
       const handleDeleteSale = (id) => db.collection('sales').doc(id).delete().catch(console.error);
 
-      // FIX: Aseguramos que sea asíncrona la acción de cambiar de estado para mayor estabilidad
+      // === NUEVO: Registro de intento de contacto ===
+      const handleContactAttemptOpen = (sale, type) => {
+        setContactAttempt({ sale, type });
+      };
+
+      const handleContactAttemptConfirm = async (sale, type, result, notes) => {
+        const contactInfo = CONTACT_TYPES.find(c => c.id === type);
+        const attempt = {
+          date: new Date().toISOString(),
+          type,
+          result,
+          notes: notes || ''
+        };
+
+        const newAttempts = [...(sale.contactAttempts || []), attempt];
+        const stoppedFollowup = ['hablamos', 'agendado'].includes(result);
+        
+        // Calcular próxima alerta
+        let nextDue;
+        if (stoppedFollowup) {
+          nextDue = null; // No más alertas hasta nuevo cambio
+        } else if (newAttempts.length >= FOLLOWUP_CONFIG.maxAttempts) {
+          nextDue = null; // Ya se agotaron, esperando decisión manual
+        } else {
+          nextDue = calculateNextContactTime();
+        }
+
+        const updateData = {
+          contactAttempts: newAttempts,
+          nextContactDue: nextDue,
+          history: firebase.firestore.FieldValue.arrayUnion({
+            date: new Date().toISOString(),
+            action: `${contactInfo.label}: ${result === 'no_contesta' ? 'No contestó' : result === 'dejo_recado' ? 'Dejé recado' : result === 'hablamos' ? 'Hablé con cliente' : 'Compromiso agendado'}${notes ? ` - ${notes}` : ''}`,
+            user: 'Agente'
+          })
+        };
+
+        try {
+          await db.collection('sales').doc(sale.id).update(updateData);
+          setContactAttempt(null);
+        } catch(err) {
+          console.error('Error al registrar intento:', err);
+        }
+      };
+
+      // === NUEVO: Cerrar como rechazado desde el panel de alertas ===
+      const handleCloseExpired = (sale) => {
+        setLostReason('No contesta / Inlocalizable');
+        setLostData({ sale, newStatus: 'Rechazado' });
+        setAlertsPanelOpen(false);
+      };
+
       const processStatusChange = async (sale, newStatus) => {
         if (sale.estatus === newStatus) return; 
         
@@ -781,6 +1148,7 @@
                estatus: 'Dispersado', 
                monto_dispersado: Number(sale.monto_preaprobado), 
                fecha_dispersion: new Date().toISOString(), 
+               nextContactDue: null, // Ya no requiere seguimiento
                history: firebase.firestore.FieldValue.arrayUnion({ date: new Date().toISOString(), action: `DISPERSADO AUTOMÁTICO: ${money(sale.monto_preaprobado)}`, user: 'Agente' }) 
              });
           } 
@@ -825,6 +1193,7 @@
               estatus: lostData.newStatus,
               motivo_perdida: lostReason, 
               fecha_resolucion: new Date().toISOString(), 
+              nextContactDue: null, // Ya no requiere seguimiento
               history: firebase.firestore.FieldValue.arrayUnion({ 
                 date: new Date().toISOString(), 
                 action: `${lostData.newStatus} | Motivo: ${lostReason}`, 
@@ -854,7 +1223,7 @@
       };
 
       return (
-        <div className="flex flex-col h-full bg-slate-100">
+        <div className="flex flex-col h-full bg-slate-100 relative">
           <div className="bg-slate-900 text-white p-3 flex flex-wrap justify-between items-center shadow-md z-10 gap-2">
             
             <div className="flex items-center gap-2 md:gap-4">
@@ -872,10 +1241,8 @@
               </div>
             </div>
 
-            {/* SECCIÓN ESCRITORIO: KPIS NIVEL DIOS Y BUSCADOR */}
             <div className="hidden lg:flex flex-1 items-center justify-center gap-4 px-4">
                
-               {/* KPI: TASA DE BATEO */}
                <div className="flex items-center gap-2 bg-slate-800/80 px-3 py-1.5 rounded border border-slate-700 shadow-inner" title="Porcentaje de negocios ganados vs. los perdidos">
                    <i className="fas fa-bullseye text-slate-400 text-sm"></i>
                    <div className="flex flex-col">
@@ -884,7 +1251,6 @@
                    </div>
                </div>
 
-               {/* KPI: RUN RATE (RITMO DIARIO) */}
                <div className={`flex items-center gap-2 px-3 py-1.5 rounded border shadow-inner ${
                    paceStatus === 'superado' ? 'bg-green-500/20 border-green-500/50' :
                    paceStatus === 'atrasado' ? 'bg-red-500/20 border-red-500/50' :
@@ -907,7 +1273,6 @@
                    </div>
                </div>
 
-               {/* BUSCADOR */}
                <div className="relative w-64 ml-4">
                  <i className="fas fa-search absolute left-3 top-2.5 text-slate-400 text-sm"></i>
                  <input 
@@ -956,6 +1321,7 @@
                        deleteSale={handleDeleteSale} 
                        onStatusChange={processStatusChange} 
                        onEdit={(saleToEdit) => { setEditSaleData(saleToEdit); setFormError(''); }}
+                       onContactAttempt={handleContactAttemptOpen}
                      />
                    ))}
                    {searchTerm && filteredSales.filter(s => s.estatus === status).length === 0 && (
@@ -966,7 +1332,25 @@
              ))}
           </div>
 
-          {/* MODAL: CONFIRMAR MONTO EN "ACEPTA OFERTA" */}
+          {/* === NUEVO: Panel flotante de alertas === */}
+          <AlertsFloatingPanel 
+            alertSales={alertSales}
+            onContactRegister={handleContactAttemptOpen}
+            onCloseSale={handleCloseExpired}
+            isOpen={alertsPanelOpen}
+            setIsOpen={setAlertsPanelOpen}
+          />
+
+          {/* === NUEVO: Modal de intento === */}
+          {contactAttempt && (
+            <ContactAttemptModal 
+              sale={contactAttempt.sale}
+              contactType={contactAttempt.type}
+              onClose={() => setContactAttempt(null)}
+              onConfirm={handleContactAttemptConfirm}
+            />
+          )}
+
           {acceptOfferData && (
             <div className="fixed inset-0 glass-modal z-50 flex items-center justify-center p-4">
               <div className="bg-white p-5 rounded-lg shadow-xl w-full max-w-sm border-t-4 border-blue-500">
@@ -1004,7 +1388,6 @@
             </div>
           )}
 
-          {/* MODAL: NUEVO LEAD */}
           {showForm && (
             <div className="fixed inset-0 glass-modal z-50 flex items-center justify-center p-4">
               <form onSubmit={handleAddSale} className="bg-white rounded-lg shadow-xl w-full max-w-sm p-5 space-y-4">
@@ -1025,6 +1408,11 @@
                        <span className="block text-[10px] text-indigo-600 font-normal mt-0.5">Etiquetar lead como campaña UPPER.</span>
                     </label>
                  </div>
+
+                 <div className="bg-blue-50 border border-blue-100 p-2 rounded text-[10px] text-blue-700">
+                    <i className="fas fa-info-circle mr-1"></i>
+                    Este lead empezará seguimiento automático: 3 alertas/día por 5 días hasta tener respuesta.
+                 </div>
                  
                  <div className="flex gap-2 pt-2">
                     <button type="submit" className="flex-1 bg-blue-600 text-white py-2 rounded font-bold hover:bg-blue-700 transition-colors">Guardar</button>
@@ -1034,7 +1422,6 @@
             </div>
           )}
 
-          {/* MODAL: EDITAR LEAD */}
           {editSaleData && (
             <div className="fixed inset-0 glass-modal z-50 flex items-center justify-center p-4">
               <form onSubmit={handleEditSubmit} className="bg-white rounded-lg shadow-xl w-full max-w-sm p-5 space-y-4 border-t-4 border-slate-700">
