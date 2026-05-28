@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Simulador - MM Sales Copilot</title>
+  <title>Simulador Móvil - MM Copilot v7.2</title>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     :root {
@@ -14,12 +14,10 @@
       
       --mm-bg: rgba(12, 20, 16, 1);
       --mm-surface: rgba(255, 255, 255, 0.05);
-      --mm-surface2: rgba(255, 255, 255, 0.08);
       --mm-border: rgba(255, 255, 255, 0.1);
       --mm-border-light: rgba(255, 255, 255, 0.15);
       
       --mm-text: #e2ede6;
-      --mm-text-bright: #ffffff;
       --mm-muted: #84a993;
       --mm-font: 'DM Sans', system-ui, sans-serif;
     }
@@ -34,55 +32,53 @@
       flex-direction: column;
       align-items: center;
       min-height: 100vh;
-      padding: 10px;
+      padding: 12px;
     }
 
-    /* --- SIMULADOR INPUTS --- */
+    /* --- ENTRADAS DE SIMULACIÓN --- */
     .sim-container {
       width: 100%;
-      max-width: 400px;
+      max-width: 420px;
       margin-bottom: 20px;
       background: var(--mm-surface);
       border: 1px dashed var(--mm-green-bright);
       border-radius: 16px;
       padding: 16px;
     }
-    .sim-title { font-size: 14px; font-weight: 700; color: var(--mm-green-bright); margin-bottom: 10px; display: flex; align-items: center; gap: 8px;}
+    .sim-title { font-size: 14px; font-weight: 700; color: var(--mm-green-bright); margin-bottom: 12px; }
     .sim-label { font-size: 11px; color: var(--mm-muted); margin-bottom: 4px; display: block; font-weight: 600; text-transform: uppercase;}
     .sim-textarea {
       width: 100%; background: rgba(0,0,0,0.5); color: #fff;
       border: 1px solid var(--mm-border); border-radius: 8px;
       padding: 10px; font-size: 13px; font-family: var(--mm-font);
-      resize: vertical; min-height: 60px; margin-bottom: 12px;
+      resize: vertical; min-height: 70px; margin-bottom: 12px;
       outline: none;
     }
     .sim-textarea:focus { border-color: var(--mm-green-bright); }
 
-    /* --- PANEL COPILOT (Adaptado para móvil) --- */
+    /* --- UI COPILOT --- */
     #mm-panel {
       width: 100%;
-      max-width: 400px;
+      max-width: 420px;
       background: var(--mm-bg);
       border: 1px solid var(--mm-border);
       border-radius: 20px;
       box-shadow: 0 10px 30px rgba(0,0,0,0.8);
-      display: flex;
-      flex-direction: column;
       position: relative;
       overflow: hidden;
+      margin-bottom: 30px;
     }
 
     @keyframes ai-shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
     @keyframes mm-spin { to { transform: rotate(360deg); } }
     @keyframes mm-cursor-blink { 50% { opacity: 0; } }
+    @keyframes mm-scan-laser { 0% { top: 0%; opacity: 0; } 10% { opacity: 1; } 90% { opacity: 1; } 100% { top: 100%; opacity: 0; } }
 
-    /* Láser de carga */
     #mm-panel::before {
       content: ''; position: absolute; left: 0; top: 0; width: 100%; height: 2px;
       background: var(--mm-green-bright); box-shadow: 0 0 15px 3px var(--mm-green-glow);
       z-index: 9999; opacity: 0; pointer-events: none;
     }
-    @keyframes mm-scan-laser { 0% { top: 0%; opacity: 0; } 10% { opacity: 1; } 90% { opacity: 1; } 100% { top: 100%; opacity: 0; } }
     #mm-panel.thinking::before { animation: mm-scan-laser 1.5s ease-in-out infinite; }
 
     .mm-header {
@@ -91,12 +87,13 @@
     }
     .mm-logo { display: flex; align-items: center; gap: 10px; }
     .mm-logo-dot {
-      width: 30px; height: 30px; background: linear-gradient(135deg, var(--mm-green), #059669);
+      width: 32px; height: 32px; background: linear-gradient(135deg, var(--mm-green), #059669);
       border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: bold; color: #fff; font-size: 14px;
     }
     .mm-title { font-size: 15px; font-weight: 700; color: #fff; }
     .mm-version { font-size: 11px; color: var(--mm-green-bright); font-weight: 600;}
 
+    /* Acciones */
     .mm-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 16px; }
     .mm-action-btn {
       background: var(--mm-surface); color: var(--mm-text); border: 1px solid var(--mm-border); border-radius: 12px;
@@ -107,18 +104,24 @@
     .mm-action-btn.loading { opacity: 0.5; pointer-events: none; }
     .mm-action-icon { font-size: 16px; background: rgba(0,0,0,0.4); width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 8px; }
     .mm-action-title { font-size: 12px; font-weight: 600; color: #fff; }
+    .mm-action-label { font-size: 10px; color: var(--mm-muted); line-height: 1.3; }
 
-    .mm-mejorar-section { padding: 0 16px 16px; }
-    .mm-mejorar-textarea {
-      width: 100%; background: rgba(0,0,0,0.5); color: #fff; border: 1px solid var(--mm-border-light); border-radius: 10px;
-      padding: 12px; font-size: 13px; font-family: var(--mm-font); min-height: 70px; outline: none; margin-bottom: 8px;
+    /* Q&A / Mejorar (Sections colapsables) */
+    .mm-section { padding: 0 16px 16px; display: none; }
+    .mm-section.active { display: block; }
+    .mm-section-header {
+      display: flex; align-items: center; justify-content: space-between; padding: 10px 14px;
+      background: var(--mm-surface); border: 1px solid var(--mm-border); border-radius: 10px; cursor: pointer;
     }
-    .mm-btn-mejorar {
+    .mm-section-title { font-size: 12px; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 8px; }
+    .mm-section-body { margin-top: 10px; }
+    .mm-btn-submit {
       width: 100%; background: linear-gradient(135deg, var(--mm-green), #059669); color: #fff; border: none; border-radius: 8px;
-      padding: 10px; font-size: 13px; font-weight: 700; font-family: var(--mm-font); cursor: pointer;
+      padding: 10px; font-size: 12px; font-weight: 700; font-family: var(--mm-font); cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px;
     }
-    .mm-btn-mejorar:disabled { opacity: 0.5; }
+    .mm-btn-submit:disabled { opacity: 0.5; }
 
+    /* Status */
     .mm-status {
       margin: 0 16px 16px; padding: 10px 12px; border-radius: 10px;
       font-size: 12px; font-weight: 500; background: rgba(0,0,0,0.4); border: 1px solid var(--mm-border);
@@ -126,44 +129,40 @@
     }
     .mm-status.ok { border-color: rgba(52, 211, 153, 0.3); color: var(--mm-green-bright); background: var(--mm-green-dim); }
     .mm-status.error { border-color: rgba(239, 68, 68, 0.3); color: #fca5a5; background: rgba(239,68,68,0.1); }
-    .mm-status.thinking {
-      background: linear-gradient(90deg, rgba(20,31,24,0.3) 0%, rgba(16,185,129,0.15) 50%, rgba(20,31,24,0.3) 100%); background-size: 200% 100%;
-      animation: ai-shimmer 2s infinite linear; border-color: var(--mm-green-bright); color: var(--mm-green-bright);
-    }
+    .mm-status.thinking { background: linear-gradient(90deg, rgba(20,31,24,0.3) 0%, rgba(16,185,129,0.15) 50%, rgba(20,31,24,0.3) 100%); background-size: 200% 100%; animation: ai-shimmer 2s infinite linear; border-color: var(--mm-green-bright); color: var(--mm-green-bright); }
     .mm-spinner { width: 16px; height: 16px; border-radius: 50%; border: 2px solid transparent; border-top-color: var(--mm-green-bright); border-right-color: var(--mm-green-bright); animation: mm-spin 0.6s linear infinite; }
 
-    .mm-result {
-      display: none; margin: 0 16px 16px; background: rgba(0,0,0,0.6);
-      border: 1px solid var(--mm-border-light); border-radius: 12px; padding: 14px; font-size: 14px; line-height: 1.5; color: #fff;
-      white-space: pre-wrap; border-left: 3px solid var(--mm-green-bright);
-    }
+    /* Warning Anti-Invención */
+    .mm-warning { display: none; margin: 0 16px 12px; padding: 8px 12px; background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.3); border-left: 3px solid #f59e0b; border-radius: 8px; font-size: 11px; line-height: 1.4; color: #fcd34d; }
+    
+    /* Result */
+    .mm-result { display: none; margin: 0 16px 16px; background: rgba(0,0,0,0.6); border: 1px solid var(--mm-border-light); border-radius: 12px; padding: 14px; font-size: 14px; line-height: 1.5; color: #fff; white-space: pre-wrap; border-left: 3px solid var(--mm-green-bright); }
     .mm-cursor { display: inline-block; width: 6px; height: 14px; background: var(--mm-green-bright); margin-left: 4px; animation: mm-cursor-blink 0.8s step-end infinite; }
 
-    /* VISTA IA & ANALÍTICAS */
+    /* IA View & Analytics */
     .mm-ia-view { display: none; margin: 0 16px 16px; background: rgba(0,0,0,0.4); border: 1px solid var(--mm-border); border-radius: 10px; padding: 12px; }
     .mm-ia-metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; }
     .mm-ia-metric { background: var(--mm-surface); border: 1px solid var(--mm-border); border-radius: 8px; padding: 8px; }
     .mm-ia-metric-label { font-size: 9px; font-weight: 600; color: var(--mm-muted); text-transform: uppercase; margin-bottom: 3px; }
     .mm-ia-metric-value { font-size: 12px; font-weight: 700; color: #fff; }
     
-    .mm-analytics { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--mm-border-light); display: flex; flex-wrap: wrap; gap: 10px; }
-    .mm-badge { background: rgba(52, 211, 153, 0.1); border: 1px solid rgba(52, 211, 153, 0.3); color: var(--mm-green-bright); padding: 4px 8px; border-radius: 6px; font-size: 10px; font-weight: 700; font-family: monospace; }
+    .mm-analytics { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--mm-border-light); display: flex; flex-wrap: wrap; gap: 8px; }
+    .mm-badge { background: rgba(52, 211, 153, 0.1); border: 1px solid rgba(52, 211, 153, 0.3); color: var(--mm-green-bright); padding: 4px 8px; border-radius: 6px; font-size: 10px; font-weight: 700; font-family: monospace; display: flex; align-items: center; gap: 4px;}
     .mm-badge.time { border-color: #3b82f6; color: #60a5fa; background: rgba(59, 130, 246, 0.1); }
     .mm-badge.tokens { border-color: #a855f7; color: #c084fc; background: rgba(168, 85, 247, 0.1); }
-
   </style>
 </head>
 <body>
 
-  <!-- ENTRADAS DE SIMULACIÓN (Reemplazan la extracción del DOM) -->
+  <!-- SIMULADOR DE ENTRADA -->
   <div class="sim-container">
-    <div class="sim-title">📱 Entradas de Prueba (Datos Cliente)</div>
+    <div class="sim-title">📱 Entorno de Pruebas (Frontend v5.2)</div>
     
-    <label class="sim-label">Historial de Conversación (Contexto)</label>
-    <textarea class="sim-textarea" id="sim-contexto" placeholder="Cliente: Hola, me interesa&#10;Asesor: ¡Claro! ¿Cuánto necesitas?"></textarea>
+    <label class="sim-label">Historial de Conversación (Contexto Manual)</label>
+    <textarea class="sim-textarea" id="sim-contexto" placeholder="Cliente: Hola, me interesa el crédito.&#10;Asesor: ¡Claro! ¿Para qué lo ocuparías?&#10;Cliente: Para unas deudas."></textarea>
     
-    <label class="sim-label">Mensaje subrayado (Acciones IA)</label>
-    <textarea class="sim-textarea" id="sim-mensaje" placeholder="Me parece muy alta la tasa, lo voy a pensar..."></textarea>
+    <label class="sim-label">Último mensaje del cliente (Acciones rápidas)</label>
+    <textarea class="sim-textarea" id="sim-mensaje" placeholder="Pero me ofrecieron un monto mayor en Nu..."></textarea>
   </div>
 
   <!-- PANEL COPILOT -->
@@ -173,7 +172,7 @@
         <div class="mm-logo-dot">MM</div>
         <div>
           <div class="mm-title">Sales Copilot</div>
-          <div class="mm-version">Testing Environment</div>
+          <div class="mm-version">v7.2 Q&A Edition API</div>
         </div>
       </div>
     </div>
@@ -181,38 +180,55 @@
     <!-- Acciones -->
     <div class="mm-actions">
       <button class="mm-action-btn" data-accion="responder_objecion">
-        <div class="mm-action-icon">🛡️</div>
-        <div class="mm-action-title">Rebatir objeción</div>
+        <div class="mm-action-icon">🛡️</div><div class="mm-action-title">Rebatir objeción</div><div class="mm-action-label">Dudas en cierres</div>
       </button>
       <button class="mm-action-btn" data-accion="negociar_tasa">
-        <div class="mm-action-icon">📊</div>
-        <div class="mm-action-title">Negociar tasa</div>
+        <div class="mm-action-icon">📊</div><div class="mm-action-title">Negociar tasa</div><div class="mm-action-label">Defiende el valor</div>
       </button>
       <button class="mm-action-btn" data-accion="cerrar_venta">
-        <div class="mm-action-icon">🎯</div>
-        <div class="mm-action-title">Cerrar venta</div>
+        <div class="mm-action-icon">🎯</div><div class="mm-action-title">Cerrar venta</div><div class="mm-action-label">Siguiente requisito</div>
       </button>
       <button class="mm-action-btn" data-accion="seguimiento">
-        <div class="mm-action-icon">🔄</div>
-        <div class="mm-action-title">Seguimiento</div>
+        <div class="mm-action-icon">🔄</div><div class="mm-action-title">Seguimiento</div><div class="mm-action-label">Recontacto empático</div>
       </button>
-      <button class="mm-action-btn" data-accion="resumen_crm" style="grid-column: span 2;">
-        <div class="mm-action-icon">📝</div>
-        <div class="mm-action-title">Generar Nota CRM</div>
+      <button class="mm-action-btn" id="btn-toggle-qa">
+        <div class="mm-action-icon">💬</div><div class="mm-action-title">Preguntar a IA</div><div class="mm-action-label">Dudas políticas/producto</div>
+      </button>
+      <button class="mm-action-btn" id="btn-toggle-mejorar">
+        <div class="mm-action-icon">✨</div><div class="mm-action-title">Mejorar Borrador</div><div class="mm-action-label">Reescribe tu mensaje</div>
       </button>
     </div>
 
-    <!-- Mejorar Mensaje -->
-    <div class="mm-mejorar-section">
-      <textarea class="mm-mejorar-textarea" id="mm-mejorar-input" placeholder="O pega tu borrador aquí para que la IA lo mejore..."></textarea>
-      <button class="mm-btn-mejorar" id="mm-btn-mejorar">✨ Mejorar mi borrador</button>
+    <!-- Preguntar a la IA -->
+    <div class="mm-section" id="sec-qa">
+      <div class="mm-section-header">
+        <div class="mm-section-title"><span>💬</span> Pregúntale a tu mentor IA</div>
+      </div>
+      <div class="mm-section-body">
+        <textarea class="sim-textarea" id="sim-pregunta" placeholder="Ej: ¿Qué hago si el cliente no tiene comprobante de ingresos formales?" maxlength="500"></textarea>
+        <button class="mm-btn-submit" id="submit-qa">Enviar pregunta</button>
+      </div>
+    </div>
+
+    <!-- Mejorar Borrador -->
+    <div class="mm-section" id="sec-mejorar">
+      <div class="mm-section-header">
+        <div class="mm-section-title"><span>✨</span> Mejorar mi borrador</div>
+      </div>
+      <div class="mm-section-body">
+        <textarea class="sim-textarea" id="sim-borrador" placeholder="Escribe aquí tu borrador a reescribir..." maxlength="800"></textarea>
+        <button class="mm-btn-submit" id="submit-mejorar">Mejorar mensaje</button>
+      </div>
     </div>
 
     <!-- Status -->
     <div class="mm-status" id="mm-status">
       <span id="mm-status-icon">💡</span>
-      <span id="mm-status-txt">Listo para probar.</span>
+      <span id="mm-status-txt">Simulador listo. Selecciona una acción.</span>
     </div>
+
+    <!-- Warning Anti-Invención -->
+    <div class="mm-warning" id="mm-warning"></div>
 
     <!-- Resultado (Typewriter) -->
     <div class="mm-result" id="mm-result"></div>
@@ -234,25 +250,23 @@
           <div class="mm-ia-metric-value" id="ia-emocion">—</div>
         </div>
         <div class="mm-ia-metric">
-          <div class="mm-ia-metric-label">Táctica</div>
-          <div class="mm-ia-metric-value" id="ia-tactica" style="font-size: 10px; line-height: 1.2;">—</div>
+          <div class="mm-ia-metric-label">Objeción</div>
+          <div class="mm-ia-metric-value" id="ia-objecion" style="font-size: 11px;">—</div>
         </div>
       </div>
       
-      <!-- Bloque de Analíticas de API -->
-      <div class="mm-analytics" id="mm-analytics" style="display:none;">
+      <!-- Analíticas de API (Nuevo para Pruebas) -->
+      <div class="mm-analytics" id="mm-analytics">
         <div class="mm-badge time" id="badge-time">⏱️ 0ms</div>
         <div class="mm-badge tokens" id="badge-tokens">🪙 0 tkns</div>
-        <div class="mm-badge" id="badge-model">🤖 Modelo</div>
+        <div class="mm-badge" id="badge-model">🤖 gpt-4o-mini</div>
+        <div class="mm-badge" id="badge-action" style="border-color: #f59e0b; color: #fbbf24; background: rgba(245, 158, 11, 0.1);">⚡ action</div>
       </div>
     </div>
   </div>
 
   <script>
-    // ──────────────────────────────────────────────
-    // LÓGICA DEL SIMULADOR (Combinación Frontend + Backend)
-    // ──────────────────────────────────────────────
-    const VERCEL_API_URL = "https://ventas-mm.vercel.app/api/copilot"; // Asegúrate de que esta URL sea la de tu backend actualizado
+    const VERCEL_API_URL = "https://ventas-mm.vercel.app/api/copilot"; 
     
     // Referencias DOM
     const panel = document.getElementById('mm-panel');
@@ -260,16 +274,16 @@
     const statusIcon = document.getElementById('mm-status-icon');
     const statusTxt = document.getElementById('mm-status-txt');
     const resultEl = document.getElementById('mm-result');
+    const warningEl = document.getElementById('mm-warning');
     const iaView = document.getElementById('mm-ia-view');
-    const btnMejorar = document.getElementById('mm-btn-mejorar');
     
     let mmThinkingInterval;
     let mmTypeWriterTimeout;
 
     const mmThinkingSteps = [
-      "Extrayendo contexto simulado...",
-      "Analizando intención con GPT-4o-mini...",
-      "Aplicando técnica Playbook REA...",
+      "Extrayendo contexto de chat...",
+      "Analizando táctica con Playbook...",
+      "Aplicando reglas anti-invención...",
       "Redactando respuesta persuasiva..."
     ];
 
@@ -314,6 +328,16 @@
       type();
     }
 
+    function mostrarWarning(montos) {
+      if (!montos || !montos.length) {
+        warningEl.style.display = 'none';
+        return;
+      }
+      const lista = montos.map(m => `$${parseInt(m, 10).toLocaleString('es-MX')}`).join(', ');
+      warningEl.innerHTML = `<strong>⚠️ Anti-invención:</strong> La IA mencionó números que no diste: <strong>${lista}</strong>.`;
+      warningEl.style.display = 'block';
+    }
+
     function actualizarAnaliticas(meta, analisis) {
       iaView.style.display = 'block';
       
@@ -321,36 +345,50 @@
       document.getElementById('ia-prob').textContent = analisis?.probabilidad_cierre ? `${analisis.probabilidad_cierre}%` : '—';
       document.getElementById('ia-emocion').textContent = analisis?.emocion || '—';
       document.getElementById('ia-momentum').textContent = analisis?.analisis_conversacion?.momentum || '—';
-      document.getElementById('ia-tactica').textContent = analisis?.razonamiento_interno?.tactica_elegida || '—';
+      document.getElementById('ia-objecion').textContent = analisis?.tipo_objecion || '—';
 
       // API Analytics
       if (meta) {
-        document.getElementById('mm-analytics').style.display = 'flex';
         document.getElementById('badge-time').textContent = `⏱️ ${meta.tiempo_respuesta_ms || 0}ms`;
         document.getElementById('badge-tokens').textContent = `🪙 ${meta.tokens || 0} tkns`;
-        document.getElementById('badge-model').textContent = `🤖 ${meta.modelo_redaccion || 'gpt-4o-mini'}`;
+        document.getElementById('badge-model').textContent = `🤖 ${meta.modelo_redaccion || 'N/A'}`;
+        document.getElementById('badge-action').textContent = `⚡ ${meta.accion}`;
       }
     }
 
     function bloquearBotones(estado) {
       document.querySelectorAll('.mm-action-btn').forEach(btn => btn.classList.toggle('loading', estado));
-      btnMejorar.disabled = estado;
+      document.querySelectorAll('.mm-btn-submit').forEach(btn => btn.disabled = estado);
     }
 
-    // Llamada simulada a la API
+    // Toggle Sections
+    document.getElementById('btn-toggle-qa').addEventListener('click', () => {
+      document.getElementById('sec-qa').classList.toggle('active');
+      document.getElementById('sec-mejorar').classList.remove('active');
+    });
+    document.getElementById('btn-toggle-mejorar').addEventListener('click', () => {
+      document.getElementById('sec-mejorar').classList.toggle('active');
+      document.getElementById('sec-qa').classList.remove('active');
+    });
+
+    // Main API Call
     async function llamarAPI(accion, payloadExtra = {}) {
       const contexto = document.getElementById('sim-contexto').value.trim();
+      const mensaje = document.getElementById('sim-mensaje').value.trim();
       
       const payload = {
         accion: accion,
         conversationContext: contexto,
-        datosCliente: { nombre: "Cliente Test" }, // Para que aplique Playbook v2
+        mensajeCliente: mensaje,
+        contextoManual: true, // Siempre true en el simulador
+        modo: 'simple',
         ...payloadExtra
       };
 
       bloquearBotones(true);
       setStatus('thinking', 'Procesando...');
       resultEl.style.display = 'none';
+      warningEl.style.display = 'none';
       iaView.style.display = 'none';
 
       try {
@@ -366,6 +404,7 @@
 
         setStatus('ok', 'Respuesta generada exitosamente.');
         mostrarResultado(data.respuesta);
+        mostrarWarning(data.warning_montos_inventados);
         actualizarAnaliticas(data._meta, data);
 
       } catch (err) {
@@ -375,19 +414,23 @@
       }
     }
 
-    // Listeners de botones
-    document.querySelectorAll('.mm-action-btn').forEach(btn => {
+    // Listeners Core
+    document.querySelectorAll('.mm-action-btn[data-accion]').forEach(btn => {
       btn.addEventListener('click', () => {
-        const accion = btn.getAttribute('data-accion');
-        const mensaje = document.getElementById('sim-mensaje').value.trim();
-        llamarAPI(accion, { mensajeCliente: mensaje });
+        llamarAPI(btn.getAttribute('data-accion'));
       });
     });
 
-    btnMejorar.addEventListener('click', () => {
-      const borrador = document.getElementById('mm-mejorar-input').value.trim();
-      if (!borrador) return alert("Escribe un borrador primero");
-      llamarAPI('mejorar_mensaje', { borrador: borrador });
+    document.getElementById('submit-qa').addEventListener('click', () => {
+      const pregunta = document.getElementById('sim-pregunta').value.trim();
+      if (!pregunta) return alert("Escribe tu pregunta primero.");
+      llamarAPI('preguntar_ia', { pregunta });
+    });
+
+    document.getElementById('submit-mejorar').addEventListener('click', () => {
+      const borrador = document.getElementById('sim-borrador').value.trim();
+      if (!borrador) return alert("Escribe un borrador primero.");
+      llamarAPI('mejorar_mensaje', { borrador });
     });
   </script>
 </body>
