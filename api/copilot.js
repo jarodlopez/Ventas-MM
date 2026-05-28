@@ -3,16 +3,14 @@ import OpenAI from "openai";
 const openai = new OpenAI({ apiKey: process.env.AI_API_KEY });
 
 // ═══════════════════════════════════════════════════════════════════
-// MM SALES COPILOT API — v7.0 "Two-Stage Pipeline Edition"
+// MM SALES COPILOT API — v7.1 "Two-Stage Pipeline + Playbook v2.1"
 //
-// CAMBIOS CLAVE vs v6.4:
-//   • Pipeline 2 etapas: gpt-4o-mini analiza → gpt-4o redacta
-//   • System prompts compactos y separados por etapa
-//   • Razonamiento estructurado (no texto libre divagante)
-//   • mejorar_mensaje: arreglado bug raíz (borrador ≠ mensajeCliente)
-//   • Variantes opt-in (no triplica tokens por default)
-//   • Kill switches: USE_GPT4O, MAX_REQUESTS_PER_HOUR
-//   • Tokens: -55% en system, -62% en contexto
+// CAMBIOS CLAVE vs v7.0:
+//   • Arquitectura intacta (resumen_crm, variantes, mejorar_mensaje).
+//   • Integración estricta Técnica REA para objeciones.
+//   • Instrucciones anti-repetición basadas en el historial.
+//   • Forzado de uso del nombre del cliente dinámicamente.
+//   • Beneficios actualizados: 2h depósito, 60 meses, ampliación.
 // ═══════════════════════════════════════════════════════════════════
 
 // ─────────────────────────────────────────────
@@ -36,9 +34,9 @@ function checkRateLimit() {
 }
 
 // ─────────────────────────────────────────────
-// CATÁLOGO Y CONSTANTES
+// CATÁLOGO Y CONSTANTES (ACTUALIZADO V2.1)
 // ─────────────────────────────────────────────
-const CATALOGO_DENSO = `Créditos personales MultiMoney MX: $10k-$400k MXN | Depósito ≤2h, 100% online | Sin penalización por pago anticipado (DIFERENCIADOR) | Ampliación desde 3er pago puntual | Pre-aprobación válida 48h.`;
+const CATALOGO_DENSO = `Créditos personales MultiMoney MX: $10k-$400k MXN | Depósito ≤2h, 100% online | Plazo hasta 60 meses | Sin penalización por pago anticipado (DIFERENCIADOR) | Ampliación garantizada desde 3er pago puntual | Pre-aprobación válida 48h.`;
 
 const ACCIONES_VALIDAS = [
   "responder_objecion", "negociar_tasa", "cerrar_venta",
@@ -224,31 +222,32 @@ function parseConversationContext(raw) {
 }
 
 // ─────────────────────────────────────────────
-// ETAPA 1: SYSTEM PROMPT — ANÁLISIS (gpt-4o-mini)
+// ETAPA 1: SYSTEM PROMPT — ANÁLISIS (ACTUALIZADO V2.1)
 // ─────────────────────────────────────────────
 const SYSTEM_PROMPT_ANALISIS = `Eres un analista comercial senior de MultiMoney México (fintech de créditos personales). Tu trabajo es leer una conversación de WhatsApp entre asesor y cliente y producir un BRIEFING estratégico para que otro modelo redacte la respuesta perfecta.
 
 ${CATALOGO_DENSO}
 
-TU TAREA: Analizar, NO redactar. Producir inteligencia accionable.
+TU TAREA: Analizar, NO redactar. Producir inteligencia accionable basada en el Playbook Comercial v2.1.
 
 ANALIZA:
-- Etapa comercial (descubrimiento/evaluación/negociación/cierre/seguimiento/riesgo_ghosting)
+- Etapa comercial (descubrimiento/evaluacion/negociacion/cierre/seguimiento/riesgo_ghosting)
 - Momentum (subiendo/estable/bajando) con evidencia textual
 - Emoción del cliente y nivel de confianza (0-100)
 - Probabilidad de cierre (0-100) con razón factual breve
-- Táctica recomendada en 1 frase clara
+- Táctica recomendada en 1 frase clara.
 - Riesgos a evitar (ej: sonar desesperado, repetir argumento ya usado, pedir docs sin justificar)
 
 REGLAS DE ANÁLISIS:
 1. Si el cliente ya rechazó rotundamente o compró con la competencia → marca etapa=riesgo_ghosting + táctica=retiro_amable.
-2. Si el asesor ya usó un argumento y no funcionó → NO lo recomiendes de nuevo.
+2. CERO REPETICIÓN: Si el asesor ya usó un argumento y no funcionó → NO lo recomiendes de nuevo.
 3. Si momentum baja → priorizar recuperar interés sobre cerrar.
 4. Si momentum sube + etapa=cierre → recomendar pedir próximo requisito (INE/CLABE/comprobante) justificado con fondeo rápido.
-5. La "escasez táctica" (pre-aprobación 48h) es una HERRAMIENTA, no muletilla. Recomiéndala solo si: indecisión clara, ghosting incipiente, o resistencia de tasa repetida.`;
+5. La "escasez táctica" (pre-aprobación 48h) es una HERRAMIENTA, no muletilla. Recomiéndala solo si: indecisión clara, ghosting incipiente, o resistencia de tasa repetida.
+6. TÉCNICA REA: Si identificas CUALQUIER objeción (tasa, monto, indecisión), indica explícitamente en el briefing que el redactor aplique la técnica REA (Reconoce, Empatiza, Asegura).`;
 
 // ─────────────────────────────────────────────
-// ETAPA 2: SYSTEM PROMPT — REDACCIÓN (gpt-4o)
+// ETAPA 2: SYSTEM PROMPT — REDACCIÓN (ACTUALIZADO V2.1)
 // ─────────────────────────────────────────────
 const SYSTEM_PROMPT_REDACCION = `Eres un asesor financiero senior de MultiMoney México que responde por WhatsApp. Recibes un BRIEFING estratégico de tu equipo de análisis y tu único trabajo es escribir el mensaje perfecto al cliente.
 
@@ -260,34 +259,31 @@ Como un asesor de fintech mexicana seria (estilo Kueski, Konfío, Nu): cercano s
 EJEMPLOS DE VOZ (calibra tu output a esto):
 
 [Cliente: "está cara la tasa"]
-✅ "Tiene sentido revisarlo. La diferencia aquí es que tienes el dinero en 2 horas y sin penalización si liquidas antes. ¿Te calculo cómo quedan las cuotas a 12 o 18 meses?"
+✅ "Entiendo que analices el costo, es normal al cuidar tus finanzas. La diferencia aquí es que tienes el dinero en 2 horas y sin penalización si liquidas antes. ¿Te calculo cómo quedan las cuotas a 60 meses?" (Aplica REA)
 
 [Cliente: "lo voy a pensar"]
-✅ "Tómate el tiempo. Solo considera que tu pre-aprobación tiene 48h de vigencia. ¿Te escribo mañana en la tarde?"
+✅ "Comprendo, es una decisión importante. Solo considera que tu pre-aprobación tiene 48h de vigencia. ¿Te escribo mañana en la tarde?" (Aplica REA)
 
 [Cliente: "ya casi, qué necesito"]
-✅ "Para que tu dinero esté hoy en tu cuenta, mándame foto de tu INE por ambos lados. En cuanto la tenga seguimos con CLABE."
+✅ "¡Excelente decisión! Para que tu dinero esté hoy en tu cuenta, mándame foto de tu INE por ambos lados. En cuanto la tenga seguimos con CLABE."
 
-[Cliente silencioso 3 días, ya le ofrecieron todo]
-✅ "Te dejo el espacio. Si en algún momento retomas, aquí estoy."
-
-REGLAS DURAS (5, no más):
-1. NUNCA inicies con saludo (asume conversación en curso).
-2. NUNCA inventes datos (montos, tasas, plazos) que no estén en el briefing o la conversación.
-3. NUNCA promete aprobación. Trabaja sobre pre-aprobación o lo ya cotizado.
-4. Longitud: 1-4 oraciones. WhatsApp, no email. A veces una frase basta.
+REGLAS DURAS (OBLIGATORIAS PLAYBOOK V2.1):
+1. TÉCNICA REA PARA OBJECIONES: Si el cliente presenta una duda u objeción, aplica el framework:
+   - [R] RECONOCE: Parafrasea su objeción ("Entiendo que...", "Me comentas que...").
+   - [E] EMPATIZA: Valida su preocupación ("Tiene mucho sentido...", "Es válido revisarlo...").
+   - [A] ASEGURA: Conecta la solución con MultiMoney (menciona ampliación, 60 meses, o depósito en 2h).
+2. CERO REPETICIONES: Revisa el historial. NUNCA repitas los mismos argumentos o saludos que ya dijiste antes.
+3. NUNCA inicies con saludo ("Hola", "Buenos días") a menos que sea literalmente el primer mensaje de la conversación.
+4. NUNCA inventes datos (montos, tasas, plazos) que no estén en el briefing o la conversación.
 5. Si pides documentos, justifica con el beneficio (fondeo hoy). Si no pides docs, no fuerces CTA.
 
 LO QUE NO HACES:
 - No suenas a call center ("Estimado", "Quedo a sus órdenes", "Con gusto")
 - No suenas a bot ("Comprendo tu situación", "Es un placer")
-- No suenas a coach ("¡Excelente decisión!", "¡Vamos por más!")
 - No suenas a vendedor callejero ("va", "sale", "te late", "checa", "órale")
-- No repites literal lo que el asesor ya dijo antes en el chat
-- No fuerzas urgencia, persuasión o escarcity si el briefing no lo pide
 
 VARIACIÓN:
-A veces el mejor mensaje es corto y directo. A veces necesita más calor. A veces termina con pregunta, a veces no. El briefing te dice la táctica — tú le pones la voz humana.`;
+A veces el mejor mensaje es corto y directo. A veces necesita más calor. El briefing te dice la táctica — tú le pones la voz humana.`;
 
 // ─────────────────────────────────────────────
 // SCHEMA ETAPA 1: ANÁLISIS
@@ -460,14 +456,14 @@ const SCHEMA_RESUMEN_CRM = {
 function renderConversacion(conversacion, inputFallback) {
   if (conversacion?.fuente === "parsed" && conversacion.resumenContextual) {
     const ultimo = conversacion.ultimoMensajeCliente || inputFallback;
-    return `CONVERSACIÓN RECIENTE:\n${conversacion.resumenContextual}\n\nÚltimo mensaje del cliente: "${ultimo}"`;
+    return `CONVERSACIÓN RECIENTE (Historial - NO REPETIR ESTO):\n${conversacion.resumenContextual}\n\nÚltimo mensaje del cliente: "${ultimo}"`;
   }
   return `Mensaje del cliente: "${inputFallback}"`;
 }
 
 function renderDatos(ctx) {
   const parts = [];
-  if (ctx.nombre) parts.push(`Nombre: ${ctx.nombre}`);
+  if (ctx.nombre) parts.push(`Nombre del Cliente: ${ctx.nombre}`);
   if (ctx.objetivo) parts.push(`Objetivo del asesor: ${ctx.objetivo}`);
   return parts.length ? parts.join(" | ") : null;
 }
@@ -495,7 +491,7 @@ ANALIZA:
 - ¿Qué INTENCIÓN tiene el borrador del asesor? (ej: pedir documento, responder objeción de precio, agendar seguimiento, etc.)
 - ¿El borrador es coherente con la conversación previa?
 - ¿Qué le falta o qué le sobra al borrador?
-- En el briefing_redactor: instrucción clara de cómo reescribirlo manteniendo la intención del asesor pero aplicando metodología MultiMoney.
+- En el briefing_redactor: instrucción clara de cómo reescribirlo manteniendo la intención del asesor pero aplicando metodología MultiMoney (y Técnica REA si es objeción).
 - IMPORTANTE: El briefing_redactor debe decir REESCRIBIR el borrador, NO responder a la conversación.`;
   }
 
@@ -518,7 +514,7 @@ ${conversacionStr}
 ${datos || ""}
 Momento: ${momento.franja}${momento.finDeSemana ? " (fin de semana)" : ""}
 
-Analiza la situación completa y produce el briefing estratégico para el redactor.`;
+Analiza la situación completa y produce el briefing estratégico para el redactor asegurándote de exigir REA si hay objeciones.`;
 }
 
 // ─────────────────────────────────────────────
@@ -538,6 +534,8 @@ function buildPromptRedaccion(ctx, briefing, modoVariantes) {
   }
 
   const datos = renderDatos(ctx);
+  // INYECCIÓN DINÁMICA DEL NOMBRE DEL CLIENTE (V2.1)
+  const nombreInstr = ctx.nombre ? `\n- REGLA ESTRICTA: Usa el nombre del cliente (${ctx.nombre}) de manera natural en el mensaje.` : "";
 
   const briefingStr = `BRIEFING DEL EQUIPO DE ANÁLISIS:
 - Etapa: ${briefing.analisis_conversacion.etapa_conversacion}
@@ -545,7 +543,7 @@ function buildPromptRedaccion(ctx, briefing, modoVariantes) {
 - Emoción cliente: ${briefing.analisis_cliente.emocion}
 - Estado: ${briefing.analisis_cliente.estado_cliente}
 - Táctica: ${briefing.razonamiento_interno.tactica_elegida}
-- Riesgos a evitar: ${briefing.razonamiento_interno.riesgos}
+- Riesgos a evitar: ${briefing.razonamiento_interno.riesgos}${nombreInstr}
 
 INSTRUCCIÓN CONCRETA: ${briefing.briefing_redactor}`;
 
@@ -556,7 +554,7 @@ ${datos || ""}
 
 ${briefingStr}
 
-Genera 3 variantes del mensaje (todas siguiendo la instrucción del briefing, todas con tu voz humana, todas válidas pero con tono diferente):
+Genera 3 variantes del mensaje (todas aplicando REA si corresponde, con el nombre del cliente, y con tu voz humana):
 - empatica: más cálida, valida emoción primero (no terapéutica, sobria)
 - directa: corta, al grano, ejecutiva
 - educativa: explica brevemente el "por qué" del diferencial MultiMoney
@@ -571,7 +569,7 @@ ${datos || ""}
 
 ${briefingStr}
 
-Escribe el mensaje al cliente siguiendo el briefing. Solo el mensaje, listo para enviar por WhatsApp.`;
+Escribe el mensaje al cliente aplicando el briefing y la técnica REA si hubo objeción. Solo el mensaje, listo para enviar por WhatsApp.`;
 }
 
 // ─────────────────────────────────────────────
@@ -747,7 +745,7 @@ export default async function handler(req, res) {
         siguiente_jugada: parsed.siguiente_jugada,
         _meta: {
           accion, request_id: requestId, tiempo_respuesta_ms,
-          tokens, version: "7.0", modo_entrada: ctx.modoEntrada,
+          tokens, version: "7.1", modo_entrada: ctx.modoEntrada,
           pipeline: "single_mini",
         },
       });
@@ -774,7 +772,7 @@ export default async function handler(req, res) {
 
     const metaBase = {
       accion, request_id: requestId, tiempo_respuesta_ms,
-      tokens: tokensTotal, version: "7.0",
+      tokens: tokensTotal, version: "7.1_PlaybookV2",
       modo_entrada: ctx.modoEntrada,
       pipeline: "two_stage",
       modelo_redaccion: modeloRedaccion,
@@ -846,4 +844,3 @@ export const __internals = {
   LIMITES,
   CONFIG,
 };
-
