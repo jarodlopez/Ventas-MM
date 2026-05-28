@@ -3,39 +3,46 @@ import OpenAI from "openai";
 const openai = new OpenAI({ apiKey: process.env.AI_API_KEY });
 
 // ═══════════════════════════════════════════════════════════════════
-// MM SALES COPILOT API — v6.4 "Internal Reasoning Edition"
+// MM SALES COPILOT API — v7.0 "Two-Stage Pipeline Edition"
 //
-// EVOLUCIÓN vs v6.3:
-//   • [v6.4] Inyección de CoT Real (Cadena de Pensamiento): Se agregó el 
-//     campo `razonamiento_interno` al inicio de los esquemas JSON.
-//     Esto le da a gpt-4o-mini un lienzo en blanco para procesar la estrategia
-//     comercial ANTES de clasificar la data y generar el mensaje.
-//   • Se conservan las temperaturas actuales para testing empírico.
-//   • 100% retrocompatible (el payload de salida añade un campo extra 
-//     que el frontend puede ignorar o loguear).
+// CAMBIOS CLAVE vs v6.4:
+//   • Pipeline 2 etapas: gpt-4o-mini analiza → gpt-4o redacta
+//   • System prompts compactos y separados por etapa
+//   • Razonamiento estructurado (no texto libre divagante)
+//   • mejorar_mensaje: arreglado bug raíz (borrador ≠ mensajeCliente)
+//   • Variantes opt-in (no triplica tokens por default)
+//   • Kill switches: USE_GPT4O, MAX_REQUESTS_PER_HOUR
+//   • Tokens: -55% en system, -62% en contexto
 // ═══════════════════════════════════════════════════════════════════
 
 // ─────────────────────────────────────────────
-// BASE DE CONOCIMIENTO
+// CONFIG & KILL SWITCHES
 // ─────────────────────────────────────────────
-const CATALOGO_PRODUCTOS = `
-- Montos: $10,000 a $400,000 MXN.
-- Depósito en máximo 2 horas, 100% online.
-- Sin penalización por pago anticipado (diferenciador estrella).
-- Ampliación disponible desde el 3er pago puntual.
-- Pre-aprobación válida 48 horas — después se re-evalúa buró.
-`;
+const CONFIG = {
+  USE_GPT4O: process.env.USE_GPT4O !== "false", // default true
+  MAX_REQUESTS_PER_HOUR: parseInt(process.env.MAX_REQUESTS_PER_HOUR || "200", 10),
+  MODEL_FAST: "gpt-4o-mini",
+  MODEL_QUALITY: "gpt-4o",
+};
+
+// Rate limiter en memoria (suficiente para hackathon; en prod usar Redis/Upstash)
+const requestLog = [];
+function checkRateLimit() {
+  const oneHourAgo = Date.now() - 3600_000;
+  while (requestLog.length && requestLog[0] < oneHourAgo) requestLog.shift();
+  if (requestLog.length >= CONFIG.MAX_REQUESTS_PER_HOUR) return false;
+  requestLog.push(Date.now());
+  return true;
+}
 
 // ─────────────────────────────────────────────
-// VALIDACIÓN Y LÍMITES
+// CATÁLOGO Y CONSTANTES
 // ─────────────────────────────────────────────
+const CATALOGO_DENSO = `Créditos personales MultiMoney MX: $10k-$400k MXN | Depósito ≤2h, 100% online | Sin penalización por pago anticipado (DIFERENCIADOR) | Ampliación desde 3er pago puntual | Pre-aprobación válida 48h.`;
+
 const ACCIONES_VALIDAS = [
-  "responder_objecion",
-  "negociar_tasa",
-  "cerrar_venta",
-  "seguimiento",
-  "resumen_crm",
-  "mejorar_mensaje",
+  "responder_objecion", "negociar_tasa", "cerrar_venta",
+  "seguimiento", "resumen_crm", "mejorar_mensaje",
 ];
 
 const SENALES_ENUM = [
@@ -46,14 +53,24 @@ const SENALES_ENUM = [
   "interes_pago_anticipado",
 ];
 
+// Acciones que usan pipeline 2 etapas (mini + 4o)
+const ACCIONES_PREMIUM = new Set([
+  "responder_objecion", "negociar_tasa", "cerrar_venta",
+  "seguimiento", "mejorar_mensaje",
+]);
+
 const LIMITES = {
   MENSAJE_CLIENTE_MAX: 800,
-  CONTEXT_MAX: 4000,
+  CONTEXT_MAX: 1500, // ↓ de 4000
   OBJETIVO_MAX: 200,
   HISTORIAL_ITEMS: 4,
-  BORRADOR_MAX: 1200, 
+  BORRADOR_MAX: 800, // ↓ de 1200 (alineado con frontend)
+  MENSAJES_RECIENTES: 5, // ↓ de 8
 };
 
+// ─────────────────────────────────────────────
+// VALIDACIÓN
+// ─────────────────────────────────────────────
 function validateInput(body) {
   const errors = [];
   if (!body || typeof body !== "object") return ["Body inválido"];
@@ -62,28 +79,38 @@ function validateInput(body) {
     errors.push(`Acción inválida. Disponibles: ${ACCIONES_VALIDAS.join(", ")}`);
   }
 
-  const tieneContexto =
-    typeof body.conversationContext === "string" &&
-    body.conversationContext.trim().length > 0;
-  const tieneMensaje =
-    typeof body.mensajeCliente === "string" &&
-    body.mensajeCliente.trim().length > 0;
+  const tieneContexto = typeof body.conversationContext === "string" && body.conversationContext.trim();
+  const tieneMensaje = typeof body.mensajeCliente === "string" && body.mensajeCliente.trim();
+  const tieneBorrador = typeof body.borrador === "string" && body.borrador.trim();
 
-  if (!tieneContexto && !tieneMensaje) {
-    errors.push(
-      "Se requiere conversationContext (bloque conversacional) o mensajeCliente (legacy)"
-    );
-  }
-
-  if (body.objetivo && typeof body.objetivo !== "string") {
-    errors.push("objetivo debe ser string");
-  }
-
-  if (body.borrador && typeof body.borrador !== "string") {
-    errors.push("borrador debe ser string");
+  // mejorar_mensaje SOLO requiere borrador
+  if (body.accion === "mejorar_mensaje") {
+    if (!tieneBorrador) errors.push("mejorar_mensaje requiere 'borrador' no vacío");
+  } else if (!tieneContexto && !tieneMensaje) {
+    errors.push("Se requiere conversationContext o mensajeCliente");
   }
 
   return errors;
+}
+
+// ─────────────────────────────────────────────
+// ANTI-INJECTION (defensa básica)
+// ─────────────────────────────────────────────
+const INJECTION_PATTERNS = [
+  /ignora\s+(las\s+)?instrucciones/i,
+  /ignore\s+(previous|all)\s+instructions/i,
+  /system\s*[:>]/i,
+  /\[INST\]/i,
+  /<\|.*?\|>/g,
+];
+
+function sanitizeUserText(text) {
+  if (!text || typeof text !== "string") return "";
+  let clean = text;
+  for (const pattern of INJECTION_PATTERNS) {
+    clean = clean.replace(pattern, "[contenido filtrado]");
+  }
+  return clean.trim();
 }
 
 // ─────────────────────────────────────────────
@@ -93,71 +120,54 @@ function getMomentoMexico() {
   const now = new Date();
   const horaCDMX = (now.getUTCHours() - 6 + 24) % 24;
   const dia = now.getUTCDay();
-
   let franja = "tarde";
   if (horaCDMX >= 6 && horaCDMX < 12) franja = "mañana";
   else if (horaCDMX >= 12 && horaCDMX < 19) franja = "tarde";
   else if (horaCDMX >= 19 && horaCDMX < 23) franja = "noche";
   else franja = "madrugada";
-
-  const finDeSemana = dia === 0 || dia === 6;
-  return { franja, finDeSemana, horaCDMX };
+  return { franja, finDeSemana: dia === 0 || dia === 6, horaCDMX };
 }
 
 // ─────────────────────────────────────────────
-// PARSER DE CONVERSACIÓN (HubSpot + Atomchat)
+// PARSER DE CONVERSACIÓN
 // ─────────────────────────────────────────────
-
 const REGEX_PREFIJO_CLIENTE = /^\s*(cliente|prospecto|usuario|user|customer|lead)\s*[:\-]/i;
-const REGEX_PREFIJO_ASESOR  = /^\s*(asesor|agente|advisor|yo|me|tú|tu|operador|multimoney|mm)\s*[:\-]/i;
-const REGEX_TIMESTAMP       = /^\s*\d{1,2}:\d{2}(\s*(am|pm|AM|PM))?\s*$/;
-const REGEX_FECHA           = /^\s*(hoy|ayer|lun|mar|mié|jue|vie|sáb|dom|enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)/i;
-
-const REGEX_RUIDO_HUBSPOT = /^\s*(?:.*?)?(leído|entregado|enviado|delivered|read|sent|escribiendo|typing|in[\s-]?app|whatsapp|sms|transferido|transfirió|transferida|unido al chat|se unió al chat|abandonó el chat|salió del chat|nota interna|nota privada|internal note|private note|asignado a|reasignado|assigned to|reassigned|bot[\s:]|chatbot|ticket creado|ticket #|cerró el chat|chat cerrado|chat closed|conversación cerrada|conversation closed|el asesor escribió|the agent wrote|automated message|mensaje automático|sistema:|system:)(?:\s*.*?)?\s*\.?\s*$/i;
-
-const REGEX_RUIDO_ATOMCHAT_HEADER = /^\s*\[?(bot|sistema|system|atomchat|hubspot)[\s\-:].*$/i;
+const REGEX_PREFIJO_ASESOR = /^\s*(asesor|agente|advisor|yo|me|tú|tu|operador|multimoney|mm)\s*[:\-]/i;
+const REGEX_TIMESTAMP = /^\s*\d{1,2}:\d{2}(\s*(am|pm|AM|PM))?\s*$/;
+const REGEX_FECHA = /^\s*(hoy|ayer|lun|mar|mié|jue|vie|sáb|dom|enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)/i;
+const REGEX_RUIDO = /^\s*.*?(leído|entregado|enviado|delivered|read|sent|escribiendo|typing|in[\s-]?app|transferido|asignado a|bot[\s:]|chatbot|ticket #|chat cerrado|sistema:|system:).*?\s*\.?\s*$/i;
 
 function esLineaRuido(linea) {
   if (!linea || linea.trim().length === 0) return true;
   if (REGEX_TIMESTAMP.test(linea)) return true;
-  if (REGEX_RUIDO_HUBSPOT.test(linea)) return true;
-  if (REGEX_RUIDO_ATOMCHAT_HEADER.test(linea)) return true;
+  if (REGEX_RUIDO.test(linea)) return true;
   if (linea.trim().length <= 2 && !/[a-záéíóúñ0-9]/i.test(linea)) return true;
   return false;
 }
 
 function shouldMergeWithPrevious(lineaActual, mensajeAnterior, rolDetectado, rolAnterior) {
-  if (!mensajeAnterior) return false;
-  if (rolDetectado !== rolAnterior) return false;
-
+  if (!mensajeAnterior || rolDetectado !== rolAnterior) return false;
   const trimmed = lineaActual.trim();
   if (trimmed.length < 40 && !/[.!?]$/.test(mensajeAnterior.texto)) return true;
   if (/^[a-záéíóúñ]/.test(trimmed)) return true;
   if (/^(pero|y|además|también|aunque|porque|o sea|es decir|entonces)\b/i.test(trimmed)) return true;
   if (!/[.!?]$/.test(mensajeAnterior.texto) && trimmed.length < 80) return true;
-
   return false;
 }
 
 function parseConversationContext(raw) {
   const fallback = {
-    mensajes: [],
-    ultimoMensajeCliente: null,
-    ultimoMensajeAsesor: null,
-    resumenContextual: "",
-    totalMensajes: 0,
-    fuente: "fallback",
+    mensajes: [], ultimoMensajeCliente: null, ultimoMensajeAsesor: null,
+    resumenContextual: "", totalMensajes: 0, fuente: "fallback",
   };
 
   if (!raw || typeof raw !== "string") return fallback;
-
-  const texto = raw.trim().slice(0, LIMITES.CONTEXT_MAX);
+  const texto = sanitizeUserText(raw).slice(0, LIMITES.CONTEXT_MAX);
   if (!texto) return fallback;
 
-  const lineas = texto
-    .split(/\r?\n+/)
-    .map((l) => l.trim())
-    .filter((l) => l.length > 0 && !esLineaRuido(l) && !REGEX_FECHA.test(l));
+  const lineas = texto.split(/\r?\n+/)
+    .map(l => l.trim())
+    .filter(l => l.length > 0 && !esLineaRuido(l) && !REGEX_FECHA.test(l));
 
   if (lineas.length === 0) return fallback;
 
@@ -193,254 +203,387 @@ function parseConversationContext(raw) {
 
   if (mensajes.length === 0) return fallback;
 
-  const ultimoCliente = [...mensajes].reverse().find((m) => m.rol === "cliente");
-  const ultimoAsesor  = [...mensajes].reverse().find((m) => m.rol === "asesor");
+  // Solo conservar los últimos N mensajes (compactación de tokens)
+  const mensajesRecortados = mensajes.slice(-LIMITES.MENSAJES_RECIENTES);
 
-  const ultimos = mensajes.slice(-5);
-  const resumenContextual = ultimos
-    .map((m) => `${m.rol === "cliente" ? "Cliente" : "Asesor"}: ${m.texto}`)
+  const ultimoCliente = [...mensajesRecortados].reverse().find(m => m.rol === "cliente");
+  const ultimoAsesor = [...mensajesRecortados].reverse().find(m => m.rol === "asesor");
+
+  const resumenContextual = mensajesRecortados
+    .map(m => `${m.rol === "cliente" ? "Cliente" : "Asesor"}: ${m.texto}`)
     .join("\n");
 
   return {
-    mensajes,
+    mensajes: mensajesRecortados,
     ultimoMensajeCliente: ultimoCliente?.texto || null,
     ultimoMensajeAsesor: ultimoAsesor?.texto || null,
     resumenContextual,
-    totalMensajes: mensajes.length,
+    totalMensajes: mensajesRecortados.length,
     fuente: "parsed",
   };
 }
 
 // ─────────────────────────────────────────────
-// SYSTEM PROMPT 
+// ETAPA 1: SYSTEM PROMPT — ANÁLISIS (gpt-4o-mini)
 // ─────────────────────────────────────────────
-const SYSTEM_PROMPT = `Eres un asesor financiero senior de MultiMoney México. Llevas años cerrando créditos personales por WhatsApp dentro de HubSpot + Atomchat. Tu trabajo es ayudar al asesor humano a responder mejor, más rápido y con más cierre.
+const SYSTEM_PROMPT_ANALISIS = `Eres un analista comercial senior de MultiMoney México (fintech de créditos personales). Tu trabajo es leer una conversación de WhatsApp entre asesor y cliente y producir un BRIEFING estratégico para que otro modelo redacte la respuesta perfecta.
 
-<catalogo_multimoney>
-${CATALOGO_PRODUCTOS}
-</catalogo_multimoney>
+${CATALOGO_DENSO}
 
-<input_esperado>
-Trabajas sobre un BLOQUE DE CONVERSACIÓN RECIENTE entre el cliente y el asesor (los últimos 3-8 mensajes). Antes de redactar, analiza la dinámica completa:
-- ¿Qué pidió el cliente al inicio vs al final?
-- ¿Hay objeciones repetidas o intensificándose?
-- ¿El asesor ya intentó algo que no funcionó?
-- ¿En qué etapa comercial estamos: descubrimiento, evaluación, negociación, cierre, seguimiento, o riesgo de ghosting?
-- ¿El momentum va subiendo, estable, o bajando?
+TU TAREA: Analizar, NO redactar. Producir inteligencia accionable.
 
-Tu respuesta es SIEMPRE como el ASESOR, dirigida al cliente. Nunca hables como narrador, nunca expliques tu razonamiento dentro del mensaje, nunca digas "como asesor te recomendaría". Solo redacta el mensaje listo para enviar.
-</input_esperado>
+ANALIZA:
+- Etapa comercial (descubrimiento/evaluación/negociación/cierre/seguimiento/riesgo_ghosting)
+- Momentum (subiendo/estable/bajando) con evidencia textual
+- Emoción del cliente y nivel de confianza (0-100)
+- Probabilidad de cierre (0-100) con razón factual breve
+- Táctica recomendada en 1 frase clara
+- Riesgos a evitar (ej: sonar desesperado, repetir argumento ya usado, pedir docs sin justificar)
 
-<voz_y_tono>
-Suenas como un asesor de una fintech mexicana seria (Kueski, Konfío, Nu): cercano sin ser coloquial, claro sin ser frío, ágil sin ser apurado. El cliente tiene un crédito de hasta $400k en juego — espera autoridad financiera, no plática de pasillo.
+REGLAS DE ANÁLISIS:
+1. Si el cliente ya rechazó rotundamente o compró con la competencia → marca etapa=riesgo_ghosting + táctica=retiro_amable.
+2. Si el asesor ya usó un argumento y no funcionó → NO lo recomiendes de nuevo.
+3. Si momentum baja → priorizar recuperar interés sobre cerrar.
+4. Si momentum sube + etapa=cierre → recomendar pedir próximo requisito (INE/CLABE/comprobante) justificado con fondeo rápido.
+5. La "escasez táctica" (pre-aprobación 48h) es una HERRAMIENTA, no muletilla. Recomiéndala solo si: indecisión clara, ghosting incipiente, o resistencia de tasa repetida.`;
 
-NO suenas a:
-- Call center ("Estimado cliente", "Le informo", "Quedo a sus órdenes")
-- Bot ("Comprendo tu situación", "Es un placer atenderte", "Con gusto")
-- Coach motivacional ("¡Excelente decisión!", "¡Vamos por más!")
-- Vendedor callejero ("va", "sale", "te late", "checa esto", "órale")
+// ─────────────────────────────────────────────
+// ETAPA 2: SYSTEM PROMPT — REDACCIÓN (gpt-4o)
+// ─────────────────────────────────────────────
+const SYSTEM_PROMPT_REDACCION = `Eres un asesor financiero senior de MultiMoney México que responde por WhatsApp. Recibes un BRIEFING estratégico de tu equipo de análisis y tu único trabajo es escribir el mensaje perfecto al cliente.
 
-SÍ suenas a:
-- Asesor que respeta el tiempo y la inteligencia del cliente
-- Frases cortas, claras, con verbos de acción
-- Datos concretos antes que adjetivos
-- Tuteo natural (no usted, no licenciado)
-- Una calidez sobria: "tiene sentido", "claro", "exacto", "buen punto"
-- Cierres orientados al siguiente paso, no a la despedida
-</voz_y_tono>
+${CATALOGO_DENSO}
 
-<ejemplos>
+CÓMO SUENAS:
+Como un asesor de fintech mexicana seria (estilo Kueski, Konfío, Nu): cercano sin ser coloquial, claro sin ser frío, ágil sin ser apurado. Tuteo natural. Frases cortas con verbos de acción.
+
+EJEMPLOS DE VOZ (calibra tu output a esto):
+
 [Cliente: "está cara la tasa"]
-❌ Callejero: "Va, te entiendo. Pero checa, te late más rápido aquí"
-✅ Fintech: "Tiene sentido revisarlo. La diferencia aquí es que tienes el dinero en 2 horas sin trámite presencial, y si liquidas antes no hay penalización. ¿Te calculo cómo quedarían las cuotas a 12 o 18 meses?"
+✅ "Tiene sentido revisarlo. La diferencia aquí es que tienes el dinero en 2 horas y sin penalización si liquidas antes. ¿Te calculo cómo quedan las cuotas a 12 o 18 meses?"
 
 [Cliente: "lo voy a pensar"]
-✅ Fintech: "Tómate el tiempo. Solo considera que tu pre-aprobación tiene 48 horas de vigencia; después se re-evalúa. ¿Te escribo mañana en la tarde para retomarlo?"
+✅ "Tómate el tiempo. Solo considera que tu pre-aprobación tiene 48h de vigencia. ¿Te escribo mañana en la tarde?"
 
-[Cliente: "ya casi, dime qué necesito"]
-✅ Fintech con justificación: "Para que tu dinero quede fondeado hoy mismo, apóyame con foto de tu INE por ambos lados. En cuanto la tenga avanzamos con CLABE."
-</ejemplos>
+[Cliente: "ya casi, qué necesito"]
+✅ "Para que tu dinero esté hoy en tu cuenta, mándame foto de tu INE por ambos lados. En cuanto la tenga seguimos con CLABE."
 
-<reglas_duras>
+[Cliente silencioso 3 días, ya le ofrecieron todo]
+✅ "Te dejo el espacio. Si en algún momento retomas, aquí estoy."
+
+REGLAS DURAS (5, no más):
 1. NUNCA inicies con saludo (asume conversación en curso).
-2. NUNCA uses bullets ni listas en la respuesta — es WhatsApp, es prosa.
-3. NUNCA inventes datos no proporcionados (montos, tasas, plazos).
-4. NUNCA prometas aprobación. Trabaja sobre pre-aprobación o lo ya cotizado.
-5. NUNCA repitas literal lo que ya dijo el asesor antes en la conversación — avanza, no recicles.
-6. CIERRA con micro-cierre: pregunta corta o siguiente paso concreto.
-7. Si tienes nombre, úsalo MÁXIMO una vez por mensaje (y solo si suena natural).
-8. Longitud objetivo: 2-4 oraciones. WhatsApp, no email.
-9. Si el cliente expresó algo específico en SU último mensaje, RESPÓNDELO. No cambies de tema.
-10. [FRICCIÓN DOCUMENTAL] Nunca pidas requisitos (INE, CLABE, comprobante) en frío. Justifica SIEMPRE la petición conectándola con el beneficio del fondeo rápido. Ej: "Para que tu dinero quede fondeado hoy mismo, apóyame con tu INE".
-11. [ESCASEZ TÁCTICA] Para manejar objeciones de tasa o indecisión, ancla al cliente a la urgencia real: la pre-aprobación vence en 48 horas y después se re-evalúa buró. Úsalo como dato, no como amenaza ni presión.
-</reglas_duras>
+2. NUNCA inventes datos (montos, tasas, plazos) que no estén en el briefing o la conversación.
+3. NUNCA promete aprobación. Trabaja sobre pre-aprobación o lo ya cotizado.
+4. Longitud: 1-4 oraciones. WhatsApp, no email. A veces una frase basta.
+5. Si pides documentos, justifica con el beneficio (fondeo hoy). Si no pides docs, no fuerces CTA.
 
-<metodologia_rea>
-Para objeciones aplica Reconoce + Empatiza + Asegura, todo fundido en un mensaje:
-- Reconoce sin repetir loro ("Tiene sentido", "Es válido", "Buen punto")
-- Empatiza comercial, no terapéutico ("muchos clientes lo comparan", no "entiendo tu dolor")
-- Asegura conectando con SU caso ("para tu uso de [X] esto funciona porque...")
-</metodologia_rea>
+LO QUE NO HACES:
+- No suenas a call center ("Estimado", "Quedo a sus órdenes", "Con gusto")
+- No suenas a bot ("Comprendo tu situación", "Es un placer")
+- No suenas a coach ("¡Excelente decisión!", "¡Vamos por más!")
+- No suenas a vendedor callejero ("va", "sale", "te late", "checa", "órale")
+- No repites literal lo que el asesor ya dijo antes en el chat
+- No fuerzas urgencia, persuasión o escarcity si el briefing no lo pide
 
-<analisis_senales>
-Calibra el mensaje según emoción y momentum detectados:
-- ANSIOSO/URGENTE → control y velocidad. Datos concretos, plazos exactos.
-- DESCONFIADO → prueba social, regulación, transparencia. Datos verificables.
-- INDECISO/TIBIO → reduce fricción. Una sola pregunta, un solo paso. Aplica escasez táctica suave.
-- INTERESADO/CALIENTE → cierra. Pide siguiente requisito JUSTIFICADO con fondeo rápido.
-- MOLESTO → valida primero, resuelve después. Baja la temperatura.
-- COMPARANDO → destaca diferencial (2 horas, sin penalización, sin presencial).
-
-Reglas de momentum:
-- Si el momentum va BAJANDO, prioriza recuperar interés antes que empujar cierre.
-- Si el momentum va SUBIENDO, no enfríes: pide siguiente requisito concreto (con justificación).
-- Si detectas RIESGO_GHOSTING, ancla con escasez táctica (48h pre-aprobación) sin presionar.
-- Si el cliente ya RECHAZÓ rotundamente o compró con la competencia, NO insistas: ejecuta retiro amable.
-</analisis_senales>`;
+VARIACIÓN:
+A veces el mejor mensaje es corto y directo. A veces necesita más calor. A veces termina con pregunta, a veces no. El briefing te dice la táctica — tú le pones la voz humana.`;
 
 // ─────────────────────────────────────────────
-// HELPERS
+// SCHEMA ETAPA 1: ANÁLISIS
 // ─────────────────────────────────────────────
-const renderCtx = (label, value) => (value ? `${label}: ${value}\n` : "");
-const renderHistorial = (h) => (h ? `Historial reciente (CRM):\n${h}\n` : "");
-
-function renderConversacion(ctx) {
-  if (ctx.conversacion?.fuente === "parsed" && ctx.conversacion.resumenContextual) {
-    return `CONVERSACIÓN RECIENTE:\n${ctx.conversacion.resumenContextual}\n\nÚltimo mensaje del cliente (al que debes responder): "${ctx.conversacion.ultimoMensajeCliente || ctx.input}"\n`;
-  }
-  return `Mensaje del cliente: "${ctx.input}"\n`;
-}
-
-const renderObjetivo = (obj) =>
-  obj ? `OBJETIVO ESTRATÉGICO del asesor: ${obj}\nOrienta tu respuesta para avanzar ese objetivo específico.\n` : "";
-
-// ─────────────────────────────────────────────
-// PLANTILLAS POR ACCIÓN
-// ─────────────────────────────────────────────
-const ACCIONES = {
-  responder_objecion: (ctx) => `
-ACCIÓN: Responder objeción
-
-${renderConversacion(ctx)}${renderObjetivo(ctx.objetivo)}${renderCtx("Nombre", ctx.nombre)}${renderCtx("Uso del crédito", ctx.uso)}${renderCtx("Monto pre-aprobado", ctx.monto)}${renderCtx("Tasa cotizada", ctx.tasa)}${renderCtx("Plazo", ctx.plazo)}${renderHistorial(ctx.historial)}Momento: ${ctx.momento.franja}${ctx.momento.finDeSemana ? " (fin de semana)" : ""}.
-
-ANTES DE RESPONDER, EVALÚA INTERNAMENTE (en tu campo de razonamiento): 
-1. ¿En qué ETAPA está la conversación?
-2. ¿El MOMENTUM va subiendo, estable o bajando?
-3. Si el momentum baja → prioriza recuperar interés antes que empujar cierre.
-4. Si el momentum sube → pide siguiente requisito JUSTIFICADO con fondeo rápido.
-
-Aplica REA invisible. Conecta el beneficio con el uso específico del cliente. Cierra con pregunta corta para avanzar. Si pides documentos, justifica con el beneficio (fondeo hoy mismo).`,
-
-  negociar_tasa: (ctx) => `
-ACCIÓN: Negociar tasa
-
-${renderConversacion(ctx)}${renderObjetivo(ctx.objetivo)}${renderCtx("Nombre", ctx.nombre)}${renderCtx("Tasa cotizada", ctx.tasa)}${renderCtx("Uso", ctx.uso)}${renderCtx("Monto", ctx.monto)}${renderHistorial(ctx.historial)}
-
-ANTES DE RESPONDER, EVALÚA INTERNAMENTE (en tu campo de razonamiento): 
-1. ¿Cuál es el MOMENTUM? Si baja → ancla con escasez táctica (pre-aprobación 48h). Si sube → cierra con diferencial.
-2. ¿Cuántas veces ya pidió descuento? Si es la 2ª+ vez, NO repitas el mismo argumento — escala con dato nuevo o reformula.
-
-Defiende valor sin bajar tasa. Reposiciona en el diferencial: velocidad (2 horas), sin penalización, sin trámite presencial. Aplica escasez táctica si es necesario. Pregunta concreta al final.`,
-
-  cerrar_venta: (ctx) => `
-ACCIÓN: Cerrar venta
-
-${renderConversacion(ctx)}${renderObjetivo(ctx.objetivo)}${renderCtx("Nombre", ctx.nombre)}${renderCtx("Monto", ctx.monto)}${renderCtx("Tasa", ctx.tasa)}${renderCtx("Uso", ctx.uso)}${renderHistorial(ctx.historial)}
-Cliente con señales de cierre. Micro-cierre pidiendo siguiente requisito (INE / CLABE / comprobante) SIEMPRE JUSTIFICADO con beneficio de fondeo rápido. Ej: "Para que tu dinero esté hoy en tu cuenta, apóyame con tu INE". Si la conversación ya mencionó alguno, pide el SIGUIENTE, no repitas.`,
-
-  seguimiento: (ctx) => `
-ACCIÓN: Seguimiento (cliente sin respuesta o pendiente)
-
-${renderConversacion(ctx)}${renderObjetivo(ctx.objetivo)}${renderCtx("Nombre", ctx.nombre)}${renderCtx("Última interacción", ctx.ultimaInteraccion)}${renderCtx("Monto", ctx.monto)}${renderHistorial(ctx.historial)}Momento: ${ctx.momento.franja}.
-
-EVALÚA PRIMERO LA SEÑAL DEL CLIENTE (en tu campo de razonamiento): 
-- Si el cliente YA RECHAZÓ rotundamente la oferta o compró con la competencia → ejecuta RETIRO AMABLE: agradece, deja la puerta abierta sin presión, NO pidas siguiente paso.
-- Si solo hay silencio o tibieza → retoma sin sonar desesperado. Ancla con escasez táctica real (pre-aprobación 48h). Prueba ángulo nuevo.
-
-Bajo NINGUNA circunstancia suenes rogón, insistente o desesperado. Eres un asesor financiero serio.`,
-
-  resumen_crm: (ctx) => `
-ACCIÓN: Resumen CRM
-Datos: ${ctx.nombre || "S/N"} | Monto: ${ctx.monto || "S/D"} | Tasa: ${ctx.tasa || "S/D"} | Uso: ${ctx.uso || "S/D"}
-
-${renderConversacion(ctx)}${renderHistorial(ctx.historial)}
-Devuelve nota CRM factual basada en la conversación completa. Solo datos, sin adjetivos subjetivos. 2-3 líneas máximo. Incluye etapa actual y siguiente paso lógico.`,
-
-  mejorar_mensaje: (ctx) => {
-    const borradorActual = ctx.borrador || ctx.conversacion?.ultimoMensajeAsesor || ctx.input || "";
-    const conversacionBloque = ctx.conversacion?.fuente === "parsed" && ctx.conversacion.resumenContextual
-        ? `CONVERSACIÓN RECIENTE:\n${ctx.conversacion.resumenContextual}\n`
-        : "";
-
-    return `
-ACCIÓN: Mejorar borrador del asesor
-
-BORRADOR ACTUAL DEL ASESOR:
-"${borradorActual}"
-
-${conversacionBloque}${renderObjetivo(ctx.objetivo)}${renderCtx("Nombre cliente", ctx.nombre)}${renderHistorial(ctx.historial)}
-INSTRUCCIÓN: Reescribe el borrador en versión óptima para WhatsApp. Elimina corporativismos, saludos, despedidas. Directo, empático, comercial, profesional. Si hay conversación previa, alinea el borrador con ese contexto. Si pide documentos, JUSTIFICA siempre con el beneficio (fondeo rápido).`;
+const SCHEMA_ANALISIS = {
+  name: "briefing_estrategico",
+  strict: true,
+  schema: {
+    type: "object",
+    properties: {
+      razonamiento_interno: {
+        type: "object",
+        properties: {
+          etapa_detectada: { type: "string" },
+          momentum_evidencia: { type: "string", description: "Frase textual del cliente que evidencia el momentum" },
+          tactica_elegida: { type: "string", description: "Qué hacer en 1 frase" },
+          riesgos: { type: "string", description: "Qué evitar en la respuesta" },
+        },
+        required: ["etapa_detectada", "momentum_evidencia", "tactica_elegida", "riesgos"],
+        additionalProperties: false,
+      },
+      analisis_conversacion: {
+        type: "object",
+        properties: {
+          etapa_conversacion: {
+            type: "string",
+            enum: ["descubrimiento", "evaluacion", "negociacion", "cierre", "seguimiento", "riesgo_ghosting"],
+          },
+          momentum: { type: "string", enum: ["subiendo", "estable", "bajando"] },
+          nivel_confianza: { type: "integer", minimum: 0, maximum: 100 },
+          senales_detectadas: {
+            type: "array",
+            items: { type: "string", enum: SENALES_ENUM },
+          },
+          objecion_dominante: { type: ["string", "null"] },
+        },
+        required: ["etapa_conversacion", "momentum", "nivel_confianza", "senales_detectadas", "objecion_dominante"],
+        additionalProperties: false,
+      },
+      analisis_cliente: {
+        type: "object",
+        properties: {
+          emocion: {
+            type: "string",
+            enum: ["ansioso", "desconfiado", "indeciso", "interesado", "molesto", "comparando", "neutral", "entusiasmado"],
+          },
+          estado_cliente: { type: "string", enum: ["Frío", "Tibio", "Caliente"] },
+          tipo_objecion: {
+            type: ["string", "null"],
+            enum: ["precio", "desconfianza", "indecision", "falta_de_tiempo", "comparacion", "ghosting", null],
+          },
+          probabilidad_cierre: { type: "integer", minimum: 0, maximum: 100 },
+          razon_score: { type: "string" },
+        },
+        required: ["emocion", "estado_cliente", "tipo_objecion", "probabilidad_cierre", "razon_score"],
+        additionalProperties: false,
+      },
+      briefing_redactor: {
+        type: "string",
+        description: "Instrucción concreta y específica para el redactor en 2-3 oraciones. Incluye: qué responder, tono, si pedir algo, qué NO hacer.",
+      },
+      siguiente_jugada: { type: "string", description: "Qué hacer después de esta respuesta (para el asesor humano)" },
+    },
+    required: ["razonamiento_interno", "analisis_conversacion", "analisis_cliente", "briefing_redactor", "siguiente_jugada"],
+    additionalProperties: false,
   },
 };
 
 // ─────────────────────────────────────────────
-// BUILD CONTEXT
+// SCHEMA ETAPA 2: REDACCIÓN SIMPLE
 // ─────────────────────────────────────────────
-function buildContext(body) {
-  const { accion, mensajeCliente, conversationContext, objetivo, borrador, datosCliente = {} } = body;
+const SCHEMA_REDACCION_SIMPLE = {
+  name: "respuesta_whatsapp",
+  strict: true,
+  schema: {
+    type: "object",
+    properties: {
+      respuesta: { type: "string", description: "Mensaje listo para enviar por WhatsApp" },
+    },
+    required: ["respuesta"],
+    additionalProperties: false,
+  },
+};
 
-  let conversacion = null;
-  let inputPrincipal = "";
-  let modoEntrada = "legacy";
+// ─────────────────────────────────────────────
+// SCHEMA ETAPA 2: REDACCIÓN CON VARIANTES
+// ─────────────────────────────────────────────
+const SCHEMA_REDACCION_VARIANTES = {
+  name: "respuestas_whatsapp_variantes",
+  strict: true,
+  schema: {
+    type: "object",
+    properties: {
+      variante_recomendada: { type: "string", enum: ["empatica", "directa", "educativa"] },
+      variantes: {
+        type: "object",
+        properties: {
+          empatica: {
+            type: "object",
+            properties: {
+              mensaje: { type: "string" },
+              cuando_usar: { type: "string" },
+            },
+            required: ["mensaje", "cuando_usar"],
+            additionalProperties: false,
+          },
+          directa: {
+            type: "object",
+            properties: {
+              mensaje: { type: "string" },
+              cuando_usar: { type: "string" },
+            },
+            required: ["mensaje", "cuando_usar"],
+            additionalProperties: false,
+          },
+          educativa: {
+            type: "object",
+            properties: {
+              mensaje: { type: "string" },
+              cuando_usar: { type: "string" },
+            },
+            required: ["mensaje", "cuando_usar"],
+            additionalProperties: false,
+          },
+        },
+        required: ["empatica", "directa", "educativa"],
+        additionalProperties: false,
+      },
+    },
+    required: ["variante_recomendada", "variantes"],
+    additionalProperties: false,
+  },
+};
 
-  if (typeof conversationContext === "string" && conversationContext.trim()) {
-    conversacion = parseConversationContext(conversationContext);
-    inputPrincipal = (conversacion.ultimoMensajeCliente || mensajeCliente || "").trim();
-    modoEntrada = "contextual";
-  } else if (typeof mensajeCliente === "string") {
-    inputPrincipal = mensajeCliente.trim();
-    modoEntrada = "legacy";
+// ─────────────────────────────────────────────
+// SCHEMA: RESUMEN CRM (acción solo-mini)
+// ─────────────────────────────────────────────
+const SCHEMA_RESUMEN_CRM = {
+  name: "resumen_crm",
+  strict: true,
+  schema: {
+    type: "object",
+    properties: {
+      respuesta: { type: "string", description: "Nota CRM factual en 2-3 líneas" },
+      analisis_conversacion: {
+        type: "object",
+        properties: {
+          etapa_conversacion: {
+            type: "string",
+            enum: ["descubrimiento", "evaluacion", "negociacion", "cierre", "seguimiento", "riesgo_ghosting"],
+          },
+          momentum: { type: "string", enum: ["subiendo", "estable", "bajando"] },
+          nivel_confianza: { type: "integer", minimum: 0, maximum: 100 },
+          senales_detectadas: { type: "array", items: { type: "string", enum: SENALES_ENUM } },
+          objecion_dominante: { type: ["string", "null"] },
+        },
+        required: ["etapa_conversacion", "momentum", "nivel_confianza", "senales_detectadas", "objecion_dominante"],
+        additionalProperties: false,
+      },
+      siguiente_jugada: { type: "string" },
+    },
+    required: ["respuesta", "analisis_conversacion", "siguiente_jugada"],
+    additionalProperties: false,
+  },
+};
+
+// ─────────────────────────────────────────────
+// HELPERS
+// ─────────────────────────────────────────────
+function renderConversacion(conversacion, inputFallback) {
+  if (conversacion?.fuente === "parsed" && conversacion.resumenContextual) {
+    const ultimo = conversacion.ultimoMensajeCliente || inputFallback;
+    return `CONVERSACIÓN RECIENTE:\n${conversacion.resumenContextual}\n\nÚltimo mensaje del cliente: "${ultimo}"`;
   }
+  return `Mensaje del cliente: "${inputFallback}"`;
+}
 
-  inputPrincipal = inputPrincipal.slice(0, LIMITES.MENSAJE_CLIENTE_MAX);
-
-  const historialCrudo = datosCliente.historialConversacion;
-  const historialProcesado =
-    Array.isArray(historialCrudo) && historialCrudo.length > 0
-      ? historialCrudo.filter((x) => typeof x === "string" && x.trim().length > 0).slice(-LIMITES.HISTORIAL_ITEMS).join("\n")
-      : null;
-
-  return {
-    accion,
-    input: inputPrincipal,
-    conversacion,
-    modoEntrada,
-    objetivo: (objetivo || "").toString().trim().slice(0, LIMITES.OBJETIVO_MAX) || null,
-    borrador: typeof borrador === "string" ? borrador.trim().slice(0, LIMITES.BORRADOR_MAX) : null, 
-    nombre: datosCliente.nombre || null,
-    monto: datosCliente.monto || null,
-    tasa: datosCliente.tasa || null,
-    plazo: datosCliente.plazo || null,
-    uso: datosCliente.uso || null,
-    ultimaInteraccion: datosCliente.ultimaInteraccion || null,
-    historial: historialProcesado,
-    momento: getMomentoMexico(),
-  };
+function renderDatos(ctx) {
+  const parts = [];
+  if (ctx.nombre) parts.push(`Nombre: ${ctx.nombre}`);
+  if (ctx.objetivo) parts.push(`Objetivo del asesor: ${ctx.objetivo}`);
+  return parts.length ? parts.join(" | ") : null;
 }
 
 // ─────────────────────────────────────────────
-// POST-PROCESSING 
+// USER PROMPTS ETAPA 1
+// ─────────────────────────────────────────────
+function buildPromptAnalisis(ctx) {
+  const { accion, conversacion, input, momento } = ctx;
+
+  // Caso especial: mejorar_mensaje
+  if (accion === "mejorar_mensaje") {
+    const conversacionStr = conversacion?.fuente === "parsed"
+      ? `CONVERSACIÓN PREVIA (CONTEXTO, NO ES A ESTO LO QUE RESPONDEN):\n${conversacion.resumenContextual}\n\n`
+      : "";
+
+    return `ACCIÓN: Analizar para MEJORAR un borrador del asesor
+
+${conversacionStr}BORRADOR DEL ASESOR (esto es lo que el asesor escribió y quiere mejorar):
+"${ctx.borrador}"
+
+${renderDatos(ctx) || ""}
+
+ANALIZA:
+- ¿Qué INTENCIÓN tiene el borrador del asesor? (ej: pedir documento, responder objeción de precio, agendar seguimiento, etc.)
+- ¿El borrador es coherente con la conversación previa?
+- ¿Qué le falta o qué le sobra al borrador?
+- En el briefing_redactor: instrucción clara de cómo reescribirlo manteniendo la intención del asesor pero aplicando metodología MultiMoney.
+- IMPORTANTE: El briefing_redactor debe decir REESCRIBIR el borrador, NO responder a la conversación.`;
+  }
+
+  // Acciones normales
+  const conversacionStr = renderConversacion(conversacion, input);
+  const datos = renderDatos(ctx);
+
+  const accionLabel = {
+    responder_objecion: "Responder una objeción del cliente",
+    negociar_tasa: "Negociar la tasa sin bajarla (defender valor)",
+    cerrar_venta: "Cerrar la venta pidiendo siguiente requisito",
+    seguimiento: "Seguimiento (cliente sin respuesta o pendiente)",
+    resumen_crm: "Generar nota CRM factual",
+  }[accion];
+
+  return `ACCIÓN: ${accionLabel}
+
+${conversacionStr}
+
+${datos || ""}
+Momento: ${momento.franja}${momento.finDeSemana ? " (fin de semana)" : ""}
+
+Analiza la situación completa y produce el briefing estratégico para el redactor.`;
+}
+
+// ─────────────────────────────────────────────
+// USER PROMPT ETAPA 2 (REDACCIÓN)
+// ─────────────────────────────────────────────
+function buildPromptRedaccion(ctx, briefing, modoVariantes) {
+  const { accion, conversacion, input } = ctx;
+
+  let contextoUltimoMsg;
+  if (accion === "mejorar_mensaje") {
+    const conversacionStr = conversacion?.fuente === "parsed"
+      ? `\nCONVERSACIÓN PREVIA (solo contexto):\n${conversacion.resumenContextual}\n`
+      : "";
+    contextoUltimoMsg = `${conversacionStr}\nBORRADOR DEL ASESOR A REESCRIBIR:\n"${ctx.borrador}"`;
+  } else {
+    contextoUltimoMsg = renderConversacion(conversacion, input);
+  }
+
+  const datos = renderDatos(ctx);
+
+  const briefingStr = `BRIEFING DEL EQUIPO DE ANÁLISIS:
+- Etapa: ${briefing.analisis_conversacion.etapa_conversacion}
+- Momentum: ${briefing.analisis_conversacion.momentum}
+- Emoción cliente: ${briefing.analisis_cliente.emocion}
+- Estado: ${briefing.analisis_cliente.estado_cliente}
+- Táctica: ${briefing.razonamiento_interno.tactica_elegida}
+- Riesgos a evitar: ${briefing.razonamiento_interno.riesgos}
+
+INSTRUCCIÓN CONCRETA: ${briefing.briefing_redactor}`;
+
+  if (modoVariantes) {
+    return `${contextoUltimoMsg}
+
+${datos || ""}
+
+${briefingStr}
+
+Genera 3 variantes del mensaje (todas siguiendo la instrucción del briefing, todas con tu voz humana, todas válidas pero con tono diferente):
+- empatica: más cálida, valida emoción primero (no terapéutica, sobria)
+- directa: corta, al grano, ejecutiva
+- educativa: explica brevemente el "por qué" del diferencial MultiMoney
+
+Para cada variante incluye "cuando_usar" en 1 frase corta.
+Indica cuál es la "variante_recomendada" según el briefing.`;
+  }
+
+  return `${contextoUltimoMsg}
+
+${datos || ""}
+
+${briefingStr}
+
+Escribe el mensaje al cliente siguiendo el briefing. Solo el mensaje, listo para enviar por WhatsApp.`;
+}
+
+// ─────────────────────────────────────────────
+// POST-PROCESSING
 // ─────────────────────────────────────────────
 const BANNED_OPENERS = [
   /^hola[,!.]?\s*/i, /^buenos\s+días[,!.]?\s*/i, /^buenas\s+tardes[,!.]?\s*/i,
-  /^buenas\s+noches[,!.]?\s*/i, /^buen\s+día[,!.]?\s*/i, /^qué\s+tal[,!.]?\s*/i,
-  /^perfecto[,.]?\s*/i, /^claro que sí[,.]?\s*/i, /^sin problema[,.]?\s*/i,
-  /^con gusto[,.]?\s*/i, /^con mucho gusto[,.]?\s*/i,
-  /^entiendo tu situación[,.]?\s*/i, /^comprendo tu situación[,.]?\s*/i,
-  /^entiendo perfectamente[,.]?\s*/i, /^comprendo perfectamente[,.]?\s*/i,
-  /^por supuesto[,.]?\s*/i, /^encantado[,.]?\s*/i, /^estimado[a]?[,.]?\s*/i,
+  /^buenas\s+noches[,!.]?\s*/i, /^buen\s+día[,!.]?\s*/i,
+  /^estimado[a]?[,.]?\s*/i,
+  /^entiendo tu situación[,.]?\s*/i, /^comprendo perfectamente[,.]?\s*/i,
   /^excelente decisión[,.!]?\s*/i, /^excelente pregunta[,.!]?\s*/i,
-  /^órale[,.!]?\s*/i, /^ándale[,.!]?\s*/i, /^va[,.!]\s*/i, /^sale[,.!]\s*/i,
+  /^órale[,.!]?\s*/i, /^ándale[,.!]?\s*/i,
 ];
 
 function cleanResponse(text) {
@@ -456,131 +599,107 @@ function cleanResponse(text) {
   return cleaned.replace(/\n{3,}/g, "\n\n").trim();
 }
 
-const TEMPERATURE_BY_ACTION = {
-  resumen_crm: 0.1,
-  cerrar_venta: 0.5,
-  negociar_tasa: 0.6,
-  responder_objecion: 0.65,
-  seguimiento: 0.65,
-  mejorar_mensaje: 0.7,
-};
+// ─────────────────────────────────────────────
+// BUILD CONTEXT
+// ─────────────────────────────────────────────
+function buildContext(body) {
+  const { accion, mensajeCliente, conversationContext, objetivo, borrador, datosCliente = {} } = body;
+
+  let conversacion = null;
+  let inputPrincipal = "";
+  let modoEntrada = "legacy";
+
+  if (typeof conversationContext === "string" && conversationContext.trim()) {
+    conversacion = parseConversationContext(conversationContext);
+    inputPrincipal = sanitizeUserText(conversacion.ultimoMensajeCliente || mensajeCliente || "");
+    modoEntrada = "contextual";
+  } else if (typeof mensajeCliente === "string") {
+    inputPrincipal = sanitizeUserText(mensajeCliente);
+  }
+
+  inputPrincipal = inputPrincipal.slice(0, LIMITES.MENSAJE_CLIENTE_MAX);
+
+  return {
+    accion,
+    input: inputPrincipal,
+    conversacion,
+    modoEntrada,
+    objetivo: sanitizeUserText(objetivo || "").slice(0, LIMITES.OBJETIVO_MAX) || null,
+    borrador: borrador ? sanitizeUserText(borrador).slice(0, LIMITES.BORRADOR_MAX) : null,
+    nombre: datosCliente.nombre ? sanitizeUserText(datosCliente.nombre).slice(0, 100) : null,
+    momento: getMomentoMexico(),
+  };
+}
 
 // ─────────────────────────────────────────────
-// SCHEMAS — [v6.4] CoT Verdadero Inyectado
+// LLAMADAS A OPENAI
 // ─────────────────────────────────────────────
-const ANALISIS_CLIENTE_PROPS = {
-  type: "object",
-  properties: {
-    emocion: {
-      type: "string",
-      enum: [
-        "ansioso", "desconfiado", "indeciso",
-        "interesado", "molesto", "comparando",
-        "neutral", "entusiasmado",
-      ],
-    },
-    estado_cliente: { type: "string", enum: ["Frío", "Tibio", "Caliente"] },
-    tipo_objecion: {
-      type: ["string", "null"],
-      enum: ["precio", "desconfianza", "indecision", "falta_de_tiempo", "comparacion", "ghosting", null],
-    },
-    probabilidad_cierre: { type: "integer", minimum: 0, maximum: 100 },
-    razon_score: { type: "string" },
-  },
-  required: ["emocion", "estado_cliente", "tipo_objecion", "probabilidad_cierre", "razon_score"],
-  additionalProperties: false,
-};
-
-const ANALISIS_CONVERSACION_PROPS = {
-  type: "object",
-  properties: {
-    etapa_conversacion: {
-      type: "string",
-      enum: ["descubrimiento", "evaluacion", "negociacion", "cierre", "seguimiento", "riesgo_ghosting"],
-    },
-    momentum: { type: "string", enum: ["subiendo", "estable", "bajando"] },
-    nivel_confianza: { type: "integer", minimum: 0, maximum: 100 },
-    senales_detectadas: {
-      type: "array",
-      items: { type: "string", enum: SENALES_ENUM },
-    },
-    objecion_dominante: { type: ["string", "null"] },
-  },
-  required: ["etapa_conversacion", "momentum", "nivel_confianza", "senales_detectadas", "objecion_dominante"],
-  additionalProperties: false,
-};
-
-const SCHEMA_SIMPLE = {
-  name: "copilot_response",
-  strict: true,
-  schema: {
-    type: "object",
-    properties: {
-      // [v6.4] El lienzo en blanco para el Chain of Thought
-      razonamiento_interno: {
-        type: "string",
-        description: "Espacio de pensamiento libre. Evalúa aquí paso a paso la conversación, la etapa, el momentum y cómo aplicarás las reglas ANTES de generar el resto de la respuesta."
-      },
-      analisis_conversacion: ANALISIS_CONVERSACION_PROPS,
-      analisis_cliente: ANALISIS_CLIENTE_PROPS,
-      siguiente_jugada: { type: "string" },
-      respuesta: { type: "string" }, 
-    },
-    required: [
-      "razonamiento_interno", "analisis_conversacion", "analisis_cliente", "siguiente_jugada", "respuesta"
+async function llamarAnalisis(ctx) {
+  const prompt = buildPromptAnalisis(ctx);
+  const completion = await openai.chat.completions.create({
+    model: CONFIG.MODEL_FAST,
+    messages: [
+      { role: "system", content: SYSTEM_PROMPT_ANALISIS },
+      { role: "user", content: prompt },
     ],
-    additionalProperties: false,
-  },
-};
+    temperature: 0.2,
+    max_tokens: 700,
+    response_format: { type: "json_schema", json_schema: SCHEMA_ANALISIS },
+  });
+  return {
+    parsed: JSON.parse(completion.choices[0].message.content),
+    tokens: completion.usage?.total_tokens || 0,
+  };
+}
 
-const SCHEMA_VARIANTES = {
-  name: "copilot_response_variantes",
-  strict: true,
-  schema: {
-    type: "object",
-    properties: {
-      // [v6.4] CoT para la generación de variantes
-      razonamiento_interno: {
-        type: "string",
-        description: "Espacio de pensamiento libre. Evalúa aquí paso a paso la conversación, la etapa, el momentum y cómo aplicarás las reglas ANTES de generar las variantes."
-      },
-      analisis_conversacion: ANALISIS_CONVERSACION_PROPS,
-      analisis_cliente: ANALISIS_CLIENTE_PROPS,
-      siguiente_jugada: { type: "string" },
-      variante_recomendada: {
-        type: "string",
-        enum: ["empatica", "directa", "educativa"],
-      },
-      variantes: {
-        type: "object",
-        properties: {
-          empatica: {
-            type: "object",
-            properties: { mensaje: { type: "string" }, cuando_usar: { type: "string" } },
-            required: ["mensaje", "cuando_usar"], additionalProperties: false,
-          },
-          directa: {
-            type: "object",
-            properties: { mensaje: { type: "string" }, cuando_usar: { type: "string" } },
-            required: ["mensaje", "cuando_usar"], additionalProperties: false,
-          },
-          educativa: {
-            type: "object",
-            properties: { mensaje: { type: "string" }, cuando_usar: { type: "string" } },
-            required: ["mensaje", "cuando_usar"], additionalProperties: false,
-          },
-        },
-        required: ["empatica", "directa", "educativa"],
-        additionalProperties: false,
-      },
-    },
-    required: [
-      "razonamiento_interno", "analisis_conversacion", "analisis_cliente", "siguiente_jugada",
-      "variante_recomendada", "variantes"
+async function llamarRedaccion(ctx, briefing, modoVariantes) {
+  const prompt = buildPromptRedaccion(ctx, briefing, modoVariantes);
+  const modelo = CONFIG.USE_GPT4O ? CONFIG.MODEL_QUALITY : CONFIG.MODEL_FAST;
+  const schema = modoVariantes ? SCHEMA_REDACCION_VARIANTES : SCHEMA_REDACCION_SIMPLE;
+
+  const completion = await openai.chat.completions.create({
+    model: modelo,
+    messages: [
+      { role: "system", content: SYSTEM_PROMPT_REDACCION },
+      { role: "user", content: prompt },
     ],
-    additionalProperties: false,
-  },
-};
+    temperature: modoVariantes ? 0.85 : 0.8,
+    max_tokens: modoVariantes ? 600 : 300,
+    response_format: { type: "json_schema", json_schema: schema },
+  });
+  return {
+    parsed: JSON.parse(completion.choices[0].message.content),
+    tokens: completion.usage?.total_tokens || 0,
+    modelo,
+  };
+}
+
+async function llamarResumenCRM(ctx) {
+  const conversacionStr = renderConversacion(ctx.conversacion, ctx.input);
+  const datos = renderDatos(ctx);
+
+  const prompt = `Genera una nota CRM factual en 2-3 líneas máximo. Solo datos, sin adjetivos subjetivos. Incluye etapa actual y siguiente paso lógico.
+
+${conversacionStr}
+
+${datos || ""}`;
+
+  const completion = await openai.chat.completions.create({
+    model: CONFIG.MODEL_FAST,
+    messages: [
+      { role: "system", content: `Eres analista CRM de MultiMoney México. ${CATALOGO_DENSO}\nProduces notas CRM factuales: solo datos, sin opiniones, sin recomendaciones de "intentar de nuevo más tarde".` },
+      { role: "user", content: prompt },
+    ],
+    temperature: 0.1,
+    max_tokens: 350,
+    response_format: { type: "json_schema", json_schema: SCHEMA_RESUMEN_CRM },
+  });
+
+  return {
+    parsed: JSON.parse(completion.choices[0].message.content),
+    tokens: completion.usage?.total_tokens || 0,
+  };
+}
 
 // ─────────────────────────────────────────────
 // HANDLER PRINCIPAL
@@ -598,6 +717,14 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Método no permitido" });
   }
 
+  // Kill switch: rate limit
+  if (!checkRateLimit()) {
+    return res.status(429).json({
+      error: "Rate limit alcanzado (protección de presupuesto). Intenta en unos minutos.",
+      request_id: requestId,
+    });
+  }
+
   const validationErrors = validateInput(req.body);
   if (validationErrors.length > 0) {
     return res.status(400).json({ error: validationErrors.join(". "), request_id: requestId });
@@ -605,84 +732,96 @@ export default async function handler(req, res) {
 
   const ctx = buildContext(req.body);
   const { accion } = ctx;
-  const userPrompt = ACCIONES[accion](ctx);
-  const temperature = TEMPERATURE_BY_ACTION[accion] ?? 0.6;
-
-  const modoVariantes = req.body.modo === "variantes";
-  const schema = modoVariantes ? SCHEMA_VARIANTES : SCHEMA_SIMPLE;
-  const maxTokens = modoVariantes ? 1200 : (ctx.modoEntrada === "contextual" ? 800 : 600); // Aumentado ligeramente para acomodar el campo de razonamiento
+  const modoVariantes = req.body.modo === "variantes" && ACCIONES_PREMIUM.has(accion);
 
   try {
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini", // Mantenemos el modelo ultra-rápido para asegurar latencia
-      messages: [
-        { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: userPrompt },
-      ],
-      temperature,
-      max_tokens: maxTokens,
-      response_format: { type: "json_schema", json_schema: schema },
-    });
+    // ─── RUTA 1: resumen_crm (solo mini, 1 llamada) ───
+    if (accion === "resumen_crm") {
+      const { parsed, tokens } = await llamarResumenCRM(ctx);
+      const tiempo_respuesta_ms = Date.now() - startTime;
 
-    const parsed = JSON.parse(completion.choices[0].message.content);
+      return res.status(200).json({
+        respuesta: cleanResponse(parsed.respuesta) || "Sin datos suficientes para resumen.",
+        razonamiento_interno: null,
+        analisis_conversacion: parsed.analisis_conversacion,
+        siguiente_jugada: parsed.siguiente_jugada,
+        _meta: {
+          accion, request_id: requestId, tiempo_respuesta_ms,
+          tokens, version: "7.0", modo_entrada: ctx.modoEntrada,
+          pipeline: "single_mini",
+        },
+      });
+    }
+
+    // ─── RUTA 2: acciones premium (pipeline 2 etapas) ───
+    // Etapa 1: análisis (mini)
+    const { parsed: briefing, tokens: tokensAnalisis } = await llamarAnalisis(ctx);
+
+    // Etapa 2: redacción (4o o mini según kill switch)
+    const { parsed: redaccion, tokens: tokensRedaccion, modelo: modeloRedaccion } =
+      await llamarRedaccion(ctx, briefing, modoVariantes);
+
     const tiempo_respuesta_ms = Date.now() - startTime;
+    const tokensTotal = tokensAnalisis + tokensRedaccion;
 
-    if (Array.isArray(parsed.analisis_conversacion?.senales_detectadas)) {
-      parsed.analisis_conversacion.senales_detectadas =
-        parsed.analisis_conversacion.senales_detectadas
-          .filter((s) => SENALES_ENUM.includes(s))
-          .slice(0, 8); 
+    // Limpiar señales detectadas
+    if (Array.isArray(briefing.analisis_conversacion?.senales_detectadas)) {
+      briefing.analisis_conversacion.senales_detectadas =
+        briefing.analisis_conversacion.senales_detectadas
+          .filter(s => SENALES_ENUM.includes(s))
+          .slice(0, 8);
     }
 
     const metaBase = {
-      accion,
-      request_id: requestId,
-      tiempo_respuesta_ms,
-      tokens: completion.usage?.total_tokens,
-      version: "6.4", // [v6.4]
+      accion, request_id: requestId, tiempo_respuesta_ms,
+      tokens: tokensTotal, version: "7.0",
       modo_entrada: ctx.modoEntrada,
+      pipeline: "two_stage",
+      modelo_redaccion: modeloRedaccion,
       mensajes_parseados: ctx.conversacion?.totalMensajes ?? 0,
       objetivo_estrategico_aplicado: !!ctx.objetivo,
-      borrador_recibido: !!ctx.borrador, 
+      borrador_recibido: !!ctx.borrador,
     };
 
+    // ─── Output variantes ───
     if (modoVariantes) {
-      parsed.variantes.empatica.mensaje = cleanResponse(parsed.variantes.empatica.mensaje) || "Cuéntame un poco más para ayudarte mejor.";
-      parsed.variantes.directa.mensaje = cleanResponse(parsed.variantes.directa.mensaje) || "¿Avanzamos con el siguiente paso?";
-      parsed.variantes.educativa.mensaje = cleanResponse(parsed.variantes.educativa.mensaje) || "Te explico el detalle para que decidas con calma.";
+      const variantes = redaccion.variantes;
+      variantes.empatica.mensaje = cleanResponse(variantes.empatica.mensaje) || "Cuéntame un poco más para ayudarte mejor.";
+      variantes.directa.mensaje = cleanResponse(variantes.directa.mensaje) || "¿Avanzamos con el siguiente paso?";
+      variantes.educativa.mensaje = cleanResponse(variantes.educativa.mensaje) || "Te explico el detalle para que decidas con calma.";
 
-      const recomendada = parsed.variante_recomendada || "directa";
-      const respuestaPrincipal = parsed.variantes[recomendada].mensaje;
+      const recomendada = redaccion.variante_recomendada || "directa";
 
       return res.status(200).json({
-        respuesta: respuestaPrincipal,
-        razonamiento_interno: parsed.razonamiento_interno, // [v6.4] Exponemos el log
-        tipo_objecion: parsed.analisis_cliente.tipo_objecion || undefined,
-        emocion: parsed.analisis_cliente.emocion,
-        estado_cliente: parsed.analisis_cliente.estado_cliente,
+        respuesta: variantes[recomendada].mensaje,
+        razonamiento_interno: briefing.razonamiento_interno,
+        tipo_objecion: briefing.analisis_cliente.tipo_objecion || undefined,
+        emocion: briefing.analisis_cliente.emocion,
+        estado_cliente: briefing.analisis_cliente.estado_cliente,
         tono_sugerido: recomendada,
-        variantes: parsed.variantes,
+        variantes,
         variante_recomendada: recomendada,
-        probabilidad_cierre: parsed.analisis_cliente.probabilidad_cierre,
-        razon_score: parsed.analisis_cliente.razon_score,
-        analisis_conversacion: parsed.analisis_conversacion,
-        siguiente_jugada: parsed.siguiente_jugada,
+        probabilidad_cierre: briefing.analisis_cliente.probabilidad_cierre,
+        razon_score: briefing.analisis_cliente.razon_score,
+        analisis_conversacion: briefing.analisis_conversacion,
+        siguiente_jugada: briefing.siguiente_jugada,
         _meta: { ...metaBase, modo: "variantes" },
       });
     }
 
-    parsed.respuesta = cleanResponse(parsed.respuesta) || "Cuéntame un poco más para darte la mejor opción.";
+    // ─── Output simple ───
+    const respuestaLimpia = cleanResponse(redaccion.respuesta) || "Cuéntame un poco más para darte la mejor opción.";
 
     return res.status(200).json({
-      respuesta: parsed.respuesta,
-      razonamiento_interno: parsed.razonamiento_interno, // [v6.4] Exponemos el log
-      tipo_objecion: parsed.analisis_cliente.tipo_objecion || undefined,
-      emocion: parsed.analisis_cliente.emocion,
-      estado_cliente: parsed.analisis_cliente.estado_cliente,
-      probabilidad_cierre: parsed.analisis_cliente.probabilidad_cierre,
-      razon_score: parsed.analisis_cliente.razon_score,
-      analisis_conversacion: parsed.analisis_conversacion,
-      siguiente_jugada: parsed.siguiente_jugada,
+      respuesta: respuestaLimpia,
+      razonamiento_interno: briefing.razonamiento_interno,
+      tipo_objecion: briefing.analisis_cliente.tipo_objecion || undefined,
+      emocion: briefing.analisis_cliente.emocion,
+      estado_cliente: briefing.analisis_cliente.estado_cliente,
+      probabilidad_cierre: briefing.analisis_cliente.probabilidad_cierre,
+      razon_score: briefing.analisis_cliente.razon_score,
+      analisis_conversacion: briefing.analisis_conversacion,
+      siguiente_jugada: briefing.siguiente_jugada,
       _meta: { ...metaBase, modo: "simple" },
     });
   } catch (err) {
@@ -699,10 +838,12 @@ export const __internals = {
   buildContext,
   cleanResponse,
   validateInput,
-  shouldMergeWithPrevious,
-  SCHEMA_SIMPLE,
-  SCHEMA_VARIANTES,
-  SENALES_ENUM, 
-  LIMITES, 
+  sanitizeUserText,
+  SCHEMA_ANALISIS,
+  SCHEMA_REDACCION_SIMPLE,
+  SCHEMA_REDACCION_VARIANTES,
+  SENALES_ENUM,
+  LIMITES,
+  CONFIG,
 };
 
