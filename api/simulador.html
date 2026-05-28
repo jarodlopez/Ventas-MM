@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Simulador - MM Sales Copilot</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --mm-green: #10b981;
+      --mm-green-bright: #34d399;
+      --mm-green-glow: rgba(52, 211, 153, 0.4);
+      --mm-green-dim: rgba(16, 185, 129, 0.15);
+      
+      --mm-bg: rgba(12, 20, 16, 1);
+      --mm-surface: rgba(255, 255, 255, 0.05);
+      --mm-surface2: rgba(255, 255, 255, 0.08);
+      --mm-border: rgba(255, 255, 255, 0.1);
+      --mm-border-light: rgba(255, 255, 255, 0.15);
+      
+      --mm-text: #e2ede6;
+      --mm-text-bright: #ffffff;
+      --mm-muted: #84a993;
+      --mm-font: 'DM Sans', system-ui, sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    
+    body {
+      background-color: #050a08;
+      color: var(--mm-text);
+      font-family: var(--mm-font);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      padding: 10px;
+    }
+
+    /* --- SIMULADOR INPUTS --- */
+    .sim-container {
+      width: 100%;
+      max-width: 400px;
+      margin-bottom: 20px;
+      background: var(--mm-surface);
+      border: 1px dashed var(--mm-green-bright);
+      border-radius: 16px;
+      padding: 16px;
+    }
+    .sim-title { font-size: 14px; font-weight: 700; color: var(--mm-green-bright); margin-bottom: 10px; display: flex; align-items: center; gap: 8px;}
+    .sim-label { font-size: 11px; color: var(--mm-muted); margin-bottom: 4px; display: block; font-weight: 600; text-transform: uppercase;}
+    .sim-textarea {
+      width: 100%; background: rgba(0,0,0,0.5); color: #fff;
+      border: 1px solid var(--mm-border); border-radius: 8px;
+      padding: 10px; font-size: 13px; font-family: var(--mm-font);
+      resize: vertical; min-height: 60px; margin-bottom: 12px;
+      outline: none;
+    }
+    .sim-textarea:focus { border-color: var(--mm-green-bright); }
+
+    /* --- PANEL COPILOT (Adaptado para móvil) --- */
+    #mm-panel {
+      width: 100%;
+      max-width: 400px;
+      background: var(--mm-bg);
+      border: 1px solid var(--mm-border);
+      border-radius: 20px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      overflow: hidden;
+    }
+
+    @keyframes ai-shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+    @keyframes mm-spin { to { transform: rotate(360deg); } }
+    @keyframes mm-cursor-blink { 50% { opacity: 0; } }
+
+    /* Láser de carga */
+    #mm-panel::before {
+      content: ''; position: absolute; left: 0; top: 0; width: 100%; height: 2px;
+      background: var(--mm-green-bright); box-shadow: 0 0 15px 3px var(--mm-green-glow);
+      z-index: 9999; opacity: 0; pointer-events: none;
+    }
+    @keyframes mm-scan-laser { 0% { top: 0%; opacity: 0; } 10% { opacity: 1; } 90% { opacity: 1; } 100% { top: 100%; opacity: 0; } }
+    #mm-panel.thinking::before { animation: mm-scan-laser 1.5s ease-in-out infinite; }
+
+    .mm-header {
+      display: flex; align-items: center; justify-content: space-between; padding: 16px;
+      border-bottom: 1px solid var(--mm-border); background: rgba(255,255,255,0.02);
+    }
+    .mm-logo { display: flex; align-items: center; gap: 10px; }
+    .mm-logo-dot {
+      width: 30px; height: 30px; background: linear-gradient(135deg, var(--mm-green), #059669);
+      border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: bold; color: #fff; font-size: 14px;
+    }
+    .mm-title { font-size: 15px; font-weight: 700; color: #fff; }
+    .mm-version { font-size: 11px; color: var(--mm-green-bright); font-weight: 600;}
+
+    .mm-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 16px; }
+    .mm-action-btn {
+      background: var(--mm-surface); color: var(--mm-text); border: 1px solid var(--mm-border); border-radius: 12px;
+      padding: 12px 10px; cursor: pointer; font-family: var(--mm-font);
+      display: flex; flex-direction: column; align-items: flex-start; gap: 6px; text-align: left;
+    }
+    .mm-action-btn:active { transform: scale(0.98); border-color: var(--mm-green); }
+    .mm-action-btn.loading { opacity: 0.5; pointer-events: none; }
+    .mm-action-icon { font-size: 16px; background: rgba(0,0,0,0.4); width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 8px; }
+    .mm-action-title { font-size: 12px; font-weight: 600; color: #fff; }
+
+    .mm-mejorar-section { padding: 0 16px 16px; }
+    .mm-mejorar-textarea {
+      width: 100%; background: rgba(0,0,0,0.5); color: #fff; border: 1px solid var(--mm-border-light); border-radius: 10px;
+      padding: 12px; font-size: 13px; font-family: var(--mm-font); min-height: 70px; outline: none; margin-bottom: 8px;
+    }
+    .mm-btn-mejorar {
+      width: 100%; background: linear-gradient(135deg, var(--mm-green), #059669); color: #fff; border: none; border-radius: 8px;
+      padding: 10px; font-size: 13px; font-weight: 700; font-family: var(--mm-font); cursor: pointer;
+    }
+    .mm-btn-mejorar:disabled { opacity: 0.5; }
+
+    .mm-status {
+      margin: 0 16px 16px; padding: 10px 12px; border-radius: 10px;
+      font-size: 12px; font-weight: 500; background: rgba(0,0,0,0.4); border: 1px solid var(--mm-border);
+      color: var(--mm-muted); display: flex; align-items: center; gap: 10px;
+    }
+    .mm-status.ok { border-color: rgba(52, 211, 153, 0.3); color: var(--mm-green-bright); background: var(--mm-green-dim); }
+    .mm-status.error { border-color: rgba(239, 68, 68, 0.3); color: #fca5a5; background: rgba(239,68,68,0.1); }
+    .mm-status.thinking {
+      background: linear-gradient(90deg, rgba(20,31,24,0.3) 0%, rgba(16,185,129,0.15) 50%, rgba(20,31,24,0.3) 100%); background-size: 200% 100%;
+      animation: ai-shimmer 2s infinite linear; border-color: var(--mm-green-bright); color: var(--mm-green-bright);
+    }
+    .mm-spinner { width: 16px; height: 16px; border-radius: 50%; border: 2px solid transparent; border-top-color: var(--mm-green-bright); border-right-color: var(--mm-green-bright); animation: mm-spin 0.6s linear infinite; }
+
+    .mm-result {
+      display: none; margin: 0 16px 16px; background: rgba(0,0,0,0.6);
+      border: 1px solid var(--mm-border-light); border-radius: 12px; padding: 14px; font-size: 14px; line-height: 1.5; color: #fff;
+      white-space: pre-wrap; border-left: 3px solid var(--mm-green-bright);
+    }
+    .mm-cursor { display: inline-block; width: 6px; height: 14px; background: var(--mm-green-bright); margin-left: 4px; animation: mm-cursor-blink 0.8s step-end infinite; }
+
+    /* VISTA IA & ANALÍTICAS */
+    .mm-ia-view { display: none; margin: 0 16px 16px; background: rgba(0,0,0,0.4); border: 1px solid var(--mm-border); border-radius: 10px; padding: 12px; }
+    .mm-ia-metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; }
+    .mm-ia-metric { background: var(--mm-surface); border: 1px solid var(--mm-border); border-radius: 8px; padding: 8px; }
+    .mm-ia-metric-label { font-size: 9px; font-weight: 600; color: var(--mm-muted); text-transform: uppercase; margin-bottom: 3px; }
+    .mm-ia-metric-value { font-size: 12px; font-weight: 700; color: #fff; }
+    
+    .mm-analytics { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--mm-border-light); display: flex; flex-wrap: wrap; gap: 10px; }
+    .mm-badge { background: rgba(52, 211, 153, 0.1); border: 1px solid rgba(52, 211, 153, 0.3); color: var(--mm-green-bright); padding: 4px 8px; border-radius: 6px; font-size: 10px; font-weight: 700; font-family: monospace; }
+    .mm-badge.time { border-color: #3b82f6; color: #60a5fa; background: rgba(59, 130, 246, 0.1); }
+    .mm-badge.tokens { border-color: #a855f7; color: #c084fc; background: rgba(168, 85, 247, 0.1); }
+
+  </style>
+</head>
+<body>
+
+  <!-- ENTRADAS DE SIMULACIÓN (Reemplazan la extracción del DOM) -->
+  <div class="sim-container">
+    <div class="sim-title">📱 Entradas de Prueba (Datos Cliente)</div>
+    
+    <label class="sim-label">Historial de Conversación (Contexto)</label>
+    <textarea class="sim-textarea" id="sim-contexto" placeholder="Cliente: Hola, me interesa&#10;Asesor: ¡Claro! ¿Cuánto necesitas?"></textarea>
+    
+    <label class="sim-label">Mensaje subrayado (Acciones IA)</label>
+    <textarea class="sim-textarea" id="sim-mensaje" placeholder="Me parece muy alta la tasa, lo voy a pensar..."></textarea>
+  </div>
+
+  <!-- PANEL COPILOT -->
+  <div id="mm-panel">
+    <div class="mm-header">
+      <div class="mm-logo">
+        <div class="mm-logo-dot">MM</div>
+        <div>
+          <div class="mm-title">Sales Copilot</div>
+          <div class="mm-version">Testing Environment</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Acciones -->
+    <div class="mm-actions">
+      <button class="mm-action-btn" data-accion="responder_objecion">
+        <div class="mm-action-icon">🛡️</div>
+        <div class="mm-action-title">Rebatir objeción</div>
+      </button>
+      <button class="mm-action-btn" data-accion="negociar_tasa">
+        <div class="mm-action-icon">📊</div>
+        <div class="mm-action-title">Negociar tasa</div>
+      </button>
+      <button class="mm-action-btn" data-accion="cerrar_venta">
+        <div class="mm-action-icon">🎯</div>
+        <div class="mm-action-title">Cerrar venta</div>
+      </button>
+      <button class="mm-action-btn" data-accion="seguimiento">
+        <div class="mm-action-icon">🔄</div>
+        <div class="mm-action-title">Seguimiento</div>
+      </button>
+      <button class="mm-action-btn" data-accion="resumen_crm" style="grid-column: span 2;">
+        <div class="mm-action-icon">📝</div>
+        <div class="mm-action-title">Generar Nota CRM</div>
+      </button>
+    </div>
+
+    <!-- Mejorar Mensaje -->
+    <div class="mm-mejorar-section">
+      <textarea class="mm-mejorar-textarea" id="mm-mejorar-input" placeholder="O pega tu borrador aquí para que la IA lo mejore..."></textarea>
+      <button class="mm-btn-mejorar" id="mm-btn-mejorar">✨ Mejorar mi borrador</button>
+    </div>
+
+    <!-- Status -->
+    <div class="mm-status" id="mm-status">
+      <span id="mm-status-icon">💡</span>
+      <span id="mm-status-txt">Listo para probar.</span>
+    </div>
+
+    <!-- Resultado (Typewriter) -->
+    <div class="mm-result" id="mm-result"></div>
+
+    <!-- Vista IA & Analíticas -->
+    <div class="mm-ia-view" id="mm-ia-view">
+      <div style="font-size: 12px; font-weight:bold; color: #fff; margin-bottom: 8px;">🧠 Inteligencia Comercial</div>
+      <div class="mm-ia-metrics">
+        <div class="mm-ia-metric">
+          <div class="mm-ia-metric-label">Cierre Prob.</div>
+          <div class="mm-ia-metric-value" id="ia-prob">—</div>
+        </div>
+        <div class="mm-ia-metric">
+          <div class="mm-ia-metric-label">Momentum</div>
+          <div class="mm-ia-metric-value" id="ia-momentum" style="color: var(--mm-green-bright)">—</div>
+        </div>
+        <div class="mm-ia-metric">
+          <div class="mm-ia-metric-label">Emoción</div>
+          <div class="mm-ia-metric-value" id="ia-emocion">—</div>
+        </div>
+        <div class="mm-ia-metric">
+          <div class="mm-ia-metric-label">Táctica</div>
+          <div class="mm-ia-metric-value" id="ia-tactica" style="font-size: 10px; line-height: 1.2;">—</div>
+        </div>
+      </div>
+      
+      <!-- Bloque de Analíticas de API -->
+      <div class="mm-analytics" id="mm-analytics" style="display:none;">
+        <div class="mm-badge time" id="badge-time">⏱️ 0ms</div>
+        <div class="mm-badge tokens" id="badge-tokens">🪙 0 tkns</div>
+        <div class="mm-badge" id="badge-model">🤖 Modelo</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ──────────────────────────────────────────────
+    // LÓGICA DEL SIMULADOR (Combinación Frontend + Backend)
+    // ──────────────────────────────────────────────
+    const VERCEL_API_URL = "https://ventas-mm.vercel.app/api/copilot"; // Asegúrate de que esta URL sea la de tu backend actualizado
+    
+    // Referencias DOM
+    const panel = document.getElementById('mm-panel');
+    const statusEl = document.getElementById('mm-status');
+    const statusIcon = document.getElementById('mm-status-icon');
+    const statusTxt = document.getElementById('mm-status-txt');
+    const resultEl = document.getElementById('mm-result');
+    const iaView = document.getElementById('mm-ia-view');
+    const btnMejorar = document.getElementById('mm-btn-mejorar');
+    
+    let mmThinkingInterval;
+    let mmTypeWriterTimeout;
+
+    const mmThinkingSteps = [
+      "Extrayendo contexto simulado...",
+      "Analizando intención con GPT-4o-mini...",
+      "Aplicando técnica Playbook REA...",
+      "Redactando respuesta persuasiva..."
+    ];
+
+    function setStatus(tipo, texto, icono = null) {
+      clearInterval(mmThinkingInterval);
+      statusEl.className = `mm-status ${tipo}`;
+      if (tipo === 'thinking') {
+        panel.classList.add('thinking');
+        statusIcon.innerHTML = '<div class="mm-spinner"></div>';
+        let step = 0;
+        statusTxt.textContent = mmThinkingSteps[0];
+        mmThinkingInterval = setInterval(() => {
+          step = (step + 1) % mmThinkingSteps.length;
+          statusTxt.textContent = mmThinkingSteps[step];
+        }, 800);
+      } else {
+        panel.classList.remove('thinking');
+        const iconos = { idle: '💡', ok: '✨', error: '⚠️' };
+        statusIcon.innerHTML = icono || iconos[tipo] || '💡';
+        statusTxt.textContent = texto;
+      }
+    }
+
+    function mostrarResultado(texto) {
+      resultEl.style.display = 'block';
+      resultEl.innerHTML = '<span id="mm-typing-text"></span><span class="mm-cursor"></span>';
+      const typingText = document.getElementById('mm-typing-text');
+      const cursor = document.querySelector('.mm-cursor');
+      
+      let i = 0;
+      function type() {
+        if (i < texto.length) {
+          typingText.textContent += texto.charAt(i);
+          i++;
+          mmTypeWriterTimeout = setTimeout(type, 15);
+        } else {
+          cursor.style.display = 'none';
+          resultEl.textContent = texto;
+        }
+      }
+      clearTimeout(mmTypeWriterTimeout);
+      type();
+    }
+
+    function actualizarAnaliticas(meta, analisis) {
+      iaView.style.display = 'block';
+      
+      // Inteligencia
+      document.getElementById('ia-prob').textContent = analisis?.probabilidad_cierre ? `${analisis.probabilidad_cierre}%` : '—';
+      document.getElementById('ia-emocion').textContent = analisis?.emocion || '—';
+      document.getElementById('ia-momentum').textContent = analisis?.analisis_conversacion?.momentum || '—';
+      document.getElementById('ia-tactica').textContent = analisis?.razonamiento_interno?.tactica_elegida || '—';
+
+      // API Analytics
+      if (meta) {
+        document.getElementById('mm-analytics').style.display = 'flex';
+        document.getElementById('badge-time').textContent = `⏱️ ${meta.tiempo_respuesta_ms || 0}ms`;
+        document.getElementById('badge-tokens').textContent = `🪙 ${meta.tokens || 0} tkns`;
+        document.getElementById('badge-model').textContent = `🤖 ${meta.modelo_redaccion || 'gpt-4o-mini'}`;
+      }
+    }
+
+    function bloquearBotones(estado) {
+      document.querySelectorAll('.mm-action-btn').forEach(btn => btn.classList.toggle('loading', estado));
+      btnMejorar.disabled = estado;
+    }
+
+    // Llamada simulada a la API
+    async function llamarAPI(accion, payloadExtra = {}) {
+      const contexto = document.getElementById('sim-contexto').value.trim();
+      
+      const payload = {
+        accion: accion,
+        conversationContext: contexto,
+        datosCliente: { nombre: "Cliente Test" }, // Para que aplique Playbook v2
+        ...payloadExtra
+      };
+
+      bloquearBotones(true);
+      setStatus('thinking', 'Procesando...');
+      resultEl.style.display = 'none';
+      iaView.style.display = 'none';
+
+      try {
+        const response = await fetch(VERCEL_API_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) throw new Error(data.error || 'Error en servidor');
+
+        setStatus('ok', 'Respuesta generada exitosamente.');
+        mostrarResultado(data.respuesta);
+        actualizarAnaliticas(data._meta, data);
+
+      } catch (err) {
+        setStatus('error', err.message);
+      } finally {
+        bloquearBotones(false);
+      }
+    }
+
+    // Listeners de botones
+    document.querySelectorAll('.mm-action-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const accion = btn.getAttribute('data-accion');
+        const mensaje = document.getElementById('sim-mensaje').value.trim();
+        llamarAPI(accion, { mensajeCliente: mensaje });
+      });
+    });
+
+    btnMejorar.addEventListener('click', () => {
+      const borrador = document.getElementById('mm-mejorar-input').value.trim();
+      if (!borrador) return alert("Escribe un borrador primero");
+      llamarAPI('mejorar_mensaje', { borrador: borrador });
+    });
+  </script>
+</body>
+</html>
+
