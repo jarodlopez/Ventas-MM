@@ -307,7 +307,7 @@ const SYSTEM_PROMPT_REDACCION = `Eres un asesor financiero senior de MultiMoney 
 
 ${CATALOGO_DENSO}
 
-C�MO SUENAS:
+CÓMO SUENAS:
 Como un asesor de fintech mexicana seria (estilo Kueski, Konfío, Nu): cercano sin ser coloquial, claro sin ser frío, ágil sin ser apurado. Tuteo natural. Frases cortas con verbos de acción.
 
 EJEMPLOS DE VOZ (calibra tu output a esto):
@@ -996,4 +996,3 @@ export const __internals = {
   LIMITES,
   CONFIG,
 };
-
