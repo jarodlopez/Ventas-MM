@@ -815,15 +815,22 @@ const SCHEMA_PREGUNTAR = {
 // ─────────────────────────────────────────────
 // HELPERS
 // ─────────────────────────────────────────────
-function renderConversacion(conversacion, inputFallback, contextoManual = false) {
+function renderConversacion(conversacion, inputFallback, contextoManual = false, targetExplicito = false) {
   if (conversacion?.fuente === "parsed" && conversacion.resumenContextual) {
-    const ultimo = conversacion.ultimoMensajeCliente || inputFallback;
     const fuentePrefix = contextoManual
       ? "CONVERSACIÓN (pegada por el asesor, FUENTE DE VERDAD):"
-      : "CONVERSACIÓN RECIENTE (extraída del chat):";
+      : "CONVERSACIÓN RECIENTE (extraída del chat, puede tener ruido):";
+
+    if (targetExplicito && inputFallback) {
+      // El asesor subrayó un mensaje específico. ESE es el target, no el
+      // "último mensaje" que el parser haya adivinado del DOM.
+      return `${fuentePrefix}\n${conversacion.resumenContextual}\n\n⚠️ MENSAJE A RESPONDER (subrayado por el asesor, ES ESTE y no otro): "${inputFallback}"`;
+    }
+
+    const ultimo = conversacion.ultimoMensajeCliente || inputFallback;
     return `${fuentePrefix}\n${conversacion.resumenContextual}\n\nÚltimo mensaje del cliente: "${ultimo}"`;
   }
-  return `Mensaje del cliente: "${inputFallback}"`;
+  return `Mensaje a responder del cliente: "${inputFallback}"`;
 }
 
 function renderDatos(ctx) {
@@ -863,7 +870,7 @@ Analiza:
 - En briefing_redactor: instrucción clara de REESCRITURA que mantiene la intención del asesor con voz MultiMoney.`;
   }
 
-  const conversacionStr = renderConversacion(conversacion, input, contextoManual);
+  const conversacionStr = renderConversacion(conversacion, input, contextoManual, ctx.targetExplicito);
   const datos = renderDatos(ctx);
   const trustNote = contextoManual
     ? "\n\nNOTA: Conversación pegada manualmente por el asesor. Es la fuente de verdad."
@@ -905,7 +912,7 @@ function buildPromptRedaccion(ctx, briefing, modoVariantes) {
         : "";
     contextoUltimoMsg = `${conversacionStr}\nBORRADOR DEL ASESOR A REESCRIBIR (mantén su intención):\n"${borrador}"`;
   } else {
-    contextoUltimoMsg = renderConversacion(conversacion, input, contextoManual);
+    contextoUltimoMsg = renderConversacion(conversacion, input, contextoManual, ctx.targetExplicito);
   }
 
   const datos = renderDatos(ctx);
@@ -1004,15 +1011,32 @@ function buildContext(body) {
   let conversacion = null;
   let inputPrincipal = "";
   let modoEntrada = "legacy";
+  let targetExplicito = false;
+
+  // El mensaje subrayado por el asesor (mensajeCliente) es la FUENTE DE VERDAD
+  // del mensaje a responder. La conversación es solo contexto.
+  // BUG FIX v8.1: antes la conversación pisaba el subrayado y el modelo
+  // analizaba el mensaje equivocado → respuestas que no aplican (rendición).
+  const mensajeSubrayado =
+    typeof mensajeCliente === "string"
+      ? sanitizeUserText(mensajeCliente)
+      : "";
 
   if (typeof conversationContext === "string" && conversationContext.trim()) {
     conversacion = parseConversationContext(conversationContext);
-    inputPrincipal = sanitizeUserText(
-      conversacion.ultimoMensajeCliente || mensajeCliente || ""
-    );
     modoEntrada = "contextual";
-  } else if (typeof mensajeCliente === "string") {
-    inputPrincipal = sanitizeUserText(mensajeCliente);
+
+    if (mensajeSubrayado) {
+      // El asesor subrayó algo → ESE es el mensaje a responder, sí o sí.
+      inputPrincipal = mensajeSubrayado;
+      targetExplicito = true;
+    } else {
+      // Sin subrayado → usar el último mensaje del cliente de la conversación.
+      inputPrincipal = sanitizeUserText(conversacion.ultimoMensajeCliente || "");
+    }
+  } else if (mensajeSubrayado) {
+    inputPrincipal = mensajeSubrayado;
+    targetExplicito = true;
   }
 
   inputPrincipal = inputPrincipal.slice(0, LIMITES.MENSAJE_CLIENTE_MAX);
@@ -1029,6 +1053,7 @@ function buildContext(body) {
     input: inputPrincipal,
     conversacion,
     modoEntrada,
+    targetExplicito,
     contextoManual: contextoManual === true,
     objetivo:
       sanitizeUserText(objetivo || "").slice(0, LIMITES.OBJETIVO_MAX) || null,
@@ -1205,7 +1230,7 @@ export default async function handler(req, res) {
           request_id: requestId,
           tiempo_respuesta_ms,
           tokens,
-          version: "8.0",
+          version: "8.1",
           modo_entrada: ctx.modoEntrada,
           pipeline: "single_mini",
           contexto_manual: ctx.contextoManual,
@@ -1235,7 +1260,7 @@ export default async function handler(req, res) {
           request_id: requestId,
           tiempo_respuesta_ms,
           tokens,
-          version: "8.0",
+          version: "8.1",
           modo_entrada: ctx.modoEntrada,
           pipeline: "single_mini_qa",
           contexto_manual: ctx.contextoManual,
@@ -1273,7 +1298,7 @@ export default async function handler(req, res) {
       request_id: requestId,
       tiempo_respuesta_ms,
       tokens: tokensTotal,
-      version: "8.0",
+      version: "8.1",
       modo_entrada: ctx.modoEntrada,
       pipeline: "two_stage",
       modelo_redaccion: modeloRedaccion,
