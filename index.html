@@ -89,10 +89,16 @@
     };
 
     const CONTACT_TYPES = [
-      { id: 'call', label: 'Llamada', icon: 'fa-phone', color: 'blue' },
-      { id: 'whatsapp', label: 'WhatsApp', icon: 'fa-whatsapp', color: 'green' },
-      { id: 'email', label: 'Email', icon: 'fa-envelope', color: 'purple' }
+      { id: 'call', label: 'Llamada', icon: 'fa-phone', prefix: 'fas', color: 'blue' },
+      { id: 'whatsapp', label: 'WhatsApp', icon: 'fa-whatsapp', prefix: 'fab', color: 'green' },
+      { id: 'email', label: 'Email', icon: 'fa-envelope', prefix: 'fas', color: 'purple' }
     ];
+
+    const COLOR_CLASSES = {
+      blue:   { cardBg: 'bg-blue-100',   cardText: 'text-blue-700',   cardBorder: 'border-blue-200',   cardHover: 'hover:bg-blue-200',   btnBg: 'bg-blue-600',   btnHover: 'hover:bg-blue-700',   iconText: 'text-blue-600'   },
+      green:  { cardBg: 'bg-green-100',  cardText: 'text-green-700',  cardBorder: 'border-green-200',  cardHover: 'hover:bg-green-200',  btnBg: 'bg-green-600',  btnHover: 'hover:bg-green-700',  iconText: 'text-green-600'  },
+      purple: { cardBg: 'bg-purple-100', cardText: 'text-purple-700', cardBorder: 'border-purple-200', cardHover: 'hover:bg-purple-200', btnBg: 'bg-purple-600', btnHover: 'hover:bg-purple-700', iconText: 'text-purple-600' },
+    };
 
     const parseDate = (input) => {
       if (!input) return new Date();
@@ -327,14 +333,13 @@
                     ) : (
                       <div className="flex gap-1">
                         {CONTACT_TYPES.map(ct => (
-                          <button 
+                          <button
                             key={ct.id}
                             onClick={() => onContactRegister(sale, ct.id, false)}
-                            className={`flex-1 bg-${ct.color}-600 text-white text-xs py-1.5 rounded font-bold hover:bg-${ct.color}-700`}
+                            className={`flex-1 ${COLOR_CLASSES[ct.color].btnBg} text-white text-xs py-1.5 rounded font-bold ${COLOR_CLASSES[ct.color].btnHover}`}
                             title={`Registrar ${ct.label}`}
                           >
-                            <i className={`fab ${ct.icon}`}></i>
-                            <i className={`fas ${ct.icon}`}></i>
+                            <i className={`${ct.prefix} ${ct.icon}`}></i>
                           </button>
                         ))}
                       </div>
@@ -367,7 +372,7 @@
           <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow-xl w-full max-w-sm p-5 space-y-4 border-t-4 border-blue-500">
             <div>
               <h3 className="font-bold text-lg flex items-center gap-2">
-                <i className={`fas ${contactInfo.icon} text-${contactInfo.color}-600`}></i>
+                <i className={`${contactInfo.prefix} ${contactInfo.icon} ${COLOR_CLASSES[contactInfo.color].iconText}`}></i>
                 Registrar {contactInfo.label}
               </h3>
               <p className="text-xs text-slate-500">{sale.nombre_cliente} · {sale.folio}</p>
@@ -527,6 +532,10 @@
       
       const percent = meta > 0 ? (sold / meta) * 100 : 0;
 
+      const remainingToMeta = Math.max(0, meta - sold);
+      const originalDailyGoal = businessData.totalBusinessDays > 0 ? meta / businessData.totalBusinessDays : 0;
+      const requiredDaily = businessData.remainingDays > 0 ? remainingToMeta / businessData.remainingDays : 0;
+
       let currentBonus = 0;
       let nextBonusLvl = "";
       let nextPercent = 0;
@@ -625,6 +634,31 @@
              <div className="hidden lg:block">
                 <p className="text-[10px] font-bold text-slate-400 uppercase"><i className="far fa-clock mr-1"></i>Restante</p>
                 <p className="text-lg font-bold text-slate-700 leading-none">{businessData.remainingDays} días</p>
+             </div>
+
+             <div className="hidden xl:block w-px h-10 bg-slate-200"></div>
+
+             <div className="hidden lg:flex flex-col min-w-[170px]">
+                <p className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-1"><i className="fas fa-tachometer-alt"></i> Ritmo Diario</p>
+                {businessData.remainingDays > 0 && meta > 0 ? (
+                  <>
+                    <p className={`text-xl font-bold leading-none mt-0.5 ${requiredDaily > originalDailyGoal * 1.2 ? 'text-red-600' : requiredDaily > originalDailyGoal ? 'text-orange-500' : 'text-green-600'}`}>
+                      {money(requiredDaily)}
+                    </p>
+                    <p className="text-[10px] text-slate-400 font-bold">/ día hábil restante</p>
+                    <div className="mt-1.5 relative w-full bg-slate-200 rounded-full h-2">
+                      <div
+                        className={`h-full rounded-full transition-all duration-700 ${requiredDaily > originalDailyGoal * 1.2 ? 'bg-red-500' : requiredDaily > originalDailyGoal ? 'bg-orange-400' : 'bg-green-500'}`}
+                        style={{ width: `${Math.min((requiredDaily / Math.max(originalDailyGoal, 1)) * 100, 100)}%` }}
+                      ></div>
+                    </div>
+                    <p className="text-[10px] text-slate-400 mt-1">Base plan: {money(originalDailyGoal)}</p>
+                  </>
+                ) : meta === 0 ? (
+                  <p className="text-sm font-bold text-slate-400 mt-1">Sin meta definida</p>
+                ) : (
+                  <p className="text-sm font-bold text-green-600 mt-1">¡Quincena completada!</p>
+                )}
              </div>
 
           </div>
@@ -800,10 +834,10 @@
                   <button
                     key={ct.id}
                     onClick={() => onContactAttempt(sale, ct.id)}
-                    className={`flex-1 bg-${ct.color}-100 text-${ct.color}-700 hover:bg-${ct.color}-200 border border-${ct.color}-200 py-1 rounded text-[10px] font-bold transition-colors`}
+                    className={`flex-1 ${COLOR_CLASSES[ct.color].cardBg} ${COLOR_CLASSES[ct.color].cardText} ${COLOR_CLASSES[ct.color].cardHover} border ${COLOR_CLASSES[ct.color].cardBorder} py-1 rounded text-[10px] font-bold transition-colors`}
                     title={`Registrar ${ct.label}`}
                   >
-                    <i className={`fas ${ct.icon}`}></i> {ct.label}
+                    <i className={`${ct.prefix} ${ct.icon}`}></i> {ct.label}
                   </button>
                 ))}
               </div>
@@ -818,7 +852,7 @@
                    <i className="fas fa-phone mr-1"></i> {sale.telefono}
                  </a>
                )}
-               {sale.url && <a href={sale.url} target="_blank" className="w-5 h-5 rounded bg-slate-50 flex items-center justify-center text-slate-400 hover:text-blue-600 border border-slate-100" title="Ver en Hubspot"><i className="fas fa-link text-[10px]"></i></a>}
+               {sale.url && <a href={sale.url} target="_blank" rel="noopener noreferrer" className="w-5 h-5 rounded bg-slate-50 flex items-center justify-center text-slate-400 hover:text-blue-600 border border-slate-100" title="Ver en Hubspot"><i className="fas fa-link text-[10px]"></i></a>}
                <button onClick={() => setShowHistory(!showHistory)} className="ml-auto text-[10px] text-blue-500 underline">{showHistory ? 'Ocultar' : 'Bitácora'}</button>
             </div>
             
@@ -829,7 +863,7 @@
                    {sale.contactAttempts && sale.contactAttempts.slice().reverse().map((a, i) => (
                       <div key={`att-${i}`} className="border-b border-slate-200 pb-1 mb-1 bg-blue-50/50 p-1 rounded">
                         <span className="font-bold text-blue-700 block">
-                          <i className={`fas ${CONTACT_TYPES.find(c => c.id === a.type)?.icon || 'fa-phone'} mr-1`}></i>
+                          <i className={`${CONTACT_TYPES.find(c => c.id === a.type)?.prefix || 'fas'} ${CONTACT_TYPES.find(c => c.id === a.type)?.icon || 'fa-phone'} mr-1`}></i>
                           {CONTACT_TYPES.find(c => c.id === a.type)?.label || 'Contacto'} · {formatDate(a.date)}
                         </span>
                         <span className="break-words text-slate-600">Resultado: {a.result} {a.notes && `· ${a.notes}`}</span>
@@ -1218,8 +1252,8 @@
       };
 
       const changePeriod = (dir) => {
-        if(dir === 1) { if(currentQuincena === 1) setCurrentQuincena(2); else { setCurrentQuincena(1); setCurrentDate(new Date(currentDate.setMonth(currentDate.getMonth() + 1))); } } 
-        else { if(currentQuincena === 2) setCurrentQuincena(1); else { setCurrentQuincena(2); setCurrentDate(new Date(currentDate.setMonth(currentDate.getMonth() - 1))); } }
+        if(dir === 1) { if(currentQuincena === 1) setCurrentQuincena(2); else { setCurrentQuincena(1); const d = new Date(currentDate); d.setMonth(d.getMonth() + 1); setCurrentDate(d); } }
+        else { if(currentQuincena === 2) setCurrentQuincena(1); else { setCurrentQuincena(2); const d = new Date(currentDate); d.setMonth(d.getMonth() - 1); setCurrentDate(d); } }
       };
 
       return (
