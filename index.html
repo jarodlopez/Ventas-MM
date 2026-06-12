@@ -845,16 +845,27 @@
             
             <div className="mt-2 flex flex-wrap gap-1 border-t border-slate-100 pt-2 items-center">
                {sale.telefono && (
-                 <a 
+                 <a
                    href={`tel:${sale.telefono}`}
                    className="px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100 text-slate-500 text-[10px] flex items-center font-medium hover:bg-blue-50 hover:text-blue-600 select-text"
                  >
                    <i className="fas fa-phone mr-1"></i> {sale.telefono}
                  </a>
                )}
+               {sale.correo && (
+                 <a href={`mailto:${sale.correo}`} className="px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100 text-slate-500 text-[10px] flex items-center font-medium hover:bg-purple-50 hover:text-purple-600 select-text" title={sale.correo}>
+                   <i className="fas fa-envelope mr-1"></i> <span className="max-w-[110px] truncate">{sale.correo}</span>
+                 </a>
+               )}
                {sale.url && <a href={sale.url} target="_blank" rel="noopener noreferrer" className="w-5 h-5 rounded bg-slate-50 flex items-center justify-center text-slate-400 hover:text-blue-600 border border-slate-100" title="Ver en Hubspot"><i className="fas fa-link text-[10px]"></i></a>}
                <button onClick={() => setShowHistory(!showHistory)} className="ml-auto text-[10px] text-blue-500 underline">{showHistory ? 'Ocultar' : 'Bitácora'}</button>
             </div>
+            {(sale.rfc || sale.curp) && (
+              <div className="flex flex-wrap gap-1 mt-1">
+                {sale.rfc && <span className="px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100 text-[9px] font-mono select-text text-slate-500" title="RFC"><span className="font-bold text-slate-400 mr-0.5">RFC</span>{sale.rfc}</span>}
+                {sale.curp && <span className="px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100 text-[9px] font-mono select-text text-slate-500" title="CURP"><span className="font-bold text-slate-400 mr-0.5">CURP</span>{sale.curp}</span>}
+              </div>
+            )}
             
             {showHistory && (
               <div className="bg-slate-50 p-2 mt-2 rounded text-[10px]">
@@ -921,6 +932,7 @@
       const [showForm, setShowForm] = useState(false);
       const [formError, setFormError] = useState(''); 
       const [searchTerm, setSearchTerm] = useState('');
+      const [newLeadForm, setNewLeadForm] = useState({ folio: '', client: '', amount: '', phone: '', url: '', curp: '', rfc: '', correo: '', isUpper: false });
 
       const [acceptOfferData, setAcceptOfferData] = useState(null); 
       const [realAmount, setRealAmount] = useState('');
@@ -1043,14 +1055,30 @@
       
       const paceStatus = remainingToMeta === 0 ? 'superado' : (requiredDaily > originalDailyGoal ? 'atrasado' : 'excelente');
 
+      const resetNewLeadForm = () => setNewLeadForm({ folio: '', client: '', amount: '', phone: '', url: '', curp: '', rfc: '', correo: '', isUpper: false });
+
+      const handleLeadPaste = (e) => {
+        const text = e.clipboardData.getData('text');
+        if (!text.trim()) return;
+        const parts = text.trim().split('\t');
+        setNewLeadForm(prev => ({
+          ...prev,
+          client: parts[0]?.trim() || prev.client,
+          curp:   parts[1]?.trim() || prev.curp,
+          rfc:    parts[2]?.trim() || prev.rfc,
+          folio:  parts[3]?.trim() || prev.folio,
+          phone:  parts[4]?.trim() || prev.phone,
+          correo: parts[5]?.trim() || prev.correo,
+        }));
+      };
+
       const handleAddSale = async (e) => {
         e.preventDefault();
-        const form = e.target;
-        const newFolio = form.folio.value.trim();
-        const newPhone = form.phone.value.trim();
-        const clientName = form.client.value;
-        const amount = Number(form.amount.value);
-        const isUpper = form.elements['isUpper']?.checked || false; 
+        const newFolio = newLeadForm.folio.trim();
+        const newPhone = newLeadForm.phone.trim();
+        const clientName = newLeadForm.client.trim();
+        const amount = Number(newLeadForm.amount);
+        const isUpper = newLeadForm.isUpper;
 
         const isFolioDup = allSales.some(s => s.folio && s.folio.toLowerCase() === newFolio.toLowerCase());
         if (isFolioDup) return setFormError('Error: Este Folio ya existe en tu pipeline.');
@@ -1060,29 +1088,32 @@
            if (isPhoneDup) return setFormError('Error: Este teléfono ya pertenece a otro cliente.');
         }
 
-        setFormError(''); 
+        setFormError('');
 
         const saleData = {
-          userId: user.uid, 
+          userId: user.uid,
           agentEmail: user.email,
-          folio: newFolio, 
+          folio: newFolio,
           nombre_cliente: clientName,
+          curp: newLeadForm.curp.trim(),
+          rfc: newLeadForm.rfc.trim(),
+          correo: newLeadForm.correo.trim(),
           monto_preaprobado: amount,
           monto_dispersado: 0,
           estatus: 'Con oferta',
           telefono: newPhone,
-          url: form.url.value,
+          url: newLeadForm.url.trim(),
           canal: isUpper ? 'UPPER' : 'Normal',
-          fecha: new Date().toISOString(), 
-          // === NUEVO: Inicializar seguimientos ===
+          fecha: new Date().toISOString(),
           contactAttempts: [],
-          nextContactDue: new Date().toISOString(), // Alerta inmediata para el primer contacto
+          nextContactDue: new Date().toISOString(),
           history: [{ date: new Date().toISOString(), action: isUpper ? 'Lead UPPER Creado - Pendiente primer contacto' : 'Lead Creado - Pendiente primer contacto', user: 'Agente' }]
         };
 
         try {
           await db.collection('sales').add(saleData);
           setShowForm(false);
+          resetNewLeadForm();
         } catch(err) {
           setFormError('Error al guardar: ' + err.message);
         }
@@ -1326,7 +1357,7 @@
             
             <div className="flex gap-2 items-center">
               <a href="reports.html" className="bg-blue-600 px-3 py-1.5 rounded text-sm font-bold hover:bg-blue-500 shadow-lg text-white"><i className="fas fa-table md:mr-2"></i><span className="hidden md:inline">Reportes</span></a>
-              <button onClick={() => {setShowForm(true); setFormError('');}} className="bg-green-600 px-3 py-1.5 rounded text-sm font-bold hover:bg-green-500 shadow-lg"><i className="fas fa-plus md:mr-2"></i><span className="hidden md:inline">Lead</span></button>
+              <button onClick={() => {setShowForm(true); setFormError(''); resetNewLeadForm();}} className="bg-green-600 px-3 py-1.5 rounded text-sm font-bold hover:bg-green-500 shadow-lg"><i className="fas fa-plus md:mr-2"></i><span className="hidden md:inline">Lead</span></button>
               <button onClick={() => auth.signOut()} className="text-slate-400 hover:text-white px-2" title="Cerrar sesión"><i className="fas fa-sign-out-alt"></i></button>
             </div>
           </div>
@@ -1424,21 +1455,61 @@
 
           {showForm && (
             <div className="fixed inset-0 glass-modal z-50 flex items-center justify-center p-4">
-              <form onSubmit={handleAddSale} className="bg-white rounded-lg shadow-xl w-full max-w-sm p-5 space-y-4">
+              <form onSubmit={handleAddSale} className="bg-white rounded-lg shadow-xl w-full max-w-md p-5 space-y-3 max-h-[90vh] overflow-y-auto">
                  <h2 className="font-bold text-lg border-b pb-2">Nuevo Lead</h2>
-                 
+
                  {formError && <div className="bg-red-100 text-red-700 p-2 rounded text-xs font-bold border border-red-200"><i className="fas fa-exclamation-circle mr-1"></i>{formError}</div>}
 
-                 <input name="folio" required placeholder="Número de Folio" className="w-full border p-2 rounded focus:outline-none focus:border-blue-500 font-mono" />
-                 <input name="client" required placeholder="Nombre Cliente" className="w-full border p-2 rounded focus:outline-none focus:border-blue-500" />
-                 <input name="amount" type="number" required placeholder="Monto Preaprobado ($)" className="w-full border p-2 rounded focus:outline-none focus:border-blue-500" />
-                 <input name="phone" placeholder="Teléfono" className="w-full border p-2 rounded focus:outline-none focus:border-blue-500" />
-                 <input name="url" placeholder="Enlace a Hubspot" className="w-full border p-2 rounded focus:outline-none focus:border-blue-500" />
-                 
-                 <div className="bg-indigo-50 border border-indigo-100 p-3 rounded-md flex items-center gap-3 mt-2 hover:bg-indigo-100 transition-colors">
-                    <input type="checkbox" id="isUpper" name="isUpper" className="w-5 h-5 cursor-pointer accent-indigo-600" />
+                 <div className="bg-slate-50 border border-slate-200 rounded-lg p-3">
+                   <p className="text-[10px] font-bold text-slate-500 uppercase mb-1.5 flex items-center gap-1">
+                     <i className="fas fa-paste text-blue-500"></i> Pegar desde tabla
+                   </p>
+                   <textarea
+                     placeholder="Pega aquí la fila: NOMBRE ⇥ CURP ⇥ RFC ⇥ FOLIO ⇥ TELÉFONO ⇥ CORREO"
+                     onPaste={handleLeadPaste}
+                     rows="2"
+                     className="w-full border border-slate-300 rounded p-2 text-xs focus:outline-none focus:border-blue-500 resize-none text-slate-600 placeholder:text-slate-300"
+                   />
+                   <p className="text-[9px] text-slate-400 mt-0.5">Los campos se llenan automáticamente al pegar.</p>
+                 </div>
+
+                 <div className="grid grid-cols-2 gap-2">
+                   <div className="col-span-2">
+                     <label className="text-[10px] font-bold text-slate-500 uppercase">Nombre *</label>
+                     <input value={newLeadForm.client} onChange={e => setNewLeadForm(p => ({...p, client: e.target.value}))} required placeholder="Nombre completo del cliente" className="w-full border p-2 rounded focus:outline-none focus:border-blue-500 text-sm mt-0.5" />
+                   </div>
+                   <div>
+                     <label className="text-[10px] font-bold text-slate-500 uppercase">Folio *</label>
+                     <input value={newLeadForm.folio} onChange={e => setNewLeadForm(p => ({...p, folio: e.target.value}))} required placeholder="Núm. Folio" className="w-full border p-2 rounded focus:outline-none focus:border-blue-500 font-mono text-sm mt-0.5" />
+                   </div>
+                   <div>
+                     <label className="text-[10px] font-bold text-slate-500 uppercase">Teléfono</label>
+                     <input value={newLeadForm.phone} onChange={e => setNewLeadForm(p => ({...p, phone: e.target.value}))} placeholder="Teléfono" className="w-full border p-2 rounded focus:outline-none focus:border-blue-500 text-sm mt-0.5" />
+                   </div>
+                   <div>
+                     <label className="text-[10px] font-bold text-slate-500 uppercase">CURP</label>
+                     <input value={newLeadForm.curp} onChange={e => setNewLeadForm(p => ({...p, curp: e.target.value.toUpperCase()}))} placeholder="CURP" className="w-full border p-2 rounded focus:outline-none focus:border-blue-500 font-mono text-xs mt-0.5" />
+                   </div>
+                   <div>
+                     <label className="text-[10px] font-bold text-slate-500 uppercase">RFC</label>
+                     <input value={newLeadForm.rfc} onChange={e => setNewLeadForm(p => ({...p, rfc: e.target.value.toUpperCase()}))} placeholder="RFC" className="w-full border p-2 rounded focus:outline-none focus:border-blue-500 font-mono text-xs mt-0.5" />
+                   </div>
+                   <div className="col-span-2">
+                     <label className="text-[10px] font-bold text-slate-500 uppercase">Correo Cliente</label>
+                     <input type="email" value={newLeadForm.correo} onChange={e => setNewLeadForm(p => ({...p, correo: e.target.value}))} placeholder="correo@ejemplo.com" className="w-full border p-2 rounded focus:outline-none focus:border-blue-500 text-sm mt-0.5" />
+                   </div>
+                 </div>
+
+                 <div className="border-t border-slate-200 pt-3 space-y-2">
+                   <p className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-1"><i className="fas fa-pencil-alt text-slate-300"></i> Datos Manuales</p>
+                   <input value={newLeadForm.amount} onChange={e => setNewLeadForm(p => ({...p, amount: e.target.value}))} type="number" required placeholder="Monto Preaprobado ($)" className="w-full border p-2 rounded focus:outline-none focus:border-blue-500" />
+                   <input value={newLeadForm.url} onChange={e => setNewLeadForm(p => ({...p, url: e.target.value}))} placeholder="Enlace a Hubspot" className="w-full border p-2 rounded focus:outline-none focus:border-blue-500" />
+                 </div>
+
+                 <div className="bg-indigo-50 border border-indigo-100 p-3 rounded-md flex items-center gap-3 hover:bg-indigo-100 transition-colors">
+                    <input type="checkbox" id="isUpper" checked={newLeadForm.isUpper} onChange={e => setNewLeadForm(p => ({...p, isUpper: e.target.checked}))} className="w-5 h-5 cursor-pointer accent-indigo-600" />
                     <label htmlFor="isUpper" className="text-sm font-bold text-indigo-900 cursor-pointer select-none">
-                       Asignación "UPPER" 
+                       Asignación "UPPER"
                        <span className="block text-[10px] text-indigo-600 font-normal mt-0.5">Etiquetar lead como campaña UPPER.</span>
                     </label>
                  </div>
@@ -1447,10 +1518,10 @@
                     <i className="fas fa-info-circle mr-1"></i>
                     Este lead empezará seguimiento automático: 3 alertas/día por 5 días hasta tener respuesta.
                  </div>
-                 
-                 <div className="flex gap-2 pt-2">
+
+                 <div className="flex gap-2 pt-1">
                     <button type="submit" className="flex-1 bg-blue-600 text-white py-2 rounded font-bold hover:bg-blue-700 transition-colors">Guardar</button>
-                    <button type="button" onClick={() => setShowForm(false)} className="flex-1 bg-slate-200 py-2 rounded font-bold hover:bg-slate-300">Cancelar</button>
+                    <button type="button" onClick={() => { setShowForm(false); resetNewLeadForm(); }} className="flex-1 bg-slate-200 py-2 rounded font-bold hover:bg-slate-300">Cancelar</button>
                  </div>
               </form>
             </div>
