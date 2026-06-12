@@ -776,6 +776,13 @@
             </div>
             
             <h3 className="font-bold text-sm text-slate-800 truncate mt-1 select-text">{sale.nombre_cliente}</h3>
+
+            {(sale.curp || sale.rfc) && (
+              <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5 text-[9px] text-slate-400 font-mono select-text">
+                {sale.curp && <span><span className="text-slate-300 mr-0.5">CURP</span>{sale.curp}</span>}
+                {sale.rfc && <span><span className="text-slate-300 mr-0.5">RFC</span>{sale.rfc}</span>}
+              </div>
+            )}
             
             {/* === NUEVO: Alerta de contacto pendiente === */}
             {followupState.needsContact && (
@@ -845,11 +852,20 @@
             
             <div className="mt-2 flex flex-wrap gap-1 border-t border-slate-100 pt-2 items-center">
                {sale.telefono && (
-                 <a 
+                 <a
                    href={`tel:${sale.telefono}`}
                    className="px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100 text-slate-500 text-[10px] flex items-center font-medium hover:bg-blue-50 hover:text-blue-600 select-text"
                  >
                    <i className="fas fa-phone mr-1"></i> {sale.telefono}
+                 </a>
+               )}
+               {sale.correo && (
+                 <a
+                   href={`mailto:${sale.correo}`}
+                   title={sale.correo}
+                   className="px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100 text-slate-500 text-[10px] flex items-center font-medium hover:bg-blue-50 hover:text-blue-600 select-text max-w-[140px]"
+                 >
+                   <i className="fas fa-envelope mr-1"></i> <span className="truncate">{sale.correo}</span>
                  </a>
                )}
                {sale.url && <a href={sale.url} target="_blank" rel="noopener noreferrer" className="w-5 h-5 rounded bg-slate-50 flex items-center justify-center text-slate-400 hover:text-blue-600 border border-slate-100" title="Ver en Hubspot"><i className="fas fa-link text-[10px]"></i></a>}
@@ -1050,6 +1066,9 @@
         const newPhone = form.phone.value.trim();
         const clientName = form.client.value;
         const amount = Number(form.amount.value);
+        const newCurp = (form.curp.value || '').trim().toUpperCase();
+        const newRfc = (form.rfc.value || '').trim().toUpperCase();
+        const newCorreo = (form.correo.value || '').trim();
         const isUpper = form.elements['isUpper']?.checked || false; 
 
         const isFolioDup = allSales.some(s => s.folio && s.folio.toLowerCase() === newFolio.toLowerCase());
@@ -1067,6 +1086,9 @@
           agentEmail: user.email,
           folio: newFolio, 
           nombre_cliente: clientName,
+          curp: newCurp,
+          rfc: newRfc,
+          correo: newCorreo,
           monto_preaprobado: amount,
           monto_dispersado: 0,
           estatus: 'Con oferta',
@@ -1088,6 +1110,34 @@
         }
       };
 
+      // === NUEVO: Pegado inteligente — reparte una fila (separada por tabuladores) en sus campos ===
+      // Orden esperado de columnas: NOMBRE, CURP, RFC, NUM. FOLIO, TELEFONO, CORREO
+      const handleLeadPaste = (e) => {
+        const form = e.target.form;
+        if (!form) return;
+        const lines = e.target.value.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+        if (!lines.length) return;
+
+        // Ignorar la fila de encabezados si se pegó junto con los datos
+        const headerHints = ['nombre', 'curp', 'rfc', 'folio', 'telefono', 'teléfono', 'correo'];
+        const dataLine = lines.find(l => {
+          const lower = l.toLowerCase();
+          return headerHints.filter(h => lower.includes(h)).length < 3;
+        }) || lines[0];
+
+        const cols = dataLine.split('\t').map(c => c.trim());
+        if (cols.length < 2) return; // no parece el formato por tabuladores
+
+        const [nombre = '', curp = '', rfc = '', folio = '', telefono = '', correo = ''] = cols;
+        const setField = (name, value) => { if (form.elements[name] && value !== '') form.elements[name].value = value; };
+        setField('folio', folio);
+        setField('client', nombre);
+        setField('curp', curp.toUpperCase());
+        setField('rfc', rfc.toUpperCase());
+        setField('phone', telefono);
+        setField('correo', correo);
+      };
+
       const handleEditSubmit = async (e) => {
         e.preventDefault();
         const form = e.target;
@@ -1103,6 +1153,9 @@
           await db.collection('sales').doc(editSaleData.id).update({
               folio: editedFolio,
               nombre_cliente: form.client.value,
+              curp: (form.curp.value || '').trim().toUpperCase(),
+              rfc: (form.rfc.value || '').trim().toUpperCase(),
+              correo: (form.correo.value || '').trim(),
               monto_preaprobado: Number(form.amount.value), 
               telefono: editedPhone,
               url: form.url.value,
@@ -1424,15 +1477,36 @@
 
           {showForm && (
             <div className="fixed inset-0 glass-modal z-50 flex items-center justify-center p-4">
-              <form onSubmit={handleAddSale} className="bg-white rounded-lg shadow-xl w-full max-w-sm p-5 space-y-4">
+              <form onSubmit={handleAddSale} className="bg-white rounded-lg shadow-xl w-full max-w-sm p-5 space-y-4 max-h-[90vh] overflow-y-auto">
                  <h2 className="font-bold text-lg border-b pb-2">Nuevo Lead</h2>
                  
                  {formError && <div className="bg-red-100 text-red-700 p-2 rounded text-xs font-bold border border-red-200"><i className="fas fa-exclamation-circle mr-1"></i>{formError}</div>}
 
+                 {/* === NUEVO: Pegado rápido desde Excel/Sheets === */}
+                 <div className="bg-emerald-50 border border-emerald-200 rounded-md p-3">
+                    <label className="text-[11px] font-bold text-emerald-800 flex items-center gap-1.5 mb-1">
+                      <i className="fas fa-bolt"></i> Pegado rápido
+                    </label>
+                    <textarea
+                      onChange={handleLeadPaste}
+                      rows={2}
+                      placeholder="Pega aquí la fila copiada y los campos se llenan solos."
+                      className="w-full border border-emerald-200 rounded p-2 text-xs font-mono focus:outline-none focus:border-emerald-500 resize-none"
+                    />
+                    <p className="text-[10px] text-emerald-700 mt-1 leading-tight">
+                      Orden: NOMBRE · CURP · RFC · FOLIO · TELÉFONO · CORREO (separados por tabulador). El monto y el enlace de Hubspot se capturan a mano.
+                    </p>
+                 </div>
+
                  <input name="folio" required placeholder="Número de Folio" className="w-full border p-2 rounded focus:outline-none focus:border-blue-500 font-mono" />
                  <input name="client" required placeholder="Nombre Cliente" className="w-full border p-2 rounded focus:outline-none focus:border-blue-500" />
-                 <input name="amount" type="number" required placeholder="Monto Preaprobado ($)" className="w-full border p-2 rounded focus:outline-none focus:border-blue-500" />
+                 <div className="grid grid-cols-2 gap-2">
+                    <input name="curp" placeholder="CURP" className="w-full border p-2 rounded focus:outline-none focus:border-blue-500 font-mono text-xs uppercase" />
+                    <input name="rfc" placeholder="RFC" className="w-full border p-2 rounded focus:outline-none focus:border-blue-500 font-mono text-xs uppercase" />
+                 </div>
                  <input name="phone" placeholder="Teléfono" className="w-full border p-2 rounded focus:outline-none focus:border-blue-500" />
+                 <input name="correo" type="email" placeholder="Correo" className="w-full border p-2 rounded focus:outline-none focus:border-blue-500" />
+                 <input name="amount" type="number" required placeholder="Monto Preaprobado ($)" className="w-full border p-2 rounded focus:outline-none focus:border-blue-500" />
                  <input name="url" placeholder="Enlace a Hubspot" className="w-full border p-2 rounded focus:outline-none focus:border-blue-500" />
                  
                  <div className="bg-indigo-50 border border-indigo-100 p-3 rounded-md flex items-center gap-3 mt-2 hover:bg-indigo-100 transition-colors">
@@ -1458,23 +1532,46 @@
 
           {editSaleData && (
             <div className="fixed inset-0 glass-modal z-50 flex items-center justify-center p-4">
-              <form onSubmit={handleEditSubmit} className="bg-white rounded-lg shadow-xl w-full max-w-sm p-5 space-y-4 border-t-4 border-slate-700">
+              <form onSubmit={handleEditSubmit} className="bg-white rounded-lg shadow-xl w-full max-w-sm p-5 space-y-4 border-t-4 border-slate-700 max-h-[90vh] overflow-y-auto">
                  <h2 className="font-bold text-lg border-b pb-2 text-slate-700">Editar Tarjeta</h2>
                  
                  {formError && <div className="bg-red-100 text-red-700 p-2 rounded text-xs font-bold border border-red-200"><i className="fas fa-exclamation-circle mr-1"></i>{formError}</div>}
+
+                 {/* === NUEVO: Pegado rápido también al editar === */}
+                 <div className="bg-emerald-50 border border-emerald-200 rounded-md p-3">
+                    <label className="text-[11px] font-bold text-emerald-800 flex items-center gap-1.5 mb-1">
+                      <i className="fas fa-bolt"></i> Pegado rápido
+                    </label>
+                    <textarea
+                      onChange={handleLeadPaste}
+                      rows={2}
+                      placeholder="Pega la fila (NOMBRE · CURP · RFC · FOLIO · TELÉFONO · CORREO) y se reparte sola."
+                      className="w-full border border-emerald-200 rounded p-2 text-xs font-mono focus:outline-none focus:border-emerald-500 resize-none"
+                    />
+                 </div>
 
                  <div><label className="text-[10px] font-bold text-slate-500 uppercase">Folio</label>
                  <input name="folio" defaultValue={editSaleData.folio} required className="w-full border p-2 rounded focus:outline-none focus:border-blue-500 font-mono text-sm" /></div>
                  
                  <div><label className="text-[10px] font-bold text-slate-500 uppercase">Cliente</label>
                  <input name="client" defaultValue={editSaleData.nombre_cliente} required className="w-full border p-2 rounded focus:outline-none focus:border-blue-500 text-sm" /></div>
-                 
+
+                 <div className="grid grid-cols-2 gap-2">
+                   <div><label className="text-[10px] font-bold text-slate-500 uppercase">CURP</label>
+                   <input name="curp" defaultValue={editSaleData.curp || ''} className="w-full border p-2 rounded focus:outline-none focus:border-blue-500 font-mono text-xs uppercase" /></div>
+                   <div><label className="text-[10px] font-bold text-slate-500 uppercase">RFC</label>
+                   <input name="rfc" defaultValue={editSaleData.rfc || ''} className="w-full border p-2 rounded focus:outline-none focus:border-blue-500 font-mono text-xs uppercase" /></div>
+                 </div>
+
                  <div><label className="text-[10px] font-bold text-slate-500 uppercase">Monto Preaprobado</label>
                  <input name="amount" type="number" defaultValue={editSaleData.monto_preaprobado} required className="w-full border p-2 rounded focus:outline-none focus:border-blue-500 text-sm" /></div>
                  
                  <div><label className="text-[10px] font-bold text-slate-500 uppercase">Teléfono</label>
                  <input name="phone" defaultValue={editSaleData.telefono} className="w-full border p-2 rounded focus:outline-none focus:border-blue-500 text-sm" /></div>
-                 
+
+                 <div><label className="text-[10px] font-bold text-slate-500 uppercase">Correo</label>
+                 <input name="correo" type="email" defaultValue={editSaleData.correo || ''} className="w-full border p-2 rounded focus:outline-none focus:border-blue-500 text-sm" /></div>
+
                  <div><label className="text-[10px] font-bold text-slate-500 uppercase">Enlace a Hubspot</label>
                  <input name="url" defaultValue={editSaleData.url} className="w-full border p-2 rounded focus:outline-none focus:border-blue-500 text-sm" /></div>
                  
