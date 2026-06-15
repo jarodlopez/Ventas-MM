@@ -19,33 +19,30 @@
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
 
   <style>
+    :root {
+      --ios-bg: #F2F2F7;
+      --ios-sep: #E5E5EA;
+      --ios-blue: #007AFF;
+    }
+    html, body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Inter', system-ui, sans-serif; letter-spacing: -0.01em; }
     .pipeline-scroll { scroll-snap-type: x mandatory; }
     .pipeline-col { scroll-snap-align: start; min-height: 60vh; }
-    ::-webkit-scrollbar { width: 6px; height: 6px; }
-    ::-webkit-scrollbar-track { background: #f1f1f1; }
-    ::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 4px; }
-    body { font-family: 'Inter', system-ui, sans-serif; }
-    .glass-modal { background: rgba(0, 0, 0, 0.5); backdrop-filter: blur(2px); }
-    .loader { border: 4px solid #f3f3f3; border-top: 4px solid #3b82f6; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; }
+    ::-webkit-scrollbar { width: 7px; height: 7px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(120,120,128,0.26); border-radius: 10px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(120,120,128,0.45); }
+    .glass-modal { background: rgba(0,0,0,0.28); backdrop-filter: blur(12px) saturate(120%); -webkit-backdrop-filter: blur(12px) saturate(120%); }
+    .glass-nav { background: rgba(255,255,255,0.72); backdrop-filter: blur(22px) saturate(180%); -webkit-backdrop-filter: blur(22px) saturate(180%); }
+    .loader { border: 3px solid rgba(120,120,128,0.2); border-top: 3px solid var(--ios-blue); border-radius: 50%; width: 38px; height: 38px; animation: spin 0.9s linear infinite; }
     @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-    .dragging { opacity: 0.5; transform: scale(0.98); }
-    .drag-over { background-color: rgba(203, 213, 225, 0.8) !important; border: 2px dashed #94a3b8; }
-    
-    /* === NUEVO: Pulso de alerta urgente === */
-    @keyframes urgentPulse {
-      0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
-      50% { box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); }
-    }
-    .urgent-pulse { animation: urgentPulse 1.8s infinite; }
-    
-    @keyframes flashBg {
-      0%, 100% { background-color: #fef2f2; }
-      50% { background-color: #fee2e2; }
-    }
-    .urgent-bg { animation: flashBg 2s infinite; }
+    .dragging { opacity: 0.4; transform: scale(0.97); }
+    .drag-over { background-color: rgba(0,122,255,0.06) !important; box-shadow: inset 0 0 0 2px rgba(0,122,255,0.35); }
+    .ios-card { transition: transform .18s ease, box-shadow .2s ease; }
+    .ios-card:active { transform: scale(0.992); }
   </style>
 </head>
-<body class="bg-slate-100 text-slate-900 h-screen flex flex-col overflow-hidden">
+<body class="bg-[#F2F2F7] text-[#1C1C1E] h-screen flex flex-col overflow-hidden">
   
   <div id="root" class="h-full flex flex-col"></div>
 
@@ -77,29 +74,6 @@
       "Otro motivo"
     ];
 
-    // === CONFIG DE SEGUIMIENTOS ===
-    const FOLLOWUP_CONFIG = {
-      alertsPerDay: 3,
-      totalDays: 5,
-      maxAttempts: 15, // 3 alertas × 5 días
-      // Horarios de alerta (24h): 10am, 1pm, 5pm
-      alertHours: [10, 13, 17],
-      // Estados que requieren seguimiento activo
-      activeStatuses: ['Con oferta', 'Acepta oferta', 'Long track']
-    };
-
-    const CONTACT_TYPES = [
-      { id: 'call', label: 'Llamada', icon: 'fa-phone', prefix: 'fas', color: 'blue' },
-      { id: 'whatsapp', label: 'WhatsApp', icon: 'fa-whatsapp', prefix: 'fab', color: 'green' },
-      { id: 'email', label: 'Email', icon: 'fa-envelope', prefix: 'fas', color: 'purple' }
-    ];
-
-    const COLOR_CLASSES = {
-      blue:   { cardBg: 'bg-blue-100',   cardText: 'text-blue-700',   cardBorder: 'border-blue-200',   cardHover: 'hover:bg-blue-200',   btnBg: 'bg-blue-600',   btnHover: 'hover:bg-blue-700',   iconText: 'text-blue-600'   },
-      green:  { cardBg: 'bg-green-100',  cardText: 'text-green-700',  cardBorder: 'border-green-200',  cardHover: 'hover:bg-green-200',  btnBg: 'bg-green-600',  btnHover: 'hover:bg-green-700',  iconText: 'text-green-600'  },
-      purple: { cardBg: 'bg-purple-100', cardText: 'text-purple-700', cardBorder: 'border-purple-200', cardHover: 'hover:bg-purple-200', btnBg: 'bg-purple-600', btnHover: 'hover:bg-purple-700', iconText: 'text-purple-600' },
-    };
-
     const parseDate = (input) => {
       if (!input) return new Date();
       if (input.toDate) return input.toDate();
@@ -113,74 +87,6 @@
     const formatTime = (input) => new Intl.DateTimeFormat('es-MX', { hour:'2-digit', minute:'2-digit' }).format(parseDate(input));
 
     const getQuincena = (date) => date.getDate() <= 15 ? 1 : 2;
-
-    // === LÓGICA DE SEGUIMIENTOS ===
-    // Determina si un lead requiere contacto AHORA
-    const getFollowupState = (sale) => {
-      if (!FOLLOWUP_CONFIG.activeStatuses.includes(sale.estatus)) {
-        return { needsContact: false, level: 'none' };
-      }
-
-      const now = new Date();
-      const created = parseDate(sale.fecha);
-      const attempts = sale.contactAttempts || [];
-      
-      // Días desde creación
-      const daysSinceCreation = Math.floor((now - created) / (1000 * 60 * 60 * 24));
-      
-      // Si excede el periodo y no hay respuesta
-      if (daysSinceCreation >= FOLLOWUP_CONFIG.totalDays && attempts.length >= FOLLOWUP_CONFIG.maxAttempts) {
-        return { needsContact: true, level: 'expired', message: 'Tiempo agotado - mover a Rechazado', attemptsCount: attempts.length };
-      }
-
-      // Calcular siguiente alerta esperada
-      const nextScheduled = sale.nextContactDue ? parseDate(sale.nextContactDue) : null;
-      
-      if (nextScheduled && nextScheduled <= now) {
-        const overdueMins = Math.floor((now - nextScheduled) / (1000 * 60));
-        if (overdueMins > 60) {
-          return { needsContact: true, level: 'urgent', message: `Contacto vencido hace ${Math.floor(overdueMins/60)}h`, attemptsCount: attempts.length, nextScheduled };
-        }
-        return { needsContact: true, level: 'due', message: 'Contactar ahora', attemptsCount: attempts.length, nextScheduled };
-      }
-
-      // Si no hay schedule pero el lead está activo, calcular si toca alerta
-      if (!nextScheduled) {
-        // Lead nuevo sin intentos = alerta inmediata
-        if (attempts.length === 0) {
-          return { needsContact: true, level: 'urgent', message: 'Lead nuevo - primer contacto pendiente', attemptsCount: 0 };
-        }
-      }
-
-      // Próximo contacto programado pero aún no llega
-      if (nextScheduled) {
-        const mins = Math.floor((nextScheduled - now) / (1000 * 60));
-        if (mins < 60) {
-          return { needsContact: false, level: 'soon', message: `Próximo contacto en ${mins} min`, attemptsCount: attempts.length, nextScheduled };
-        }
-      }
-
-      return { needsContact: false, level: 'ok', attemptsCount: attempts.length, nextScheduled };
-    };
-
-    // Calcula el siguiente horario de alerta basado en config (3 alertas/día)
-    const calculateNextContactTime = () => {
-      const now = new Date();
-      const currentHour = now.getHours();
-      const nextDate = new Date(now);
-      
-      // Buscar la siguiente hora de alerta válida HOY
-      for (const hour of FOLLOWUP_CONFIG.alertHours) {
-        if (hour > currentHour) {
-          nextDate.setHours(hour, 0, 0, 0);
-          return nextDate.toISOString();
-        }
-      }
-      // Si ya pasaron todas las horas del día, primera alerta de mañana
-      nextDate.setDate(nextDate.getDate() + 1);
-      nextDate.setHours(FOLLOWUP_CONFIG.alertHours[0], 0, 0, 0);
-      return nextDate.toISOString();
-    };
 
     const getBusinessDaysQuincena = (targetDate, quincena) => {
       const year = targetDate.getFullYear();
@@ -227,205 +133,30 @@
       };
 
       return (
-        <div className="flex-1 flex flex-col items-center justify-center bg-slate-900 text-slate-900 p-4">
-          <div className="bg-white p-8 rounded-xl shadow-2xl w-full max-w-sm flex flex-col items-center">
-            <i className="fas fa-chart-line text-5xl text-blue-600 mb-4"></i>
-            <h1 className="text-2xl font-black mb-1">CRM Ventas</h1>
-            <p className="text-sm text-slate-500 mb-6">{isRegistering ? 'Crear cuenta' : 'Ingreso Agentes'}</p>
+        <div className="flex-1 flex flex-col items-center justify-center bg-[#F2F2F7] text-[#1C1C1E] p-4">
+          <div className="bg-white p-8 rounded-3xl shadow-[0_10px_40px_rgba(0,0,0,0.08)] w-full max-w-sm flex flex-col items-center">
+            <div className="w-16 h-16 rounded-2xl bg-[#007AFF] flex items-center justify-center mb-4 shadow-[0_6px_16px_rgba(0,122,255,0.35)]">
+              <i className="fas fa-chart-line text-2xl text-white"></i>
+            </div>
+            <h1 className="text-2xl font-semibold tracking-tight mb-1">CRM Ventas</h1>
+            <p className="text-sm text-[#8E8E93] mb-7">{isRegistering ? 'Crear cuenta' : 'Ingreso Agentes'}</p>
 
-            {error && <div className="w-full bg-red-100 text-red-600 p-2 rounded text-xs font-bold text-center mb-4">{error}</div>}
+            {error && <div className="w-full bg-[#FF3B30]/10 text-[#FF3B30] p-3 rounded-xl text-xs font-semibold text-center mb-4">{error}</div>}
 
-            <form onSubmit={handleEmailAuth} className="w-full flex flex-col gap-3 mb-6">
-              <input type="email" placeholder="Correo" required value={email} onChange={e => setEmail(e.target.value)} className="w-full border p-2 rounded focus:outline-none focus:border-blue-500" />
-              <input type="password" placeholder="Contraseña" required value={password} onChange={e => setPassword(e.target.value)} className="w-full border p-2 rounded focus:outline-none focus:border-blue-500" />
-              <button type="submit" className="w-full bg-blue-600 text-white font-bold p-2 rounded hover:bg-blue-700 mt-1">{isRegistering ? 'Registrarse' : 'Iniciar Sesión'}</button>
+            <form onSubmit={handleEmailAuth} className="w-full flex flex-col gap-2.5 mb-5">
+              <input type="email" placeholder="Correo" required value={email} onChange={e => setEmail(e.target.value)} className="w-full bg-[#F2F2F7] border border-transparent px-4 py-3 rounded-xl text-[15px] focus:outline-none focus:bg-white focus:border-[#007AFF] transition-colors" />
+              <input type="password" placeholder="Contraseña" required value={password} onChange={e => setPassword(e.target.value)} className="w-full bg-[#F2F2F7] border border-transparent px-4 py-3 rounded-xl text-[15px] focus:outline-none focus:bg-white focus:border-[#007AFF] transition-colors" />
+              <button type="submit" className="w-full bg-[#007AFF] text-white font-semibold py-3 rounded-xl hover:bg-[#0070E0] active:scale-[0.98] transition-all mt-1">{isRegistering ? 'Registrarse' : 'Iniciar Sesión'}</button>
             </form>
 
-            <div className="w-full flex items-center gap-2 mb-6"><div className="h-px bg-slate-200 flex-1"></div><span className="text-xs text-slate-400 font-bold uppercase">O entra con</span><div className="h-px bg-slate-200 flex-1"></div></div>
+            <div className="w-full flex items-center gap-3 mb-5"><div className="h-px bg-[#E5E5EA] flex-1"></div><span className="text-[11px] text-[#AEAEB2] font-medium uppercase tracking-wide">O entra con</span><div className="h-px bg-[#E5E5EA] flex-1"></div></div>
 
-            <button onClick={handleGoogleLogin} className="w-full bg-slate-50 border border-slate-200 text-slate-700 p-2 rounded font-bold hover:bg-slate-100 flex items-center justify-center gap-2">
+            <button onClick={handleGoogleLogin} className="w-full bg-white border border-[#E5E5EA] text-[#1C1C1E] py-3 rounded-xl font-medium hover:bg-[#F2F2F7] active:scale-[0.98] transition-all flex items-center justify-center gap-2">
               <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" className="w-5 h-5" /> Google
             </button>
 
-            <button onClick={() => { setIsRegistering(!isRegistering); setError(''); }} className="mt-6 text-sm text-blue-600 hover:underline">{isRegistering ? '¿Ya tienes cuenta? Inicia sesión' : '¿No tienes cuenta? Regístrate'}</button>
+            <button onClick={() => { setIsRegistering(!isRegistering); setError(''); }} className="mt-6 text-sm text-[#007AFF] font-medium hover:underline">{isRegistering ? '¿Ya tienes cuenta? Inicia sesión' : '¿No tienes cuenta? Regístrate'}</button>
           </div>
-        </div>
-      );
-    };
-
-    // ====== PANEL FLOTANTE DE ALERTAS ======
-    const AlertsFloatingPanel = ({ alertSales, onContactRegister, onCloseSale, isOpen, setIsOpen }) => {
-      const urgentCount = alertSales.filter(s => {
-        const state = getFollowupState(s);
-        return state.level === 'urgent' || state.level === 'due' || state.level === 'expired';
-      }).length;
-
-      if (!isOpen) {
-        return (
-          <button
-            onClick={() => setIsOpen(true)}
-            className={`fixed bottom-6 right-6 bg-red-600 hover:bg-red-700 text-white rounded-full w-14 h-14 shadow-2xl z-40 flex items-center justify-center ${urgentCount > 0 ? 'urgent-pulse' : ''}`}
-            title="Alertas de seguimiento"
-          >
-            <i className="fas fa-bell text-xl"></i>
-            {urgentCount > 0 && (
-              <span className="absolute -top-1 -right-1 bg-yellow-400 text-red-900 text-xs font-black rounded-full w-6 h-6 flex items-center justify-center shadow-md">
-                {urgentCount}
-              </span>
-            )}
-          </button>
-        );
-      }
-
-      return (
-        <div className="fixed bottom-6 right-6 bg-white rounded-xl shadow-2xl z-40 w-96 max-h-[70vh] flex flex-col border-2 border-red-200">
-          <div className="bg-red-600 text-white p-3 rounded-t-xl flex justify-between items-center">
-            <div>
-              <h3 className="font-bold text-sm flex items-center gap-2"><i className="fas fa-bell"></i> Seguimientos Pendientes</h3>
-              <p className="text-[10px] opacity-90">{urgentCount} requieren atención inmediata</p>
-            </div>
-            <button onClick={() => setIsOpen(false)} className="text-white hover:bg-red-700 w-7 h-7 rounded">
-              <i className="fas fa-times"></i>
-            </button>
-          </div>
-          
-          <div className="flex-1 overflow-y-auto p-2">
-            {alertSales.length === 0 ? (
-              <div className="text-center py-8 text-slate-400">
-                <i className="fas fa-check-circle text-3xl text-green-400 mb-2"></i>
-                <p className="text-sm font-bold">¡Todo al día!</p>
-                <p className="text-xs">No hay seguimientos pendientes</p>
-              </div>
-            ) : (
-              alertSales.map(sale => {
-                const state = getFollowupState(sale);
-                const bgColor = state.level === 'expired' ? 'bg-purple-50 border-purple-300' :
-                                state.level === 'urgent' ? 'bg-red-50 border-red-300 urgent-bg' : 
-                                state.level === 'due' ? 'bg-orange-50 border-orange-300' :
-                                'bg-yellow-50 border-yellow-300';
-                
-                return (
-                  <div key={sale.id} className={`${bgColor} border-l-4 p-3 rounded mb-2`}>
-                    <div className="flex justify-between items-start mb-1">
-                      <div>
-                        <p className="font-bold text-sm text-slate-800">{sale.nombre_cliente}</p>
-                        <p className="text-[10px] text-slate-500 font-mono">{sale.folio} · {money(sale.monto_preaprobado)}</p>
-                      </div>
-                      <span className="text-[9px] bg-white px-2 py-0.5 rounded-full font-bold text-slate-600 border">
-                        {state.attemptsCount}/{FOLLOWUP_CONFIG.maxAttempts}
-                      </span>
-                    </div>
-                    <p className="text-[10px] text-red-600 font-bold mb-2">
-                      <i className="fas fa-exclamation-triangle mr-1"></i> {state.message}
-                    </p>
-                    
-                    {sale.telefono && (
-                      <p className="text-[10px] text-slate-600 mb-2"><i className="fas fa-phone mr-1"></i> {sale.telefono}</p>
-                    )}
-
-                    {state.level === 'expired' ? (
-                      <button 
-                        onClick={() => onCloseSale(sale)}
-                        className="w-full bg-purple-600 text-white text-xs py-1.5 rounded font-bold hover:bg-purple-700"
-                      >
-                        <i className="fas fa-times-circle mr-1"></i> Cerrar como Rechazado
-                      </button>
-                    ) : (
-                      <div className="flex gap-1">
-                        {CONTACT_TYPES.map(ct => (
-                          <button
-                            key={ct.id}
-                            onClick={() => onContactRegister(sale, ct.id, false)}
-                            className={`flex-1 ${COLOR_CLASSES[ct.color].btnBg} text-white text-xs py-1.5 rounded font-bold ${COLOR_CLASSES[ct.color].btnHover}`}
-                            title={`Registrar ${ct.label}`}
-                          >
-                            <i className={`${ct.prefix} ${ct.icon}`}></i>
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                );
-              })
-            )}
-          </div>
-        </div>
-      );
-    };
-
-    // ====== MODAL: REGISTRAR INTENTO DE CONTACTO ======
-    const ContactAttemptModal = ({ sale, contactType, onClose, onConfirm }) => {
-      const [result, setResult] = useState('no_contesta');
-      const [notes, setNotes] = useState('');
-
-      if (!sale || !contactType) return null;
-
-      const contactInfo = CONTACT_TYPES.find(c => c.id === contactType);
-
-      const handleSubmit = (e) => {
-        e.preventDefault();
-        onConfirm(sale, contactType, result, notes);
-      };
-
-      return (
-        <div className="fixed inset-0 glass-modal z-50 flex items-center justify-center p-4">
-          <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow-xl w-full max-w-sm p-5 space-y-4 border-t-4 border-blue-500">
-            <div>
-              <h3 className="font-bold text-lg flex items-center gap-2">
-                <i className={`${contactInfo.prefix} ${contactInfo.icon} ${COLOR_CLASSES[contactInfo.color].iconText}`}></i>
-                Registrar {contactInfo.label}
-              </h3>
-              <p className="text-xs text-slate-500">{sale.nombre_cliente} · {sale.folio}</p>
-            </div>
-
-            <div>
-              <label className="text-xs font-bold text-slate-700 mb-2 block">¿Cuál fue el resultado?</label>
-              <div className="grid grid-cols-1 gap-2">
-                <label className="flex items-center gap-2 p-2 border rounded cursor-pointer hover:bg-red-50">
-                  <input type="radio" name="result" value="no_contesta" checked={result === 'no_contesta'} onChange={e => setResult(e.target.value)} />
-                  <span className="text-sm"><i className="fas fa-phone-slash text-red-500 mr-1"></i> No contestó / No respondió</span>
-                </label>
-                <label className="flex items-center gap-2 p-2 border rounded cursor-pointer hover:bg-yellow-50">
-                  <input type="radio" name="result" value="dejo_recado" checked={result === 'dejo_recado'} onChange={e => setResult(e.target.value)} />
-                  <span className="text-sm"><i className="fas fa-comment-dots text-yellow-600 mr-1"></i> Dejé recado / mensaje</span>
-                </label>
-                <label className="flex items-center gap-2 p-2 border rounded cursor-pointer hover:bg-blue-50">
-                  <input type="radio" name="result" value="hablamos" checked={result === 'hablamos'} onChange={e => setResult(e.target.value)} />
-                  <span className="text-sm"><i className="fas fa-comments text-blue-500 mr-1"></i> Hablé con él/ella - sigue interesado</span>
-                </label>
-                <label className="flex items-center gap-2 p-2 border rounded cursor-pointer hover:bg-green-50">
-                  <input type="radio" name="result" value="agendado" checked={result === 'agendado'} onChange={e => setResult(e.target.value)} />
-                  <span className="text-sm"><i className="fas fa-calendar-check text-green-600 mr-1"></i> Compromiso agendado</span>
-                </label>
-              </div>
-            </div>
-
-            <div>
-              <label className="text-xs font-bold text-slate-700 mb-1 block">Notas (opcional)</label>
-              <textarea 
-                value={notes} 
-                onChange={e => setNotes(e.target.value)}
-                placeholder="Ej: Pidió llamar mañana 4pm..."
-                className="w-full border border-slate-300 rounded p-2 text-sm focus:outline-none focus:border-blue-500"
-                rows="2"
-              />
-            </div>
-
-            <div className="bg-slate-50 p-2 rounded text-[10px] text-slate-600">
-              <i className="fas fa-info-circle mr-1 text-blue-500"></i>
-              {result === 'hablamos' || result === 'agendado'
-                ? 'El sistema dejará de alertarte hasta nuevo seguimiento programado.'
-                : `Se programará el siguiente intento automáticamente (3 alertas por día).`
-              }
-            </div>
-
-            <div className="flex gap-2">
-              <button type="submit" className="flex-1 bg-blue-600 text-white py-2 rounded font-bold hover:bg-blue-700">
-                <i className="fas fa-save mr-1"></i> Guardar Intento
-              </button>
-              <button type="button" onClick={onClose} className="flex-1 bg-slate-200 py-2 rounded font-bold hover:bg-slate-300">Cancelar</button>
-            </div>
-          </form>
         </div>
       );
     };
@@ -462,49 +193,49 @@
 
       return (
         <div className="fixed inset-0 glass-modal z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
-            <div className="p-4 bg-slate-50 border-b flex justify-between items-center">
-              <h2 className="font-bold text-lg text-blue-900">Planificación y Bonos Q{quincena}</h2>
-              <button onClick={onClose}><i className="fas fa-times text-slate-400 hover:text-red-500"></i></button>
+          <div className="bg-[#F2F2F7] rounded-3xl shadow-[0_20px_60px_rgba(0,0,0,0.25)] w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
+            <div className="px-5 py-4 glass-nav border-b border-[#E5E5EA] flex justify-between items-center">
+              <h2 className="font-semibold text-lg tracking-tight text-[#1C1C1E]">Planificación y Bonos · Q{quincena}</h2>
+              <button onClick={onClose} className="w-8 h-8 rounded-full bg-[#E5E5EA] text-[#8E8E93] flex items-center justify-center hover:bg-[#D1D1D6] transition-colors"><i className="fas fa-times text-sm"></i></button>
             </div>
-            
-            <div className="flex-1 overflow-y-auto p-4 flex flex-col md:flex-row gap-6">
-              
+
+            <div className="flex-1 overflow-y-auto p-4 flex flex-col md:flex-row gap-4">
+
               <div className="flex-1 flex flex-col gap-4">
-                  <div className="bg-blue-50 p-4 rounded-lg border border-blue-100 shadow-sm">
-                      <h3 className="font-bold text-blue-800 text-sm mb-3"><i className="fas fa-bullseye mr-2"></i>Objetivo Base</h3>
-                      <div className="flex gap-4">
+                  <div className="bg-white p-4 rounded-2xl">
+                      <h3 className="font-semibold text-[#007AFF] text-sm mb-3 flex items-center gap-2"><i className="fas fa-bullseye"></i>Objetivo Base</h3>
+                      <div className="flex gap-3">
                           <div className="flex-1">
-                              <label className="text-xs font-bold text-blue-700 mb-1 block">Meta al 100% (MXN)</label>
-                              <input type="number" name="monto" value={localMeta.monto} onChange={handleChange} className="w-full border border-blue-200 rounded p-2 font-bold focus:outline-none focus:border-blue-500" />
+                              <label className="text-[11px] font-medium text-[#8E8E93] mb-1 block">Meta al 100% (MXN)</label>
+                              <input type="number" name="monto" value={localMeta.monto} onChange={handleChange} className="w-full bg-[#F2F2F7] border border-transparent rounded-xl px-3 py-2.5 font-semibold focus:outline-none focus:bg-white focus:border-[#007AFF] transition-colors" />
                           </div>
                           <div className="w-1/3">
-                              <label className="text-xs font-bold text-blue-700 mb-1 block">T. de Cambio</label>
-                              <input type="number" step="0.01" name="tipoCambio" value={localMeta.tipoCambio} onChange={handleChange} className="w-full border border-blue-200 rounded p-2 text-center focus:outline-none focus:border-blue-500" />
+                              <label className="text-[11px] font-medium text-[#8E8E93] mb-1 block">T. de Cambio</label>
+                              <input type="number" step="0.01" name="tipoCambio" value={localMeta.tipoCambio} onChange={handleChange} className="w-full bg-[#F2F2F7] border border-transparent rounded-xl px-3 py-2.5 text-center focus:outline-none focus:bg-white focus:border-[#007AFF] transition-colors" />
                           </div>
                       </div>
                   </div>
 
-                  <div className="bg-green-50 p-4 rounded-lg border border-green-100 shadow-sm">
-                      <h3 className="font-bold text-green-800 text-sm mb-3"><i className="fas fa-money-bill-wave mr-2"></i>Esquema de Pago ($ USD)</h3>
+                  <div className="bg-white p-4 rounded-2xl">
+                      <h3 className="font-semibold text-[#34C759] text-sm mb-3 flex items-center gap-2"><i className="fas fa-money-bill-wave"></i>Esquema de Pago ($ USD)</h3>
                       <div className="grid grid-cols-2 gap-3">
-                          <div><label className="text-[10px] font-bold text-green-700 uppercase">Pago al 80%</label><input type="number" name="bono80" value={localMeta.bono80} onChange={handleChange} className="w-full border border-green-200 rounded px-2 py-1 focus:outline-none focus:border-green-500 text-sm" /></div>
-                          <div><label className="text-[10px] font-bold text-green-700 uppercase">Pago al 100%</label><input type="number" name="bono100" value={localMeta.bono100} onChange={handleChange} className="w-full border border-green-200 rounded px-2 py-1 focus:outline-none focus:border-green-500 font-bold text-sm" /></div>
-                          <div><label className="text-[10px] font-bold text-green-700 uppercase">Pago al 120%</label><input type="number" name="bono120" value={localMeta.bono120} onChange={handleChange} className="w-full border border-green-200 rounded px-2 py-1 focus:outline-none focus:border-green-500 text-sm" /></div>
-                          <div><label className="text-[10px] font-bold text-green-700 uppercase">Pago al 140%</label><input type="number" name="bono140" value={localMeta.bono140} onChange={handleChange} className="w-full border border-green-200 rounded px-2 py-1 focus:outline-none focus:border-green-500 text-sm" /></div>
+                          <div><label className="text-[10px] font-medium text-[#8E8E93] uppercase tracking-wide">Pago al 80%</label><input type="number" name="bono80" value={localMeta.bono80} onChange={handleChange} className="w-full bg-[#F2F2F7] border border-transparent rounded-xl px-3 py-2 mt-1 focus:outline-none focus:bg-white focus:border-[#34C759] text-sm transition-colors" /></div>
+                          <div><label className="text-[10px] font-medium text-[#8E8E93] uppercase tracking-wide">Pago al 100%</label><input type="number" name="bono100" value={localMeta.bono100} onChange={handleChange} className="w-full bg-[#F2F2F7] border border-transparent rounded-xl px-3 py-2 mt-1 focus:outline-none focus:bg-white focus:border-[#34C759] font-semibold text-sm transition-colors" /></div>
+                          <div><label className="text-[10px] font-medium text-[#8E8E93] uppercase tracking-wide">Pago al 120%</label><input type="number" name="bono120" value={localMeta.bono120} onChange={handleChange} className="w-full bg-[#F2F2F7] border border-transparent rounded-xl px-3 py-2 mt-1 focus:outline-none focus:bg-white focus:border-[#34C759] text-sm transition-colors" /></div>
+                          <div><label className="text-[10px] font-medium text-[#8E8E93] uppercase tracking-wide">Pago al 140%</label><input type="number" name="bono140" value={localMeta.bono140} onChange={handleChange} className="w-full bg-[#F2F2F7] border border-transparent rounded-xl px-3 py-2 mt-1 focus:outline-none focus:bg-white focus:border-[#34C759] text-sm transition-colors" /></div>
                       </div>
                   </div>
               </div>
 
-              <div className="flex-1 bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden flex flex-col h-64 md:h-auto">
-                 <div className="p-2 bg-slate-100 border-b font-bold text-xs text-slate-600 text-center uppercase tracking-wider">Proyección de Venta Diaria</div>
+              <div className="flex-1 bg-white rounded-2xl overflow-hidden flex flex-col h-64 md:h-auto">
+                 <div className="px-3 py-2.5 border-b border-[#E5E5EA] font-semibold text-xs text-[#8E8E93] text-center uppercase tracking-wide">Proyección de Venta Diaria</div>
                  <div className="overflow-y-auto flex-1">
                   <table className="w-full text-sm">
-                    <thead><tr className="text-left text-[10px] uppercase text-slate-400 bg-slate-50"><th className="p-2 pl-4">Día</th><th className="p-2 text-right pr-4">Acumulado Ideal</th></tr></thead>
+                    <thead><tr className="text-left text-[10px] uppercase text-[#AEAEB2] bg-[#F2F2F7]"><th className="p-2 pl-4">Día</th><th className="p-2 text-right pr-4">Acumulado Ideal</th></tr></thead>
                     <tbody>
                       {projection.map(row => (
-                        <tr key={row.day} className={`border-b border-slate-100 ${row.isWeekend ? 'bg-slate-50 text-slate-400' : ''} ${row.isToday ? 'bg-blue-50 font-bold' : ''}`}>
-                          <td className="p-2 pl-4 flex items-center gap-2">{row.day} {row.isWeekend && '(Fin)'} {row.isToday && <span className="text-[9px] bg-blue-500 text-white px-1 rounded shadow-sm">HOY</span>}</td>
+                        <tr key={row.day} className={`border-b border-[#F2F2F7] ${row.isWeekend ? 'text-[#AEAEB2]' : ''} ${row.isToday ? 'bg-[#007AFF]/5 font-semibold' : ''}`}>
+                          <td className="p-2 pl-4 flex items-center gap-2">{row.day} {row.isWeekend && '(Fin)'} {row.isToday && <span className="text-[9px] bg-[#007AFF] text-white px-1.5 py-0.5 rounded-full">HOY</span>}</td>
                           <td className="p-2 text-right pr-4 font-mono text-xs">{row.isWeekend ? '-' : money(row.expected)}</td>
                         </tr>
                       ))}
@@ -514,9 +245,9 @@
               </div>
             </div>
 
-            <div className="p-4 bg-slate-50 border-t flex justify-end gap-2">
-                <button onClick={onClose} className="px-4 py-2 bg-slate-200 font-bold rounded hover:bg-slate-300">Cancelar</button>
-                <button onClick={handleSaveMeta} className="px-6 py-2 bg-blue-600 text-white font-bold rounded shadow-lg hover:bg-blue-700">Guardar Plan</button>
+            <div className="px-5 py-4 glass-nav border-t border-[#E5E5EA] flex justify-end gap-2">
+                <button onClick={onClose} className="px-5 py-2.5 bg-[#E5E5EA] text-[#1C1C1E] font-medium rounded-xl hover:bg-[#D1D1D6] active:scale-[0.98] transition-all">Cancelar</button>
+                <button onClick={handleSaveMeta} className="px-6 py-2.5 bg-[#007AFF] text-white font-semibold rounded-xl hover:bg-[#0070E0] active:scale-[0.98] transition-all">Guardar Plan</button>
             </div>
           </div>
         </div>
@@ -551,126 +282,126 @@
       const fillVisualWidth = Math.min((percent / maxVisualScale) * 100, 100);
 
       return (
-        <div className="bg-white p-3 shadow-sm border-b flex flex-wrap gap-4 md:gap-6 items-center justify-between">
+        <div className="bg-white border-b border-[#E5E5EA] p-3 flex flex-wrap gap-4 md:gap-6 items-center justify-between">
           <div className="flex flex-wrap gap-4 md:gap-6 items-center flex-1 w-full lg:w-auto">
-             
+
              <div>
-                <p className="text-[10px] font-bold text-slate-400 uppercase">Real Dispersado</p>
-                <p className="text-2xl font-black text-slate-800 leading-none">{money(sold)}</p>
-                <p className="text-[10px] text-green-600 font-bold mt-1 tracking-wide">{moneyUSD(sold / tc)} USD</p>
+                <p className="text-[10px] font-medium text-[#8E8E93] uppercase tracking-wide">Real Dispersado</p>
+                <p className="text-2xl font-semibold text-[#1C1C1E] leading-none tracking-tight">{money(sold)}</p>
+                <p className="text-[10px] text-[#34C759] font-semibold mt-1 tracking-wide">{moneyUSD(sold / tc)} USD</p>
              </div>
-             <div className="hidden sm:block w-px h-10 bg-slate-200"></div>
-             
+             <div className="hidden sm:block w-px h-10 bg-[#E5E5EA]"></div>
+
              <div>
-                <p className="text-[10px] font-bold text-slate-400 uppercase">Meta (100%)</p>
-                <p className="text-xl font-bold text-slate-700 leading-none">{money(meta)}</p>
-                <p className="text-[10px] text-slate-400 font-bold mt-1 tracking-wide">{moneyUSD(meta / tc)} USD</p>
+                <p className="text-[10px] font-medium text-[#8E8E93] uppercase tracking-wide">Meta (100%)</p>
+                <p className="text-xl font-semibold text-[#3A3A3C] leading-none tracking-tight">{money(meta)}</p>
+                <p className="text-[10px] text-[#AEAEB2] font-medium mt-1 tracking-wide">{moneyUSD(meta / tc)} USD</p>
              </div>
-             <div className="hidden md:block w-px h-10 bg-slate-200"></div>
+             <div className="hidden md:block w-px h-10 bg-[#E5E5EA]"></div>
 
              <div className="flex-1 min-w-[220px] max-w-lg mt-2 mb-1">
                  <div className="flex justify-between items-end mb-1">
-                     <p className="text-[10px] font-bold text-slate-400 uppercase">Progreso Total</p>
-                     <p className={`text-sm font-black ${percent >= 100 ? 'text-green-600' : 'text-blue-600'}`}>{percent.toFixed(1)}%</p>
+                     <p className="text-[10px] font-medium text-[#8E8E93] uppercase tracking-wide">Progreso Total</p>
+                     <p className={`text-sm font-semibold ${percent >= 100 ? 'text-[#34C759]' : 'text-[#007AFF]'}`}>{percent.toFixed(1)}%</p>
                  </div>
-                 
-                 <div className="relative w-full bg-slate-200 rounded-full h-3.5 mb-5 mt-1">
-                    <div 
-                      className={`absolute top-0 left-0 h-full rounded-full transition-all duration-1000 shadow-inner ${percent >= 140 ? 'bg-purple-500' : percent >= 120 ? 'bg-indigo-500' : percent >= 100 ? 'bg-green-500' : percent >= 80 ? 'bg-blue-500' : 'bg-orange-400'}`} 
+
+                 <div className="relative w-full bg-[#E5E5EA] rounded-full h-2.5 mb-5 mt-1">
+                    <div
+                      className={`absolute top-0 left-0 h-full rounded-full transition-all duration-1000 ${percent >= 140 ? 'bg-[#AF52DE]' : percent >= 120 ? 'bg-[#5856D6]' : percent >= 100 ? 'bg-[#34C759]' : percent >= 80 ? 'bg-[#007AFF]' : 'bg-[#FF9500]'}`}
                       style={{ width: `${fillVisualWidth}%` }}
                     ></div>
-                    
+
                     {[80, 100, 120, 140].map(mark => {
                         const montoDeEstaMarca = meta * (mark / 100);
                         const faltaParaEstaMarca = montoDeEstaMarca - sold;
-                        const tooltipText = faltaParaEstaMarca > 0 
-                            ? `Te faltan ${money(faltaParaEstaMarca)} para llegar al ${mark}%` 
+                        const tooltipText = faltaParaEstaMarca > 0
+                            ? `Te faltan ${money(faltaParaEstaMarca)} para llegar al ${mark}%`
                             : `¡Ya pasaste la marca del ${mark}%!`;
 
                         return (
-                            <div key={mark} className="absolute top-0 bottom-0 border-l-2 border-white/60 z-10 group cursor-help" style={{ left: `${(mark / maxVisualScale) * 100}%` }} title={tooltipText}>
-                                <span className={`absolute top-4 -translate-x-1/2 text-[9px] font-bold whitespace-nowrap ${percent >= mark ? 'text-slate-800' : 'text-slate-400 group-hover:text-blue-600'}`}>
+                            <div key={mark} className="absolute top-0 bottom-0 border-l-2 border-white/70 z-10 group cursor-help" style={{ left: `${(mark / maxVisualScale) * 100}%` }} title={tooltipText}>
+                                <span className={`absolute top-4 -translate-x-1/2 text-[9px] font-semibold whitespace-nowrap ${percent >= mark ? 'text-[#3A3A3C]' : 'text-[#AEAEB2] group-hover:text-[#007AFF]'}`}>
                                     {mark}%
                                 </span>
                             </div>
                         )
                     })}
                  </div>
-                 
+
                  <div className="-mt-1">
                      {nextPercent > 0 ? (
-                         <p className="text-[10px] text-slate-500 font-medium">
-                             🎯 Faltan <span className="font-bold text-slate-700">{money(missingForNext)}</span> para llegar al {nextPercent}%
+                         <p className="text-[10px] text-[#8E8E93] font-medium">
+                             🎯 Faltan <span className="font-semibold text-[#3A3A3C]">{money(missingForNext)}</span> para llegar al {nextPercent}%
                          </p>
                      ) : (
-                         <p className="text-[10px] text-purple-600 font-bold">
+                         <p className="text-[10px] text-[#AF52DE] font-semibold">
                              🚀 ¡Has alcanzado el tope máximo (140%)!
                          </p>
                      )}
                  </div>
              </div>
-             <div className="hidden lg:block w-px h-10 bg-slate-200"></div>
+             <div className="hidden lg:block w-px h-10 bg-[#E5E5EA]"></div>
 
              <div className="hidden sm:block">
-                <p className="text-[10px] font-bold text-purple-500 uppercase flex items-center gap-1"><i className="fas fa-fire"></i> Caliente</p>
-                <p className="text-xl font-bold text-purple-700 leading-none">{money(hotMoney)}</p>
-                <p className="text-[10px] text-purple-500 font-bold mt-1 tracking-wide">{moneyUSD(hotMoney / tc)} USD</p>
+                <p className="text-[10px] font-medium text-[#FF9500] uppercase tracking-wide flex items-center gap-1"><i className="fas fa-fire"></i> Caliente</p>
+                <p className="text-xl font-semibold text-[#1C1C1E] leading-none tracking-tight">{money(hotMoney)}</p>
+                <p className="text-[10px] text-[#FF9500] font-semibold mt-1 tracking-wide">{moneyUSD(hotMoney / tc)} USD</p>
              </div>
-             <div className="hidden xl:block w-px h-10 bg-slate-200"></div>
+             <div className="hidden xl:block w-px h-10 bg-[#E5E5EA]"></div>
 
-             <div className="bg-green-50 border border-green-200 rounded-lg px-3 py-1 flex items-center gap-2">
-                 <div className="bg-green-100 p-1.5 rounded-full"><i className="fas fa-sack-dollar text-green-600 text-sm"></i></div>
+             <div className="bg-[#34C759]/10 rounded-2xl px-3 py-1.5 flex items-center gap-2">
+                 <div className="bg-[#34C759]/15 w-8 h-8 rounded-full flex items-center justify-center"><i className="fas fa-sack-dollar text-[#34C759] text-sm"></i></div>
                  <div>
-                     <p className="text-[9px] font-bold text-green-700 uppercase">Bono Liberado</p>
-                     <p className="text-lg font-black text-green-600 leading-none">{moneyUSD(currentBonus)}</p>
+                     <p className="text-[9px] font-medium text-[#2E9E4F] uppercase tracking-wide">Bono Liberado</p>
+                     <p className="text-lg font-semibold text-[#34C759] leading-none tracking-tight">{moneyUSD(currentBonus)}</p>
                  </div>
-                 <div className="text-[9px] font-bold text-green-500 ml-1 hidden xl:block border-l border-green-200 pl-2">
+                 <div className="text-[9px] font-semibold text-[#34C759]/80 ml-1 hidden xl:block border-l border-[#34C759]/20 pl-2">
                      Siguiente: {nextBonusLvl}
                  </div>
              </div>
-             
-             <div className="hidden xl:block w-px h-10 bg-slate-200"></div>
+
+             <div className="hidden xl:block w-px h-10 bg-[#E5E5EA]"></div>
 
              <div className="hidden lg:block">
-                <p className="text-[10px] font-bold text-slate-400 uppercase"><i className="far fa-clock mr-1"></i>Restante</p>
-                <p className="text-lg font-bold text-slate-700 leading-none">{businessData.remainingDays} días</p>
+                <p className="text-[10px] font-medium text-[#8E8E93] uppercase tracking-wide"><i className="far fa-clock mr-1"></i>Restante</p>
+                <p className="text-lg font-semibold text-[#3A3A3C] leading-none tracking-tight">{businessData.remainingDays} días</p>
              </div>
 
-             <div className="hidden xl:block w-px h-10 bg-slate-200"></div>
+             <div className="hidden xl:block w-px h-10 bg-[#E5E5EA]"></div>
 
              <div className="hidden lg:flex flex-col min-w-[170px]">
-                <p className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-1"><i className="fas fa-tachometer-alt"></i> Ritmo Diario</p>
+                <p className="text-[10px] font-medium text-[#8E8E93] uppercase tracking-wide flex items-center gap-1"><i className="fas fa-tachometer-alt"></i> Ritmo Diario</p>
                 {businessData.remainingDays > 0 && meta > 0 ? (
                   <>
-                    <p className={`text-xl font-bold leading-none mt-0.5 ${requiredDaily > originalDailyGoal * 1.2 ? 'text-red-600' : requiredDaily > originalDailyGoal ? 'text-orange-500' : 'text-green-600'}`}>
+                    <p className={`text-xl font-semibold leading-none mt-0.5 tracking-tight ${requiredDaily > originalDailyGoal * 1.2 ? 'text-[#FF3B30]' : requiredDaily > originalDailyGoal ? 'text-[#FF9500]' : 'text-[#34C759]'}`}>
                       {money(requiredDaily)}
                     </p>
-                    <p className="text-[10px] text-slate-400 font-bold">/ día hábil restante</p>
-                    <div className="mt-1.5 relative w-full bg-slate-200 rounded-full h-2">
+                    <p className="text-[10px] text-[#AEAEB2] font-medium">/ día hábil restante</p>
+                    <div className="mt-1.5 relative w-full bg-[#E5E5EA] rounded-full h-1.5">
                       <div
-                        className={`h-full rounded-full transition-all duration-700 ${requiredDaily > originalDailyGoal * 1.2 ? 'bg-red-500' : requiredDaily > originalDailyGoal ? 'bg-orange-400' : 'bg-green-500'}`}
+                        className={`h-full rounded-full transition-all duration-700 ${requiredDaily > originalDailyGoal * 1.2 ? 'bg-[#FF3B30]' : requiredDaily > originalDailyGoal ? 'bg-[#FF9500]' : 'bg-[#34C759]'}`}
                         style={{ width: `${Math.min((requiredDaily / Math.max(originalDailyGoal, 1)) * 100, 100)}%` }}
                       ></div>
                     </div>
-                    <p className="text-[10px] text-slate-400 mt-1">Base plan: {money(originalDailyGoal)}</p>
+                    <p className="text-[10px] text-[#AEAEB2] mt-1">Base plan: {money(originalDailyGoal)}</p>
                   </>
                 ) : meta === 0 ? (
-                  <p className="text-sm font-bold text-slate-400 mt-1">Sin meta definida</p>
+                  <p className="text-sm font-medium text-[#AEAEB2] mt-1">Sin meta definida</p>
                 ) : (
-                  <p className="text-sm font-bold text-green-600 mt-1">¡Quincena completada!</p>
+                  <p className="text-sm font-semibold text-[#34C759] mt-1">¡Quincena completada!</p>
                 )}
              </div>
 
           </div>
-          
-          <button onClick={onOpenPlanning} className="bg-slate-800 text-white px-4 py-2 rounded text-xs font-bold hover:bg-slate-700 shadow-lg whitespace-nowrap mt-2 sm:mt-0">
-            <i className="fas fa-cogs mr-2"></i>Ajustar Plan
+
+          <button onClick={onOpenPlanning} className="bg-[#F2F2F7] text-[#1C1C1E] border border-[#E5E5EA] px-4 py-2 rounded-full text-xs font-semibold hover:bg-[#E5E5EA] active:scale-[0.98] transition-all whitespace-nowrap mt-2 sm:mt-0">
+            <i className="fas fa-sliders-h mr-2 text-[#8E8E93]"></i>Ajustar Plan
           </button>
         </div>
       );
     };
 
-    const SaleCard = ({ sale, updateSale, deleteSale, onStatusChange, onEdit, onContactAttempt }) => {
+    const SaleCard = ({ sale, updateSale, deleteSale, onStatusChange, onEdit }) => {
       const [showDeleteModal, setShowDeleteModal] = useState(false);
       const [pin, setPin] = useState('');
       const [showHistory, setShowHistory] = useState(false);
@@ -695,14 +426,10 @@
       };
 
       const getBorderColor = () => {
-        if(sale.estatus === 'Dispersado') return 'bg-green-500';
-        if(sale.estatus === 'Rechazado' || sale.estatus === 'Cancelado' || sale.estatus === 'Expirado') return 'bg-red-500';
-        return 'bg-blue-500';
+        if(sale.estatus === 'Dispersado') return 'bg-[#34C759]';
+        if(sale.estatus === 'Rechazado' || sale.estatus === 'Cancelado' || sale.estatus === 'Expirado') return 'bg-[#FF3B30]';
+        return 'bg-[#007AFF]';
       }
-
-      // === Estado de seguimiento ===
-      const followupState = getFollowupState(sale);
-      const attemptCount = (sale.contactAttempts || []).length;
 
       const lastUpdate = sale.history && sale.history.length > 0
             ? new Date(sale.history[sale.history.length - 1].date)
@@ -715,146 +442,104 @@
       const isStale = ['Con oferta', 'Acepta oferta'].includes(sale.estatus) && daysStale >= 3;
 
       return (
-        <div 
+        <div
           draggable={isDraggable}
           onDragStart={handleDragStart}
           onDragEnd={handleDragEnd}
-          className={`bg-white p-3 rounded-lg shadow-sm border mb-2 relative group hover:shadow-md transition-all ${isDraggable ? 'cursor-grab' : ''} ${followupState.level === 'urgent' || followupState.level === 'due' ? 'border-red-300 ring-2 ring-red-100' : 'border-slate-200'}`}
+          className={`ios-card bg-white p-3 rounded-2xl shadow-[0_1px_3px_rgba(0,0,0,0.06)] border border-[#ECECEE] mb-2.5 relative group hover:shadow-[0_6px_20px_rgba(0,0,0,0.08)] ${isDraggable ? 'cursor-grab' : ''}`}
         >
-          <div className={`absolute left-0 top-0 bottom-0 w-1 rounded-l-lg ${getBorderColor()}`}></div>
-          <div className="pl-2">
-            
+          <div className={`absolute left-0 top-2 bottom-2 w-1 rounded-full ${getBorderColor()}`}></div>
+          <div className="pl-2.5">
+
             <div className="flex justify-between items-start">
-              <div className="flex items-center gap-2 flex-wrap">
-                <div 
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <div
                   onMouseEnter={() => setIsDraggable(true)}
                   onMouseLeave={() => setIsDraggable(false)}
-                  className="text-slate-300 hover:text-blue-500 cursor-grab px-1"
+                  className="text-[#C7C7CC] hover:text-[#007AFF] cursor-grab pr-0.5"
                   title="Arrastrar tarjeta"
                 >
                   <i className="fas fa-grip-vertical text-sm"></i>
                 </div>
-                <span className="text-xs font-bold text-slate-700 font-mono select-text">{sale.folio}</span>
-                
+                <span className="text-xs font-semibold text-[#3A3A3C] font-mono select-text">{sale.folio}</span>
+
                 {sale.isCarryOver && (
-                  <span className="bg-orange-100 text-orange-700 text-[9px] font-black px-1.5 py-0.5 rounded shadow-sm border border-orange-200 flex items-center gap-1" title="Este lead viene de un periodo anterior">
+                  <span className="bg-[#FF9500]/10 text-[#FF9500] text-[9px] font-semibold px-2 py-0.5 rounded-full flex items-center gap-1" title="Este lead viene de un periodo anterior">
                     <i className="fas fa-history text-[8px]"></i> CARRY
                   </span>
                 )}
-                
+
                 {sale.canal === 'UPPER' && (
-                  <span className="bg-indigo-100 text-indigo-700 text-[9px] font-black px-1.5 py-0.5 rounded shadow-sm border border-indigo-200 flex items-center gap-1" title="Lead de campañas UPPER">
+                  <span className="bg-[#5856D6]/10 text-[#5856D6] text-[9px] font-semibold px-2 py-0.5 rounded-full flex items-center gap-1" title="Lead de campañas UPPER">
                     <i className="fas fa-bolt text-[8px]"></i> UPPER
                   </span>
                 )}
 
                 {isStale && (
-                  <span className="bg-cyan-50 text-cyan-600 text-[9px] font-black px-1.5 py-0.5 rounded shadow-sm border border-cyan-200 flex items-center gap-1 animate-pulse" title={`Lleva ${daysStale} días sin movimiento. ¡Llámale!`}>
+                  <span className="bg-[#32ADE6]/10 text-[#32ADE6] text-[9px] font-semibold px-2 py-0.5 rounded-full flex items-center gap-1 animate-pulse" title={`Lleva ${daysStale} días sin movimiento. ¡Llámale!`}>
                     <i className="fas fa-snowflake text-[8px]"></i> {daysStale} DÍAS FRÍO
-                  </span>
-                )}
-
-                {/* === NUEVO: Badge de intentos === */}
-                {FOLLOWUP_CONFIG.activeStatuses.includes(sale.estatus) && (
-                  <span 
-                    className={`text-[9px] font-black px-1.5 py-0.5 rounded shadow-sm border flex items-center gap-1 ${
-                      attemptCount >= FOLLOWUP_CONFIG.maxAttempts ? 'bg-purple-100 text-purple-700 border-purple-200' :
-                      attemptCount >= 10 ? 'bg-orange-100 text-orange-700 border-orange-200' :
-                      'bg-slate-100 text-slate-600 border-slate-200'
-                    }`}
-                    title={`${attemptCount} intentos de ${FOLLOWUP_CONFIG.maxAttempts}`}
-                  >
-                    <i className="fas fa-phone-alt text-[8px]"></i> {attemptCount}/{FOLLOWUP_CONFIG.maxAttempts}
                   </span>
                 )}
 
               </div>
               <div className="flex">
-                <button onClick={() => onEdit(sale)} className="text-slate-300 hover:text-blue-500 px-2" title="Editar"><i className="fas fa-pencil-alt text-xs"></i></button>
-                <button onClick={() => setShowDeleteModal(true)} className="text-slate-300 hover:text-red-500 px-2" title="Eliminar"><i className="fas fa-trash-alt text-xs"></i></button>
+                <button onClick={() => onEdit(sale)} className="text-[#C7C7CC] hover:text-[#007AFF] px-1.5" title="Editar"><i className="fas fa-pencil-alt text-xs"></i></button>
+                <button onClick={() => setShowDeleteModal(true)} className="text-[#C7C7CC] hover:text-[#FF3B30] px-1.5" title="Eliminar"><i className="fas fa-trash-alt text-xs"></i></button>
               </div>
             </div>
-            
-            <h3 className="font-bold text-sm text-slate-800 truncate mt-1 select-text">{sale.nombre_cliente}</h3>
+
+            <h3 className="font-semibold text-[15px] text-[#1C1C1E] truncate mt-1.5 select-text">{sale.nombre_cliente}</h3>
 
             {(sale.curp || sale.rfc) && (
-              <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5 text-[9px] text-slate-400 font-mono select-text">
-                {sale.curp && <span><span className="text-slate-300 mr-0.5">CURP</span>{sale.curp}</span>}
-                {sale.rfc && <span><span className="text-slate-300 mr-0.5">RFC</span>{sale.rfc}</span>}
+              <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5 text-[9px] text-[#AEAEB2] font-mono select-text">
+                {sale.curp && <span><span className="text-[#C7C7CC] mr-0.5">CURP</span>{sale.curp}</span>}
+                {sale.rfc && <span><span className="text-[#C7C7CC] mr-0.5">RFC</span>{sale.rfc}</span>}
               </div>
             )}
-            
-            {/* === NUEVO: Alerta de contacto pendiente === */}
-            {followupState.needsContact && (
-              <div className={`mt-2 p-1.5 rounded text-[10px] font-bold flex items-center gap-1 ${
-                followupState.level === 'expired' ? 'bg-purple-50 text-purple-700' :
-                followupState.level === 'urgent' ? 'bg-red-50 text-red-700' :
-                'bg-orange-50 text-orange-700'
-              }`}>
-                <i className={`fas ${followupState.level === 'expired' ? 'fa-skull' : 'fa-exclamation-triangle'}`}></i>
-                {followupState.message}
-              </div>
-            )}
-            
-            <div className="flex justify-between items-end mt-2 bg-slate-50 p-2 rounded border border-slate-100">
+
+            <div className="flex justify-between items-end mt-2.5 bg-[#F2F2F7] p-2.5 rounded-xl">
                <div className="flex flex-col gap-1">
                   {sale.monto_original ? (
                      <>
                         <div>
-                          <span className="text-[9px] text-slate-400 uppercase font-bold block leading-none mb-0.5">Línea Preaprobada</span>
-                          <span className={`font-medium text-[10px] ${sale.monto_original !== sale.monto_preaprobado ? 'text-slate-400 line-through' : 'text-slate-600'}`}>
+                          <span className="text-[9px] text-[#AEAEB2] uppercase font-medium block leading-none mb-0.5 tracking-wide">Línea Preaprobada</span>
+                          <span className={`font-medium text-[10px] ${sale.monto_original !== sale.monto_preaprobado ? 'text-[#AEAEB2] line-through' : 'text-[#8E8E93]'}`}>
                             {money(sale.monto_original)}
                           </span>
                         </div>
                         <div>
-                          <span className="text-[9px] text-blue-500 uppercase font-bold block leading-none mb-0.5">Oferta Aceptada</span>
-                          <span className="font-bold text-blue-700 text-xs">{money(sale.monto_preaprobado)}</span>
+                          <span className="text-[9px] text-[#007AFF] uppercase font-medium block leading-none mb-0.5 tracking-wide">Oferta Aceptada</span>
+                          <span className="font-semibold text-[#007AFF] text-[13px]">{money(sale.monto_preaprobado)}</span>
                         </div>
                      </>
                   ) : (
                      <div>
-                       <span className="text-[10px] text-slate-400 uppercase font-bold block leading-none mb-0.5">Preaprobado</span>
-                       <span className="font-bold text-slate-600 text-xs">{money(sale.monto_preaprobado)}</span>
+                       <span className="text-[10px] text-[#AEAEB2] uppercase font-medium block leading-none mb-0.5 tracking-wide">Preaprobado</span>
+                       <span className="font-semibold text-[#3A3A3C] text-[13px]">{money(sale.monto_preaprobado)}</span>
                      </div>
                   )}
                </div>
-               
+
                {sale.estatus === 'Dispersado' && (
                  <div className="flex flex-col text-right">
-                     <span className="text-[10px] text-green-600 font-bold uppercase block leading-none mb-0.5">Dispersado</span>
-                     <span className="font-bold text-green-700 text-sm">{money(sale.monto_dispersado)}</span>
+                     <span className="text-[10px] text-[#34C759] font-medium uppercase block leading-none mb-0.5 tracking-wide">Dispersado</span>
+                     <span className="font-semibold text-[#34C759] text-sm">{money(sale.monto_dispersado)}</span>
                  </div>
                )}
-               
+
                {(sale.estatus === 'Rechazado' || sale.estatus === 'Cancelado' || sale.estatus === 'Expirado') && sale.motivo_perdida && (
                  <div className="flex flex-col text-right">
-                     <span className="text-[10px] text-red-500 font-bold uppercase block leading-none mb-0.5">Motivo</span>
-                     <span className="font-bold text-red-700 text-[10px] truncate max-w-[90px]" title={sale.motivo_perdida}>{sale.motivo_perdida}</span>
+                     <span className="text-[10px] text-[#FF3B30] font-medium uppercase block leading-none mb-0.5 tracking-wide">Motivo</span>
+                     <span className="font-semibold text-[#FF3B30] text-[10px] truncate max-w-[90px]" title={sale.motivo_perdida}>{sale.motivo_perdida}</span>
                  </div>
                )}
             </div>
 
-            {/* === NUEVO: Botones rápidos de contacto === */}
-            {FOLLOWUP_CONFIG.activeStatuses.includes(sale.estatus) && (
-              <div className="mt-2 flex gap-1">
-                {CONTACT_TYPES.map(ct => (
-                  <button
-                    key={ct.id}
-                    onClick={() => onContactAttempt(sale, ct.id)}
-                    className={`flex-1 ${COLOR_CLASSES[ct.color].cardBg} ${COLOR_CLASSES[ct.color].cardText} ${COLOR_CLASSES[ct.color].cardHover} border ${COLOR_CLASSES[ct.color].cardBorder} py-1 rounded text-[10px] font-bold transition-colors`}
-                    title={`Registrar ${ct.label}`}
-                  >
-                    <i className={`${ct.prefix} ${ct.icon}`}></i> {ct.label}
-                  </button>
-                ))}
-              </div>
-            )}
-            
-            <div className="mt-2 flex flex-wrap gap-1 border-t border-slate-100 pt-2 items-center">
+            <div className="mt-2.5 flex flex-wrap gap-1.5 border-t border-[#F2F2F7] pt-2.5 items-center">
                {sale.telefono && (
                  <a
                    href={`tel:${sale.telefono}`}
-                   className="px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100 text-slate-500 text-[10px] flex items-center font-medium hover:bg-blue-50 hover:text-blue-600 select-text"
+                   className="px-2 py-1 rounded-full bg-[#F2F2F7] text-[#8E8E93] text-[10px] flex items-center font-medium hover:bg-[#007AFF]/10 hover:text-[#007AFF] transition-colors select-text"
                  >
                    <i className="fas fa-phone mr-1"></i> {sale.telefono}
                  </a>
@@ -863,51 +548,44 @@
                  <a
                    href={`mailto:${sale.correo}`}
                    title={sale.correo}
-                   className="px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100 text-slate-500 text-[10px] flex items-center font-medium hover:bg-blue-50 hover:text-blue-600 select-text max-w-[140px]"
+                   className="px-2 py-1 rounded-full bg-[#F2F2F7] text-[#8E8E93] text-[10px] flex items-center font-medium hover:bg-[#007AFF]/10 hover:text-[#007AFF] transition-colors select-text max-w-[140px]"
                  >
                    <i className="fas fa-envelope mr-1"></i> <span className="truncate">{sale.correo}</span>
                  </a>
                )}
-               {sale.url && <a href={sale.url} target="_blank" rel="noopener noreferrer" className="w-5 h-5 rounded bg-slate-50 flex items-center justify-center text-slate-400 hover:text-blue-600 border border-slate-100" title="Ver en Hubspot"><i className="fas fa-link text-[10px]"></i></a>}
-               <button onClick={() => setShowHistory(!showHistory)} className="ml-auto text-[10px] text-blue-500 underline">{showHistory ? 'Ocultar' : 'Bitácora'}</button>
+               {sale.url && <a href={sale.url} target="_blank" rel="noopener noreferrer" className="w-6 h-6 rounded-full bg-[#F2F2F7] flex items-center justify-center text-[#8E8E93] hover:text-[#007AFF] hover:bg-[#007AFF]/10 transition-colors" title="Ver en Hubspot"><i className="fas fa-link text-[10px]"></i></a>}
+               <button onClick={() => setShowHistory(!showHistory)} className="ml-auto text-[10px] text-[#007AFF] font-medium">{showHistory ? 'Ocultar' : 'Bitácora'}</button>
             </div>
-            
+
             {showHistory && (
-              <div className="bg-slate-50 p-2 mt-2 rounded text-[10px]">
+              <div className="bg-[#F2F2F7] p-2.5 mt-2 rounded-xl text-[10px]">
                  <div className="max-h-32 overflow-y-auto pr-1">
-                   {/* Intentos de contacto */}
-                   {sale.contactAttempts && sale.contactAttempts.slice().reverse().map((a, i) => (
-                      <div key={`att-${i}`} className="border-b border-slate-200 pb-1 mb-1 bg-blue-50/50 p-1 rounded">
-                        <span className="font-bold text-blue-700 block">
-                          <i className={`${CONTACT_TYPES.find(c => c.id === a.type)?.prefix || 'fas'} ${CONTACT_TYPES.find(c => c.id === a.type)?.icon || 'fa-phone'} mr-1`}></i>
-                          {CONTACT_TYPES.find(c => c.id === a.type)?.label || 'Contacto'} · {formatDate(a.date)}
-                        </span>
-                        <span className="break-words text-slate-600">Resultado: {a.result} {a.notes && `· ${a.notes}`}</span>
-                      </div>
-                   ))}
-                   {/* Historial general */}
                    {sale.history && sale.history.slice().reverse().map((h, i) => (
-                     <div key={`hist-${i}`} className="border-b border-slate-200 pb-1 mb-1"><span className="font-bold text-slate-500 block">{formatDate(h.date)}</span><span className="break-words select-text">{h.action}</span></div>
+                     <div key={`hist-${i}`} className="border-b border-[#E5E5EA] pb-1 mb-1 last:border-0 last:mb-0"><span className="font-semibold text-[#8E8E93] block">{formatDate(h.date)}</span><span className="break-words text-[#3A3A3C] select-text">{h.action}</span></div>
                    ))}
                  </div>
-                 <form onSubmit={addComment} className="flex gap-1 mt-2 border-t border-slate-200 pt-2">
-                   <input type="text" value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Comentar..." className="flex-1 border border-slate-300 rounded px-1.5 py-1 text-xs outline-none" />
-                   <button type="submit" className="bg-blue-600 text-white px-2 rounded"><i className="fas fa-paper-plane"></i></button>
+                 <form onSubmit={addComment} className="flex gap-1.5 mt-2 border-t border-[#E5E5EA] pt-2">
+                   <input type="text" value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Comentar..." className="flex-1 bg-white border border-[#E5E5EA] rounded-lg px-2.5 py-1.5 text-xs outline-none focus:border-[#007AFF]" />
+                   <button type="submit" className="bg-[#007AFF] text-white w-8 rounded-lg flex items-center justify-center"><i className="fas fa-paper-plane text-xs"></i></button>
                  </form>
               </div>
             )}
-            
-            <select value={sale.estatus} onChange={(e) => onStatusChange(sale, e.target.value)} className="mt-2 w-full text-xs bg-slate-50 border border-slate-200 rounded p-1 outline-none focus:border-blue-500 cursor-pointer">
-               {PIPELINE_STATUSES.map(s => (<option key={s} value={s}>{s}</option>))}
-            </select>
+
+            <div className="relative mt-2.5">
+              <select value={sale.estatus} onChange={(e) => onStatusChange(sale, e.target.value)} className="w-full text-xs font-medium bg-[#F2F2F7] border border-transparent rounded-xl px-3 py-2 pr-8 outline-none focus:bg-white focus:border-[#007AFF] cursor-pointer appearance-none transition-colors">
+                 {PIPELINE_STATUSES.map(s => (<option key={s} value={s}>{s}</option>))}
+              </select>
+              <i className="fas fa-chevron-down text-[#C7C7CC] text-[10px] absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none"></i>
+            </div>
           </div>
 
           {showDeleteModal && (
             <div className="fixed inset-0 glass-modal z-50 flex items-center justify-center p-4">
-              <div className="bg-white p-5 rounded-lg shadow-xl w-full max-w-sm border-2 border-red-100 cursor-default">
-                <h3 className="font-bold text-lg mb-2 text-red-600">Eliminar Registro</h3>
-                <input type="password" placeholder="PIN" value={pin} onChange={(e) => setPin(e.target.value)} className="w-full border p-2 rounded mb-2 text-center" />
-                <div className="flex gap-2"><button onClick={() => { if(pin === '2398') deleteSale(sale.id); }} className="flex-1 bg-red-600 text-white py-2 rounded font-bold">ELIMINAR</button><button onClick={() => {setShowDeleteModal(false); setPin('');}} className="flex-1 bg-slate-200 py-2 rounded font-bold">Cancelar</button></div>
+              <div className="bg-white p-5 rounded-3xl shadow-[0_20px_60px_rgba(0,0,0,0.25)] w-full max-w-sm cursor-default">
+                <h3 className="font-semibold text-lg mb-1 text-[#FF3B30]">Eliminar Registro</h3>
+                <p className="text-xs text-[#8E8E93] mb-3">Ingresa el PIN para confirmar.</p>
+                <input type="password" placeholder="PIN" value={pin} onChange={(e) => setPin(e.target.value)} className="w-full bg-[#F2F2F7] border border-transparent px-4 py-3 rounded-xl mb-3 text-center text-lg tracking-widest focus:outline-none focus:bg-white focus:border-[#FF3B30] transition-colors" />
+                <div className="flex gap-2"><button onClick={() => { if(pin === '2398') deleteSale(sale.id); }} className="flex-1 bg-[#FF3B30] text-white py-2.5 rounded-xl font-semibold active:scale-[0.98] transition-transform">Eliminar</button><button onClick={() => {setShowDeleteModal(false); setPin('');}} className="flex-1 bg-[#E5E5EA] text-[#1C1C1E] py-2.5 rounded-xl font-medium active:scale-[0.98] transition-transform">Cancelar</button></div>
               </div>
             </div>
           )}
@@ -921,16 +599,8 @@
       
       const [allSales, setAllSales] = useState([]);
       const [isPlanningOpen, setIsPlanningOpen] = useState(false);
-      const [alertsPanelOpen, setAlertsPanelOpen] = useState(false);
-      
-      // Tick para refrescar el estado de las alertas cada minuto
-      const [tick, setTick] = useState(0);
-      useEffect(() => {
-        const interval = setInterval(() => setTick(t => t + 1), 60000); // cada minuto
-        return () => clearInterval(interval);
-      }, []);
-      
-      const [metaData, setMetaData] = useState({ 
+
+      const [metaData, setMetaData] = useState({
           monto: 0, tipoCambio: 18.00, bono80: 0, bono100: 0, bono120: 0, bono140: 0 
       });
       
@@ -945,9 +615,6 @@
       const [lostReason, setLostReason] = useState(LOST_REASONS[0]);
       
       const [editSaleData, setEditSaleData] = useState(null);
-
-      // === NUEVO: Modal de intento de contacto ===
-      const [contactAttempt, setContactAttempt] = useState(null); // {sale, type}
 
       const periodKey = `${user.uid}_${currentDate.getFullYear()}-${currentDate.getMonth()}-${currentQuincena}`;
 
@@ -1028,22 +695,6 @@
       }, [allSales, currentDate, currentQuincena, searchTerm]);
 
       // === Leads que necesitan atención (todas las quincenas) ===
-      const alertSales = useMemo(() => {
-        return allSales
-          .filter(s => FOLLOWUP_CONFIG.activeStatuses.includes(s.estatus))
-          .filter(s => {
-            const state = getFollowupState(s);
-            return state.needsContact;
-          })
-          .sort((a, b) => {
-            // Más urgentes primero
-            const aLevel = getFollowupState(a).level;
-            const bLevel = getFollowupState(b).level;
-            const order = { 'expired': 0, 'urgent': 1, 'due': 2 };
-            return (order[aLevel] || 99) - (order[bLevel] || 99);
-          });
-      }, [allSales, tick]);
-
       const businessData = getBusinessDaysQuincena(currentDate, currentQuincena);
 
       const wonCount = filteredSales.filter(s => s.estatus === 'Dispersado').length;
@@ -1095,11 +746,8 @@
           telefono: newPhone,
           url: form.url.value,
           canal: isUpper ? 'UPPER' : 'Normal',
-          fecha: new Date().toISOString(), 
-          // === NUEVO: Inicializar seguimientos ===
-          contactAttempts: [],
-          nextContactDue: new Date().toISOString(), // Alerta inmediata para el primer contacto
-          history: [{ date: new Date().toISOString(), action: isUpper ? 'Lead UPPER Creado - Pendiente primer contacto' : 'Lead Creado - Pendiente primer contacto', user: 'Agente' }]
+          fecha: new Date().toISOString(),
+          history: [{ date: new Date().toISOString(), action: isUpper ? 'Lead UPPER Creado' : 'Lead Creado', user: 'Agente' }]
         };
 
         try {
@@ -1170,58 +818,6 @@
       const handleUpdateSale = (id, data) => db.collection('sales').doc(id).update(data).catch(console.error);
       const handleDeleteSale = (id) => db.collection('sales').doc(id).delete().catch(console.error);
 
-      // === NUEVO: Registro de intento de contacto ===
-      const handleContactAttemptOpen = (sale, type) => {
-        setContactAttempt({ sale, type });
-      };
-
-      const handleContactAttemptConfirm = async (sale, type, result, notes) => {
-        const contactInfo = CONTACT_TYPES.find(c => c.id === type);
-        const attempt = {
-          date: new Date().toISOString(),
-          type,
-          result,
-          notes: notes || ''
-        };
-
-        const newAttempts = [...(sale.contactAttempts || []), attempt];
-        const stoppedFollowup = ['hablamos', 'agendado'].includes(result);
-        
-        // Calcular próxima alerta
-        let nextDue;
-        if (stoppedFollowup) {
-          nextDue = null; // No más alertas hasta nuevo cambio
-        } else if (newAttempts.length >= FOLLOWUP_CONFIG.maxAttempts) {
-          nextDue = null; // Ya se agotaron, esperando decisión manual
-        } else {
-          nextDue = calculateNextContactTime();
-        }
-
-        const updateData = {
-          contactAttempts: newAttempts,
-          nextContactDue: nextDue,
-          history: firebase.firestore.FieldValue.arrayUnion({
-            date: new Date().toISOString(),
-            action: `${contactInfo.label}: ${result === 'no_contesta' ? 'No contestó' : result === 'dejo_recado' ? 'Dejé recado' : result === 'hablamos' ? 'Hablé con cliente' : 'Compromiso agendado'}${notes ? ` - ${notes}` : ''}`,
-            user: 'Agente'
-          })
-        };
-
-        try {
-          await db.collection('sales').doc(sale.id).update(updateData);
-          setContactAttempt(null);
-        } catch(err) {
-          console.error('Error al registrar intento:', err);
-        }
-      };
-
-      // === NUEVO: Cerrar como rechazado desde el panel de alertas ===
-      const handleCloseExpired = (sale) => {
-        setLostReason('No contesta / Inlocalizable');
-        setLostData({ sale, newStatus: 'Rechazado' });
-        setAlertsPanelOpen(false);
-      };
-
       const processStatusChange = async (sale, newStatus) => {
         if (sale.estatus === newStatus) return; 
         
@@ -1234,9 +830,8 @@
              await handleUpdateSale(sale.id, { 
                estatus: 'Dispersado', 
                monto_dispersado: Number(sale.monto_preaprobado), 
-               fecha_dispersion: new Date().toISOString(), 
-               nextContactDue: null, // Ya no requiere seguimiento
-               history: firebase.firestore.FieldValue.arrayUnion({ date: new Date().toISOString(), action: `DISPERSADO AUTOMÁTICO: ${money(sale.monto_preaprobado)}`, user: 'Agente' }) 
+               fecha_dispersion: new Date().toISOString(),
+               history: firebase.firestore.FieldValue.arrayUnion({ date: new Date().toISOString(), action: `DISPERSADO AUTOMÁTICO: ${money(sale.monto_preaprobado)}`, user: 'Agente' })
              });
           } 
           else if (newStatus === 'Rechazado' || newStatus === 'Cancelado' || newStatus === 'Expirado') {
@@ -1279,9 +874,8 @@
            await handleUpdateSale(lostData.sale.id, {
               estatus: lostData.newStatus,
               motivo_perdida: lostReason, 
-              fecha_resolucion: new Date().toISOString(), 
-              nextContactDue: null, // Ya no requiere seguimiento
-              history: firebase.firestore.FieldValue.arrayUnion({ 
+              fecha_resolucion: new Date().toISOString(),
+              history: firebase.firestore.FieldValue.arrayUnion({
                 date: new Date().toISOString(), 
                 action: `${lostData.newStatus} | Motivo: ${lostReason}`, 
                 user: 'Agente' 
@@ -1310,77 +904,77 @@
       };
 
       return (
-        <div className="flex flex-col h-full bg-slate-100 relative">
-          <div className="bg-slate-900 text-white p-3 flex flex-wrap justify-between items-center shadow-md z-10 gap-2">
-            
+        <div className="flex flex-col h-full bg-[#F2F2F7] relative">
+          <div className="glass-nav border-b border-[#E5E5EA] text-[#1C1C1E] p-3 flex flex-wrap justify-between items-center z-10 gap-2">
+
             <div className="flex items-center gap-2 md:gap-4">
               <div className="flex flex-col hidden md:flex">
-                 <h1 className="font-bold text-lg leading-tight">CRM</h1>
-                 <span className="text-[10px] text-blue-400">{user.email ? user.email.split('@')[0] : 'Usuario'}</span>
+                 <h1 className="font-semibold text-lg leading-tight tracking-tight">CRM</h1>
+                 <span className="text-[10px] text-[#8E8E93]">{user.email ? user.email.split('@')[0] : 'Usuario'}</span>
               </div>
-              <div className="flex items-center bg-slate-800 rounded px-1">
-                <button onClick={() => changePeriod(-1)} className="p-2 hover:text-green-400"><i className="fas fa-chevron-left"></i></button>
-                <div className="flex flex-col items-center w-36">
-                    <span className="text-xs font-bold uppercase tracking-wider text-slate-400">{new Intl.DateTimeFormat('es-MX', { month: 'short', year: 'numeric' }).format(currentDate)}</span>
-                    <span className="text-sm font-black text-green-400">Q{currentQuincena}</span>
+              <div className="flex items-center bg-[#F2F2F7] rounded-xl p-0.5">
+                <button onClick={() => changePeriod(-1)} className="w-8 h-8 flex items-center justify-center rounded-lg text-[#8E8E93] hover:bg-white hover:text-[#007AFF] transition-colors"><i className="fas fa-chevron-left text-xs"></i></button>
+                <div className="flex flex-col items-center w-32">
+                    <span className="text-[10px] font-medium uppercase tracking-wide text-[#8E8E93]">{new Intl.DateTimeFormat('es-MX', { month: 'short', year: 'numeric' }).format(currentDate)}</span>
+                    <span className="text-sm font-semibold text-[#007AFF]">Q{currentQuincena}</span>
                 </div>
-                <button onClick={() => changePeriod(1)} className="p-2 hover:text-green-400"><i className="fas fa-chevron-right"></i></button>
+                <button onClick={() => changePeriod(1)} className="w-8 h-8 flex items-center justify-center rounded-lg text-[#8E8E93] hover:bg-white hover:text-[#007AFF] transition-colors"><i className="fas fa-chevron-right text-xs"></i></button>
               </div>
             </div>
 
-            <div className="hidden lg:flex flex-1 items-center justify-center gap-4 px-4">
-               
-               <div className="flex items-center gap-2 bg-slate-800/80 px-3 py-1.5 rounded border border-slate-700 shadow-inner" title="Porcentaje de negocios ganados vs. los perdidos">
-                   <i className="fas fa-bullseye text-slate-400 text-sm"></i>
+            <div className="hidden lg:flex flex-1 items-center justify-center gap-3 px-4">
+
+               <div className="flex items-center gap-2 bg-[#F2F2F7] px-3 py-1.5 rounded-xl" title="Porcentaje de negocios ganados vs. los perdidos">
+                   <i className="fas fa-bullseye text-[#8E8E93] text-sm"></i>
                    <div className="flex flex-col">
-                       <span className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">Tasa de Bateo</span>
-                       <span className="text-sm font-black text-white leading-none">{winRate}%</span>
+                       <span className="text-[9px] uppercase font-medium text-[#8E8E93] tracking-wide">Tasa de Bateo</span>
+                       <span className="text-sm font-semibold text-[#1C1C1E] leading-none">{winRate}%</span>
                    </div>
                </div>
 
-               <div className={`flex items-center gap-2 px-3 py-1.5 rounded border shadow-inner ${
-                   paceStatus === 'superado' ? 'bg-green-500/20 border-green-500/50' :
-                   paceStatus === 'atrasado' ? 'bg-red-500/20 border-red-500/50' :
-                   'bg-blue-500/20 border-blue-500/50'
+               <div className={`flex items-center gap-2 px-3 py-1.5 rounded-xl ${
+                   paceStatus === 'superado' ? 'bg-[#34C759]/10' :
+                   paceStatus === 'atrasado' ? 'bg-[#FF3B30]/10' :
+                   'bg-[#007AFF]/10'
                }`}>
                    <i className={`fas text-sm ${
-                       paceStatus === 'superado' ? 'fa-trophy text-green-400' :
-                       paceStatus === 'atrasado' ? 'fa-fire-alt text-red-400 animate-pulse' :
-                       'fa-tachometer-alt text-blue-400'
+                       paceStatus === 'superado' ? 'fa-trophy text-[#34C759]' :
+                       paceStatus === 'atrasado' ? 'fa-fire-alt text-[#FF3B30] animate-pulse' :
+                       'fa-tachometer-alt text-[#007AFF]'
                    }`}></i>
                    <div className="flex flex-col">
-                       <span className={`text-[9px] uppercase font-bold tracking-wider ${
-                           paceStatus === 'superado' ? 'text-green-400' : paceStatus === 'atrasado' ? 'text-red-400' : 'text-blue-400'
+                       <span className={`text-[9px] uppercase font-medium tracking-wide ${
+                           paceStatus === 'superado' ? 'text-[#34C759]' : paceStatus === 'atrasado' ? 'text-[#FF3B30]' : 'text-[#007AFF]'
                        }`}>
                            {paceStatus === 'superado' ? '¡Meta Superada!' : 'Ritmo Diario Requerido'}
                        </span>
-                       <span className="text-sm font-black text-white leading-none">
+                       <span className="text-sm font-semibold text-[#1C1C1E] leading-none">
                            {paceStatus === 'superado' ? 'A BUSCAR EL BONO MAX' : `${money(requiredDaily)} / día`}
                        </span>
                    </div>
                </div>
 
-               <div className="relative w-64 ml-4">
-                 <i className="fas fa-search absolute left-3 top-2.5 text-slate-400 text-sm"></i>
-                 <input 
-                   type="text" 
-                   placeholder="Buscar por Folio o Cliente..." 
-                   value={searchTerm} 
+               <div className="relative w-64 ml-2">
+                 <i className="fas fa-search absolute left-3.5 top-1/2 -translate-y-1/2 text-[#8E8E93] text-xs"></i>
+                 <input
+                   type="text"
+                   placeholder="Buscar por Folio o Cliente..."
+                   value={searchTerm}
                    onChange={(e) => setSearchTerm(e.target.value)}
-                   className="w-full pl-9 pr-3 py-1.5 rounded-full text-sm bg-slate-800 border border-slate-700 text-white outline-none focus:border-blue-500 focus:bg-slate-700 transition-colors"
+                   className="w-full pl-9 pr-8 py-2 rounded-full text-sm bg-[#F2F2F7] border border-transparent text-[#1C1C1E] placeholder-[#8E8E93] outline-none focus:bg-white focus:border-[#007AFF] transition-colors"
                  />
                  {searchTerm && (
-                   <button onClick={() => setSearchTerm('')} className="absolute right-3 top-2.5 text-slate-400 hover:text-white">
-                      <i className="fas fa-times text-sm"></i>
+                   <button onClick={() => setSearchTerm('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8E8E93] hover:text-[#1C1C1E]">
+                      <i className="fas fa-times-circle text-sm"></i>
                    </button>
                  )}
                </div>
             </div>
-            
+
             <div className="flex gap-2 items-center">
-              <a href="reports.html" className="bg-blue-600 px-3 py-1.5 rounded text-sm font-bold hover:bg-blue-500 shadow-lg text-white"><i className="fas fa-table md:mr-2"></i><span className="hidden md:inline">Reportes</span></a>
-              <button onClick={() => {setShowForm(true); setFormError('');}} className="bg-green-600 px-3 py-1.5 rounded text-sm font-bold hover:bg-green-500 shadow-lg"><i className="fas fa-plus md:mr-2"></i><span className="hidden md:inline">Lead</span></button>
-              <button onClick={() => auth.signOut()} className="text-slate-400 hover:text-white px-2" title="Cerrar sesión"><i className="fas fa-sign-out-alt"></i></button>
+              <a href="reports.html" className="bg-[#007AFF] text-white px-4 py-2 rounded-full text-sm font-semibold hover:bg-[#0070E0] active:scale-[0.97] transition-all"><i className="fas fa-table md:mr-2"></i><span className="hidden md:inline">Reportes</span></a>
+              <button onClick={() => {setShowForm(true); setFormError('');}} className="bg-[#34C759] text-white px-4 py-2 rounded-full text-sm font-semibold hover:bg-[#2DB14E] active:scale-[0.97] transition-all"><i className="fas fa-plus md:mr-2"></i><span className="hidden md:inline">Lead</span></button>
+              <button onClick={() => auth.signOut()} className="w-9 h-9 flex items-center justify-center rounded-full text-[#8E8E93] hover:bg-[#F2F2F7] hover:text-[#FF3B30] transition-colors" title="Cerrar sesión"><i className="fas fa-sign-out-alt"></i></button>
             </div>
           </div>
 
@@ -1388,65 +982,45 @@
 
           <div className="flex-1 overflow-x-auto p-4 flex gap-4 pipeline-scroll items-start">
              {PIPELINE_STATUSES.map(status => (
-               <div 
-                 key={status} 
+               <div
+                 key={status}
                  onDragOver={handleDragOver}
                  onDragLeave={handleDragLeave}
                  onDrop={(e) => handleDrop(e, status)}
-                 className="min-w-[280px] w-[280px] flex flex-col h-full bg-slate-200/60 rounded-xl pipeline-col border border-transparent transition-colors duration-200"
+                 className="min-w-[290px] w-[290px] flex flex-col h-full bg-black/[0.03] rounded-2xl pipeline-col transition-colors duration-200"
                >
-                 <div className="p-3 font-bold text-slate-600 text-sm flex justify-between bg-slate-100 rounded-t-xl border border-slate-300 border-b-0">
+                 <div className="px-4 py-3 font-semibold text-[#3A3A3C] text-sm flex justify-between items-center">
                    {status}
-                   <span className="bg-white px-2 rounded-full text-xs shadow-sm">{filteredSales.filter(s => s.estatus === status).length}</span>
+                   <span className="bg-white text-[#8E8E93] px-2 py-0.5 rounded-full text-xs font-medium shadow-[0_1px_2px_rgba(0,0,0,0.06)]">{filteredSales.filter(s => s.estatus === status).length}</span>
                  </div>
-                 <div className="flex-1 overflow-y-auto p-2 border border-slate-300 border-t-0 rounded-b-xl pb-20">
+                 <div className="flex-1 overflow-y-auto px-2 pb-20">
                    {filteredSales.filter(s => s.estatus === status).map(sale => (
-                     <SaleCard 
-                       key={sale.id} 
-                       sale={sale} 
-                       updateSale={handleUpdateSale} 
-                       deleteSale={handleDeleteSale} 
-                       onStatusChange={processStatusChange} 
+                     <SaleCard
+                       key={sale.id}
+                       sale={sale}
+                       updateSale={handleUpdateSale}
+                       deleteSale={handleDeleteSale}
+                       onStatusChange={processStatusChange}
                        onEdit={(saleToEdit) => { setEditSaleData(saleToEdit); setFormError(''); }}
-                       onContactAttempt={handleContactAttemptOpen}
                      />
                    ))}
                    {searchTerm && filteredSales.filter(s => s.estatus === status).length === 0 && (
-                     <p className="text-center text-xs text-slate-400 mt-4">Sin resultados</p>
+                     <p className="text-center text-xs text-[#AEAEB2] mt-4">Sin resultados</p>
                    )}
                  </div>
                </div>
              ))}
           </div>
 
-          {/* === NUEVO: Panel flotante de alertas === */}
-          <AlertsFloatingPanel 
-            alertSales={alertSales}
-            onContactRegister={handleContactAttemptOpen}
-            onCloseSale={handleCloseExpired}
-            isOpen={alertsPanelOpen}
-            setIsOpen={setAlertsPanelOpen}
-          />
-
-          {/* === NUEVO: Modal de intento === */}
-          {contactAttempt && (
-            <ContactAttemptModal 
-              sale={contactAttempt.sale}
-              contactType={contactAttempt.type}
-              onClose={() => setContactAttempt(null)}
-              onConfirm={handleContactAttemptConfirm}
-            />
-          )}
-
           {acceptOfferData && (
             <div className="fixed inset-0 glass-modal z-50 flex items-center justify-center p-4">
-              <div className="bg-white p-5 rounded-lg shadow-xl w-full max-w-sm border-t-4 border-blue-500">
-                <h3 className="font-bold text-lg mb-2 text-blue-700">Oferta Aceptada</h3>
-                <p className="text-xs text-slate-500 mb-4">El cliente <strong>{acceptOfferData.nombre_cliente}</strong> aceptó. La línea preaprobada original era de <strong>{money(acceptOfferData.monto_original || acceptOfferData.monto_preaprobado)}</strong>. ¿Por qué monto se cerró finalmente?</p>
-                <input type="number" value={realAmount} onChange={(e) => setRealAmount(e.target.value)} className="w-full border-2 border-blue-400 rounded p-2 text-xl font-bold mb-4 focus:outline-none" autoFocus />
+              <div className="bg-white p-6 rounded-3xl shadow-[0_20px_60px_rgba(0,0,0,0.25)] w-full max-w-sm">
+                <h3 className="font-semibold text-lg mb-1 text-[#007AFF]">Oferta Aceptada</h3>
+                <p className="text-xs text-[#8E8E93] mb-4 leading-relaxed">El cliente <strong className="text-[#3A3A3C]">{acceptOfferData.nombre_cliente}</strong> aceptó. La línea preaprobada original era de <strong className="text-[#3A3A3C]">{money(acceptOfferData.monto_original || acceptOfferData.monto_preaprobado)}</strong>. ¿Por qué monto se cerró finalmente?</p>
+                <input type="number" value={realAmount} onChange={(e) => setRealAmount(e.target.value)} className="w-full bg-[#F2F2F7] border border-transparent rounded-xl px-4 py-3 text-xl font-semibold mb-4 focus:outline-none focus:bg-white focus:border-[#007AFF] transition-colors" autoFocus />
                 <div className="flex gap-2">
-                  <button onClick={confirmAcceptOffer} className="flex-1 bg-blue-600 text-white py-2 rounded font-bold hover:bg-blue-500 transition-colors">Confirmar Cierre</button>
-                  <button onClick={() => setAcceptOfferData(null)} className="flex-1 bg-slate-200 py-2 rounded font-bold hover:bg-slate-300 transition-colors">Cancelar</button>
+                  <button onClick={confirmAcceptOffer} className="flex-1 bg-[#007AFF] text-white py-2.5 rounded-xl font-semibold hover:bg-[#0070E0] active:scale-[0.98] transition-all">Confirmar Cierre</button>
+                  <button onClick={() => setAcceptOfferData(null)} className="flex-1 bg-[#E5E5EA] text-[#1C1C1E] py-2.5 rounded-xl font-medium hover:bg-[#D1D1D6] active:scale-[0.98] transition-all">Cancelar</button>
                 </div>
               </div>
             </div>
@@ -1454,22 +1028,25 @@
 
           {lostData && (
             <div className="fixed inset-0 glass-modal z-50 flex items-center justify-center p-4">
-              <div className="bg-white p-5 rounded-lg shadow-xl w-full max-w-sm border-t-4 border-red-500">
-                <h3 className="font-bold text-lg mb-2 text-red-600">Mover a {lostData.newStatus}</h3>
-                <p className="text-xs text-slate-500 mb-4">Para mantener la base de datos limpia, por favor indica por qué se perdió esta oportunidad.</p>
-                
-                <label className="block text-xs font-bold text-slate-700 mb-1">Motivo Principal:</label>
-                <select 
-                  value={lostReason} 
-                  onChange={(e) => setLostReason(e.target.value)}
-                  className="w-full border-2 border-slate-300 rounded p-2 mb-6 focus:outline-none focus:border-red-500 font-medium"
-                >
-                  {LOST_REASONS.map(r => <option key={r} value={r}>{r}</option>)}
-                </select>
+              <div className="bg-white p-6 rounded-3xl shadow-[0_20px_60px_rgba(0,0,0,0.25)] w-full max-w-sm">
+                <h3 className="font-semibold text-lg mb-1 text-[#FF3B30]">Mover a {lostData.newStatus}</h3>
+                <p className="text-xs text-[#8E8E93] mb-4 leading-relaxed">Para mantener la base de datos limpia, por favor indica por qué se perdió esta oportunidad.</p>
+
+                <label className="block text-[11px] font-medium text-[#8E8E93] mb-1">Motivo Principal</label>
+                <div className="relative mb-6">
+                  <select
+                    value={lostReason}
+                    onChange={(e) => setLostReason(e.target.value)}
+                    className="w-full bg-[#F2F2F7] border border-transparent rounded-xl px-4 py-3 pr-9 outline-none focus:bg-white focus:border-[#FF3B30] font-medium appearance-none transition-colors"
+                  >
+                    {LOST_REASONS.map(r => <option key={r} value={r}>{r}</option>)}
+                  </select>
+                  <i className="fas fa-chevron-down text-[#C7C7CC] text-xs absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none"></i>
+                </div>
 
                 <div className="flex gap-2">
-                  <button onClick={confirmLostStatus} className="flex-1 bg-red-600 text-white py-2 rounded font-bold hover:bg-red-700 transition-colors">Guardar</button>
-                  <button onClick={() => setLostData(null)} className="flex-1 bg-slate-200 py-2 rounded font-bold hover:bg-slate-300 transition-colors">Cancelar</button>
+                  <button onClick={confirmLostStatus} className="flex-1 bg-[#FF3B30] text-white py-2.5 rounded-xl font-semibold hover:bg-[#E0352B] active:scale-[0.98] transition-all">Guardar</button>
+                  <button onClick={() => setLostData(null)} className="flex-1 bg-[#E5E5EA] text-[#1C1C1E] py-2.5 rounded-xl font-medium hover:bg-[#D1D1D6] active:scale-[0.98] transition-all">Cancelar</button>
                 </div>
               </div>
             </div>
@@ -1477,54 +1054,49 @@
 
           {showForm && (
             <div className="fixed inset-0 glass-modal z-50 flex items-center justify-center p-4">
-              <form onSubmit={handleAddSale} className="bg-white rounded-lg shadow-xl w-full max-w-sm p-5 space-y-4 max-h-[90vh] overflow-y-auto">
-                 <h2 className="font-bold text-lg border-b pb-2">Nuevo Lead</h2>
-                 
-                 {formError && <div className="bg-red-100 text-red-700 p-2 rounded text-xs font-bold border border-red-200"><i className="fas fa-exclamation-circle mr-1"></i>{formError}</div>}
+              <form onSubmit={handleAddSale} className="bg-white rounded-3xl shadow-[0_20px_60px_rgba(0,0,0,0.25)] w-full max-w-sm p-6 space-y-3 max-h-[90vh] overflow-y-auto">
+                 <h2 className="font-semibold text-xl tracking-tight">Nuevo Lead</h2>
 
-                 {/* === NUEVO: Pegado rápido desde Excel/Sheets === */}
-                 <div className="bg-emerald-50 border border-emerald-200 rounded-md p-3">
-                    <label className="text-[11px] font-bold text-emerald-800 flex items-center gap-1.5 mb-1">
+                 {formError && <div className="bg-[#FF3B30]/10 text-[#FF3B30] p-3 rounded-xl text-xs font-semibold"><i className="fas fa-exclamation-circle mr-1"></i>{formError}</div>}
+
+                 {/* === Pegado rápido desde Excel/Sheets === */}
+                 <div className="bg-[#34C759]/10 rounded-2xl p-3">
+                    <label className="text-[11px] font-semibold text-[#2E9E4F] flex items-center gap-1.5 mb-1.5">
                       <i className="fas fa-bolt"></i> Pegado rápido
                     </label>
                     <textarea
                       onChange={handleLeadPaste}
                       rows={2}
                       placeholder="Pega aquí la fila copiada y los campos se llenan solos."
-                      className="w-full border border-emerald-200 rounded p-2 text-xs font-mono focus:outline-none focus:border-emerald-500 resize-none"
+                      className="w-full bg-white border border-[#34C759]/20 rounded-xl p-2.5 text-xs font-mono focus:outline-none focus:border-[#34C759] resize-none"
                     />
-                    <p className="text-[10px] text-emerald-700 mt-1 leading-tight">
+                    <p className="text-[10px] text-[#2E9E4F] mt-1.5 leading-tight">
                       Orden: NOMBRE · CURP · RFC · FOLIO · TELÉFONO · CORREO (separados por tabulador). El monto y el enlace de Hubspot se capturan a mano.
                     </p>
                  </div>
 
-                 <input name="folio" required placeholder="Número de Folio" className="w-full border p-2 rounded focus:outline-none focus:border-blue-500 font-mono" />
-                 <input name="client" required placeholder="Nombre Cliente" className="w-full border p-2 rounded focus:outline-none focus:border-blue-500" />
+                 <input name="folio" required placeholder="Número de Folio" className="w-full bg-[#F2F2F7] border border-transparent px-4 py-2.5 rounded-xl focus:outline-none focus:bg-white focus:border-[#007AFF] font-mono transition-colors" />
+                 <input name="client" required placeholder="Nombre Cliente" className="w-full bg-[#F2F2F7] border border-transparent px-4 py-2.5 rounded-xl focus:outline-none focus:bg-white focus:border-[#007AFF] transition-colors" />
                  <div className="grid grid-cols-2 gap-2">
-                    <input name="curp" placeholder="CURP" className="w-full border p-2 rounded focus:outline-none focus:border-blue-500 font-mono text-xs uppercase" />
-                    <input name="rfc" placeholder="RFC" className="w-full border p-2 rounded focus:outline-none focus:border-blue-500 font-mono text-xs uppercase" />
+                    <input name="curp" placeholder="CURP" className="w-full bg-[#F2F2F7] border border-transparent px-4 py-2.5 rounded-xl focus:outline-none focus:bg-white focus:border-[#007AFF] font-mono text-xs uppercase transition-colors" />
+                    <input name="rfc" placeholder="RFC" className="w-full bg-[#F2F2F7] border border-transparent px-4 py-2.5 rounded-xl focus:outline-none focus:bg-white focus:border-[#007AFF] font-mono text-xs uppercase transition-colors" />
                  </div>
-                 <input name="phone" placeholder="Teléfono" className="w-full border p-2 rounded focus:outline-none focus:border-blue-500" />
-                 <input name="correo" type="email" placeholder="Correo" className="w-full border p-2 rounded focus:outline-none focus:border-blue-500" />
-                 <input name="amount" type="number" required placeholder="Monto Preaprobado ($)" className="w-full border p-2 rounded focus:outline-none focus:border-blue-500" />
-                 <input name="url" placeholder="Enlace a Hubspot" className="w-full border p-2 rounded focus:outline-none focus:border-blue-500" />
-                 
-                 <div className="bg-indigo-50 border border-indigo-100 p-3 rounded-md flex items-center gap-3 mt-2 hover:bg-indigo-100 transition-colors">
-                    <input type="checkbox" id="isUpper" name="isUpper" className="w-5 h-5 cursor-pointer accent-indigo-600" />
-                    <label htmlFor="isUpper" className="text-sm font-bold text-indigo-900 cursor-pointer select-none">
-                       Asignación "UPPER" 
-                       <span className="block text-[10px] text-indigo-600 font-normal mt-0.5">Etiquetar lead como campaña UPPER.</span>
-                    </label>
-                 </div>
+                 <input name="phone" placeholder="Teléfono" className="w-full bg-[#F2F2F7] border border-transparent px-4 py-2.5 rounded-xl focus:outline-none focus:bg-white focus:border-[#007AFF] transition-colors" />
+                 <input name="correo" type="email" placeholder="Correo" className="w-full bg-[#F2F2F7] border border-transparent px-4 py-2.5 rounded-xl focus:outline-none focus:bg-white focus:border-[#007AFF] transition-colors" />
+                 <input name="amount" type="number" required placeholder="Monto Preaprobado ($)" className="w-full bg-[#F2F2F7] border border-transparent px-4 py-2.5 rounded-xl focus:outline-none focus:bg-white focus:border-[#007AFF] transition-colors" />
+                 <input name="url" placeholder="Enlace a Hubspot" className="w-full bg-[#F2F2F7] border border-transparent px-4 py-2.5 rounded-xl focus:outline-none focus:bg-white focus:border-[#007AFF] transition-colors" />
 
-                 <div className="bg-blue-50 border border-blue-100 p-2 rounded text-[10px] text-blue-700">
-                    <i className="fas fa-info-circle mr-1"></i>
-                    Este lead empezará seguimiento automático: 3 alertas/día por 5 días hasta tener respuesta.
-                 </div>
-                 
-                 <div className="flex gap-2 pt-2">
-                    <button type="submit" className="flex-1 bg-blue-600 text-white py-2 rounded font-bold hover:bg-blue-700 transition-colors">Guardar</button>
-                    <button type="button" onClick={() => setShowForm(false)} className="flex-1 bg-slate-200 py-2 rounded font-bold hover:bg-slate-300">Cancelar</button>
+                 <label htmlFor="isUpper" className="bg-[#5856D6]/10 p-3 rounded-2xl flex items-center gap-3 cursor-pointer hover:bg-[#5856D6]/15 transition-colors">
+                    <input type="checkbox" id="isUpper" name="isUpper" className="w-5 h-5 cursor-pointer accent-[#5856D6]" />
+                    <span className="text-sm font-semibold text-[#3A3A3C] select-none">
+                       Asignación "UPPER"
+                       <span className="block text-[10px] text-[#5856D6] font-normal mt-0.5">Etiquetar lead como campaña UPPER.</span>
+                    </span>
+                 </label>
+
+                 <div className="flex gap-2 pt-1">
+                    <button type="submit" className="flex-1 bg-[#007AFF] text-white py-3 rounded-xl font-semibold hover:bg-[#0070E0] active:scale-[0.98] transition-all">Guardar</button>
+                    <button type="button" onClick={() => setShowForm(false)} className="flex-1 bg-[#E5E5EA] text-[#1C1C1E] py-3 rounded-xl font-medium hover:bg-[#D1D1D6] active:scale-[0.98] transition-all">Cancelar</button>
                  </div>
               </form>
             </div>
@@ -1532,52 +1104,52 @@
 
           {editSaleData && (
             <div className="fixed inset-0 glass-modal z-50 flex items-center justify-center p-4">
-              <form onSubmit={handleEditSubmit} className="bg-white rounded-lg shadow-xl w-full max-w-sm p-5 space-y-4 border-t-4 border-slate-700 max-h-[90vh] overflow-y-auto">
-                 <h2 className="font-bold text-lg border-b pb-2 text-slate-700">Editar Tarjeta</h2>
-                 
-                 {formError && <div className="bg-red-100 text-red-700 p-2 rounded text-xs font-bold border border-red-200"><i className="fas fa-exclamation-circle mr-1"></i>{formError}</div>}
+              <form onSubmit={handleEditSubmit} className="bg-white rounded-3xl shadow-[0_20px_60px_rgba(0,0,0,0.25)] w-full max-w-sm p-6 space-y-3 max-h-[90vh] overflow-y-auto">
+                 <h2 className="font-semibold text-xl tracking-tight text-[#1C1C1E]">Editar Tarjeta</h2>
 
-                 {/* === NUEVO: Pegado rápido también al editar === */}
-                 <div className="bg-emerald-50 border border-emerald-200 rounded-md p-3">
-                    <label className="text-[11px] font-bold text-emerald-800 flex items-center gap-1.5 mb-1">
+                 {formError && <div className="bg-[#FF3B30]/10 text-[#FF3B30] p-3 rounded-xl text-xs font-semibold"><i className="fas fa-exclamation-circle mr-1"></i>{formError}</div>}
+
+                 {/* === Pegado rápido también al editar === */}
+                 <div className="bg-[#34C759]/10 rounded-2xl p-3">
+                    <label className="text-[11px] font-semibold text-[#2E9E4F] flex items-center gap-1.5 mb-1.5">
                       <i className="fas fa-bolt"></i> Pegado rápido
                     </label>
                     <textarea
                       onChange={handleLeadPaste}
                       rows={2}
                       placeholder="Pega la fila (NOMBRE · CURP · RFC · FOLIO · TELÉFONO · CORREO) y se reparte sola."
-                      className="w-full border border-emerald-200 rounded p-2 text-xs font-mono focus:outline-none focus:border-emerald-500 resize-none"
+                      className="w-full bg-white border border-[#34C759]/20 rounded-xl p-2.5 text-xs font-mono focus:outline-none focus:border-[#34C759] resize-none"
                     />
                  </div>
 
-                 <div><label className="text-[10px] font-bold text-slate-500 uppercase">Folio</label>
-                 <input name="folio" defaultValue={editSaleData.folio} required className="w-full border p-2 rounded focus:outline-none focus:border-blue-500 font-mono text-sm" /></div>
-                 
-                 <div><label className="text-[10px] font-bold text-slate-500 uppercase">Cliente</label>
-                 <input name="client" defaultValue={editSaleData.nombre_cliente} required className="w-full border p-2 rounded focus:outline-none focus:border-blue-500 text-sm" /></div>
+                 <div><label className="text-[10px] font-medium text-[#8E8E93] uppercase tracking-wide">Folio</label>
+                 <input name="folio" defaultValue={editSaleData.folio} required className="w-full bg-[#F2F2F7] border border-transparent px-4 py-2.5 rounded-xl mt-1 focus:outline-none focus:bg-white focus:border-[#007AFF] font-mono text-sm transition-colors" /></div>
+
+                 <div><label className="text-[10px] font-medium text-[#8E8E93] uppercase tracking-wide">Cliente</label>
+                 <input name="client" defaultValue={editSaleData.nombre_cliente} required className="w-full bg-[#F2F2F7] border border-transparent px-4 py-2.5 rounded-xl mt-1 focus:outline-none focus:bg-white focus:border-[#007AFF] text-sm transition-colors" /></div>
 
                  <div className="grid grid-cols-2 gap-2">
-                   <div><label className="text-[10px] font-bold text-slate-500 uppercase">CURP</label>
-                   <input name="curp" defaultValue={editSaleData.curp || ''} className="w-full border p-2 rounded focus:outline-none focus:border-blue-500 font-mono text-xs uppercase" /></div>
-                   <div><label className="text-[10px] font-bold text-slate-500 uppercase">RFC</label>
-                   <input name="rfc" defaultValue={editSaleData.rfc || ''} className="w-full border p-2 rounded focus:outline-none focus:border-blue-500 font-mono text-xs uppercase" /></div>
+                   <div><label className="text-[10px] font-medium text-[#8E8E93] uppercase tracking-wide">CURP</label>
+                   <input name="curp" defaultValue={editSaleData.curp || ''} className="w-full bg-[#F2F2F7] border border-transparent px-4 py-2.5 rounded-xl mt-1 focus:outline-none focus:bg-white focus:border-[#007AFF] font-mono text-xs uppercase transition-colors" /></div>
+                   <div><label className="text-[10px] font-medium text-[#8E8E93] uppercase tracking-wide">RFC</label>
+                   <input name="rfc" defaultValue={editSaleData.rfc || ''} className="w-full bg-[#F2F2F7] border border-transparent px-4 py-2.5 rounded-xl mt-1 focus:outline-none focus:bg-white focus:border-[#007AFF] font-mono text-xs uppercase transition-colors" /></div>
                  </div>
 
-                 <div><label className="text-[10px] font-bold text-slate-500 uppercase">Monto Preaprobado</label>
-                 <input name="amount" type="number" defaultValue={editSaleData.monto_preaprobado} required className="w-full border p-2 rounded focus:outline-none focus:border-blue-500 text-sm" /></div>
-                 
-                 <div><label className="text-[10px] font-bold text-slate-500 uppercase">Teléfono</label>
-                 <input name="phone" defaultValue={editSaleData.telefono} className="w-full border p-2 rounded focus:outline-none focus:border-blue-500 text-sm" /></div>
+                 <div><label className="text-[10px] font-medium text-[#8E8E93] uppercase tracking-wide">Monto Preaprobado</label>
+                 <input name="amount" type="number" defaultValue={editSaleData.monto_preaprobado} required className="w-full bg-[#F2F2F7] border border-transparent px-4 py-2.5 rounded-xl mt-1 focus:outline-none focus:bg-white focus:border-[#007AFF] text-sm transition-colors" /></div>
 
-                 <div><label className="text-[10px] font-bold text-slate-500 uppercase">Correo</label>
-                 <input name="correo" type="email" defaultValue={editSaleData.correo || ''} className="w-full border p-2 rounded focus:outline-none focus:border-blue-500 text-sm" /></div>
+                 <div><label className="text-[10px] font-medium text-[#8E8E93] uppercase tracking-wide">Teléfono</label>
+                 <input name="phone" defaultValue={editSaleData.telefono} className="w-full bg-[#F2F2F7] border border-transparent px-4 py-2.5 rounded-xl mt-1 focus:outline-none focus:bg-white focus:border-[#007AFF] text-sm transition-colors" /></div>
 
-                 <div><label className="text-[10px] font-bold text-slate-500 uppercase">Enlace a Hubspot</label>
-                 <input name="url" defaultValue={editSaleData.url} className="w-full border p-2 rounded focus:outline-none focus:border-blue-500 text-sm" /></div>
-                 
-                 <div className="flex gap-2 pt-4">
-                    <button type="submit" className="flex-1 bg-slate-800 text-white py-2 rounded font-bold hover:bg-slate-700 transition-colors">Actualizar</button>
-                    <button type="button" onClick={() => setEditSaleData(null)} className="flex-1 bg-slate-200 py-2 rounded font-bold hover:bg-slate-300">Cancelar</button>
+                 <div><label className="text-[10px] font-medium text-[#8E8E93] uppercase tracking-wide">Correo</label>
+                 <input name="correo" type="email" defaultValue={editSaleData.correo || ''} className="w-full bg-[#F2F2F7] border border-transparent px-4 py-2.5 rounded-xl mt-1 focus:outline-none focus:bg-white focus:border-[#007AFF] text-sm transition-colors" /></div>
+
+                 <div><label className="text-[10px] font-medium text-[#8E8E93] uppercase tracking-wide">Enlace a Hubspot</label>
+                 <input name="url" defaultValue={editSaleData.url} className="w-full bg-[#F2F2F7] border border-transparent px-4 py-2.5 rounded-xl mt-1 focus:outline-none focus:bg-white focus:border-[#007AFF] text-sm transition-colors" /></div>
+
+                 <div className="flex gap-2 pt-2">
+                    <button type="submit" className="flex-1 bg-[#007AFF] text-white py-3 rounded-xl font-semibold hover:bg-[#0070E0] active:scale-[0.98] transition-all">Actualizar</button>
+                    <button type="button" onClick={() => setEditSaleData(null)} className="flex-1 bg-[#E5E5EA] text-[#1C1C1E] py-3 rounded-xl font-medium hover:bg-[#D1D1D6] active:scale-[0.98] transition-all">Cancelar</button>
                  </div>
               </form>
             </div>
@@ -1600,9 +1172,9 @@
       }, []);
 
       if (loadingAuth) return (
-        <div className="h-screen bg-slate-900 flex flex-col justify-center items-center text-white">
+        <div className="h-screen bg-[#F2F2F7] flex flex-col justify-center items-center text-[#1C1C1E]">
           <div className="loader mb-4"></div>
-          <p className="font-bold text-slate-400">Verificando seguridad...</p>
+          <p className="font-medium text-[#8E8E93]">Verificando seguridad...</p>
         </div>
       );
       
