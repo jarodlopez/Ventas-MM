@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>CRM Ventas - Tablero Interactivo</title>
   
-  <link rel="icon" href="https://raw.githubusercontent.com/jarodlopez/Ventas-MM/refs/heads/main/MM-Logo-N.png" type="image/png" />
+  <link rel="icon" href="https://raw.githubusercontent.com/jarodlopez/Ventas-MM/refs/heads/main/1779060689439.jpg" type="image/jpeg" />
   
   <script src="https://cdn.tailwindcss.com"></script>
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -135,9 +135,7 @@
       return (
         <div className="flex-1 flex flex-col items-center justify-center bg-[#F2F2F7] text-[#1C1C1E] p-4">
           <div className="bg-white p-8 rounded-3xl shadow-[0_10px_40px_rgba(0,0,0,0.08)] w-full max-w-sm flex flex-col items-center">
-            <div className="w-16 h-16 rounded-2xl bg-[#007AFF] flex items-center justify-center mb-4 shadow-[0_6px_16px_rgba(0,122,255,0.35)]">
-              <i className="fas fa-chart-line text-2xl text-white"></i>
-            </div>
+            <img src="https://raw.githubusercontent.com/jarodlopez/Ventas-MM/refs/heads/main/1779060689439.jpg" alt="MultiMoney" className="w-16 h-16 rounded-2xl object-cover mb-4 shadow-[0_8px_24px_rgba(0,0,0,0.18)]" />
             <h1 className="text-2xl font-semibold tracking-tight mb-1">CRM Ventas</h1>
             <p className="text-sm text-[#8E8E93] mb-7">{isRegistering ? 'Crear cuenta' : 'Ingreso Agentes'}</p>
 
@@ -908,9 +906,12 @@
           <div className="glass-nav border-b border-[#E5E5EA] text-[#1C1C1E] p-3 flex flex-wrap justify-between items-center z-10 gap-2">
 
             <div className="flex items-center gap-2 md:gap-4">
-              <div className="flex flex-col hidden md:flex">
-                 <h1 className="font-semibold text-lg leading-tight tracking-tight">CRM</h1>
-                 <span className="text-[10px] text-[#8E8E93]">{user.email ? user.email.split('@')[0] : 'Usuario'}</span>
+              <div className="flex items-center gap-2.5">
+                <img src="https://raw.githubusercontent.com/jarodlopez/Ventas-MM/refs/heads/main/1779060689439.jpg" alt="MultiMoney" className="w-9 h-9 rounded-xl object-cover shadow-[0_1px_3px_rgba(0,0,0,0.15)]" />
+                <div className="flex flex-col hidden md:flex">
+                   <h1 className="font-semibold text-lg leading-tight tracking-tight">CRM</h1>
+                   <span className="text-[10px] text-[#8E8E93]">{user.email ? user.email.split('@')[0] : 'Usuario'}</span>
+                </div>
               </div>
               <div className="flex items-center bg-[#F2F2F7] rounded-xl p-0.5">
                 <button onClick={() => changePeriod(-1)} className="w-8 h-8 flex items-center justify-center rounded-lg text-[#8E8E93] hover:bg-white hover:text-[#007AFF] transition-colors"><i className="fas fa-chevron-left text-xs"></i></button>
