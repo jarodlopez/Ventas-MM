@@ -982,7 +982,10 @@
           <MetricsHeader sales={filteredSales} metaData={metaData} businessData={businessData} onOpenPlanning={() => setIsPlanningOpen(true)} />
 
           <div className="flex-1 overflow-x-auto p-4 flex gap-4 pipeline-scroll items-start">
-             {PIPELINE_STATUSES.map(status => (
+             {PIPELINE_STATUSES.map(status => {
+               const statusSales = filteredSales.filter(s => s.estatus === status);
+               const statusTotal = statusSales.reduce((acc, s) => acc + (Number(status === 'Dispersado' ? s.monto_dispersado : s.monto_preaprobado) || 0), 0);
+               return (
                <div
                  key={status}
                  onDragOver={handleDragOver}
@@ -990,12 +993,15 @@
                  onDrop={(e) => handleDrop(e, status)}
                  className="min-w-[290px] w-[290px] flex flex-col h-full bg-black/[0.03] rounded-2xl pipeline-col transition-colors duration-200"
                >
-                 <div className="px-4 py-3 font-semibold text-[#3A3A3C] text-sm flex justify-between items-center">
-                   {status}
-                   <span className="bg-white text-[#8E8E93] px-2 py-0.5 rounded-full text-xs font-medium shadow-[0_1px_2px_rgba(0,0,0,0.06)]">{filteredSales.filter(s => s.estatus === status).length}</span>
+                 <div className="px-4 py-3 flex justify-between items-start gap-2">
+                   <div className="flex flex-col min-w-0">
+                     <span className="font-semibold text-[#3A3A3C] text-sm leading-tight truncate">{status}</span>
+                     <span className="text-[11px] text-[#8E8E93] font-medium mt-0.5">{money(statusTotal)}</span>
+                   </div>
+                   <span className="bg-white text-[#8E8E93] px-2 py-0.5 rounded-full text-xs font-medium shadow-[0_1px_2px_rgba(0,0,0,0.06)] shrink-0">{statusSales.length}</span>
                  </div>
                  <div className="flex-1 overflow-y-auto px-2 pb-20">
-                   {filteredSales.filter(s => s.estatus === status).map(sale => (
+                   {statusSales.map(sale => (
                      <SaleCard
                        key={sale.id}
                        sale={sale}
@@ -1005,12 +1011,13 @@
                        onEdit={(saleToEdit) => { setEditSaleData(saleToEdit); setFormError(''); }}
                      />
                    ))}
-                   {searchTerm && filteredSales.filter(s => s.estatus === status).length === 0 && (
+                   {searchTerm && statusSales.length === 0 && (
                      <p className="text-center text-xs text-[#AEAEB2] mt-4">Sin resultados</p>
                    )}
                  </div>
                </div>
-             ))}
+               );
+             })}
           </div>
 
           {acceptOfferData && (
