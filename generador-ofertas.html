@@ -459,7 +459,7 @@
                 }
             }
 
-            const mensaje = `🎉🎉 ¡Felicidades${saludoCliente}! Tenemos excelentes noticias para ti 🎉🎉\n\nTu línea de crédito ya está PREAPROBADA y lista para activarse 🚀\n\n💰 Monto de la línea: ${formatoMonedaNum(data.monto_linea)} MXN\n📆 Plazo: ${data.plazo} meses\n📉 Tasa mensual: ${data.tasa_mensual !== 'N/D' ? data.tasa_mensual + ' %' : 'N/D %'}\n💸 Comisión por desembolso: ${comisionStr}\n🔓 Monto disponible inmediato: ${formatoMonedaNum(data.monto_desembolsar)} MXN\n📅 Primer pago: ${fechaStr}\n💳 Pago mensual: ${formatoMonedaNum(data.pago_mensual)} MXN\n\n👉 Siguiente paso: enviarte un link biométrico para que puedas cargar la siguiente información:\n\n• Cuenta CLABE (para depósito)\n• INE\n• Selfie\n• Comprobante de pago\n\n¿Procedemos a enviarte el link en este momento? 📲😊`;
+            const mensaje = `🎉🎉 ¡Felicidades${saludoCliente}! Tenemos excelentes noticias para ti 🎉🎉\n\nTu línea de crédito ya está PREAPROBADA y lista para activarse 🚀\n\n💰 Monto de la línea: ${formatoMonedaNum(data.monto_linea)} MXN\n📆 Plazo: ${data.plazo} meses\n📉 Tasa mensual: ${data.tasa_mensual !== 'N/D' ? data.tasa_mensual + ' %' : 'N/D %'}\n💸 Comisión por desembolso: ${comisionStr}\n🔓 Monto disponible inmediato: ${formatoMonedaNum(data.monto_desembolsar)} MXN\n📅 Primer pago: ${fechaStr}\n💳 Pago mensual: ${formatoMonedaNum(data.pago_mensual)} MXN\n\n👉 Siguiente paso: enviarte un link biométrico para que puedas cargar la siguiente información:\n\n• Cuenta CLABE (para depósito)\n• INE\n• Selfie\n• Comprobante de domicilio\n\n¿Procedemos a enviarte el link en este momento? 📲😊`;
 
             navigator.clipboard.writeText(mensaje).then(() => {
                 alert("¡Oferta eufórica copiada exitosamente para enviar por WhatsApp! 🎉📲");
