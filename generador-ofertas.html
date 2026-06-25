@@ -196,22 +196,15 @@
                                 </div>
                             </div>
 
-                            <!-- MÉTRICAS: cuota, plazo, tasa -->
-                            <div class="grid grid-cols-3 gap-4 mb-7">
-                                <div class="bg-white border-2 border-mmgreen rounded-2xl p-5 text-center shadow-[0_8px_24px_rgba(0,177,0,0.12)]">
-                                    <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">Cuota mensual</p>
-                                    <p class="text-[1.9rem] leading-none font-black text-slate-900 tracking-tight"><span id="out-pago">N/D</span></p>
-                                    <p class="text-[11px] text-mmgreen font-bold mt-1">al mes</p>
+                            <!-- CUOTA + PLAZO: foco en la asequibilidad (la tasa y condiciones pasan a letra fina) -->
+                            <div class="bg-white border-2 border-mmgreen rounded-2xl px-8 py-6 mb-7 flex items-center justify-between shadow-[0_8px_24px_rgba(0,177,0,0.12)]">
+                                <div>
+                                    <p class="text-[11px] text-slate-400 font-bold uppercase tracking-wider mb-1.5">Tu cuota mensual fija</p>
+                                    <p class="leading-none font-black text-slate-900 tracking-tight"><span class="text-[2.5rem]" id="out-pago">N/D</span><span class="text-[1.1rem] text-slate-400 font-bold"> / mes</span></p>
                                 </div>
-                                <div class="bg-slate-50 border border-slate-200 rounded-2xl p-5 text-center">
-                                    <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">Plazo</p>
-                                    <p class="text-[1.9rem] leading-none font-black text-slate-900 tracking-tight"><span id="out-plazo">60</span></p>
-                                    <p class="text-[11px] text-slate-500 font-bold mt-1">meses</p>
-                                </div>
-                                <div class="bg-slate-50 border border-slate-200 rounded-2xl p-5 text-center">
-                                    <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">Tasa mensual</p>
-                                    <p class="text-[1.9rem] leading-none font-black text-slate-900 tracking-tight"><span id="out-tasa">N/D</span>%</p>
-                                    <p class="text-[11px] text-slate-500 font-bold mt-1">fija</p>
+                                <div class="text-right border-l border-slate-200 pl-8">
+                                    <p class="text-[11px] text-slate-400 font-bold uppercase tracking-wider mb-1.5">Plazo</p>
+                                    <p class="leading-none font-black text-slate-900 tracking-tight"><span class="text-[2.5rem]" id="out-plazo">60</span><span class="text-[1.1rem] text-slate-400 font-bold"> meses</span></p>
                                 </div>
                             </div>
 
@@ -244,13 +237,13 @@
                                 </p>
                             </div>
 
-                            <!-- FOOTER: confianza + condiciones -->
-                            <div class="mt-auto pt-5 border-t border-slate-200">
-                                <div class="flex items-center gap-2 mb-3">
-                                    <svg class="w-4 h-4 text-slate-400 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd"></path></svg>
-                                    <p class="text-[10px] text-slate-400 font-semibold">Tus datos viajan cifrados y se procesan bajo verificación biométrica.</p>
+                            <!-- FOOTER: confianza + condiciones en letra fina, sin protagonismo -->
+                            <div class="mt-auto pt-4 border-t border-slate-100">
+                                <div class="flex items-center justify-center gap-1.5 mb-2">
+                                    <svg class="w-3.5 h-3.5 text-slate-300 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd"></path></svg>
+                                    <p class="text-[9px] text-slate-400 font-medium tracking-wide">Datos cifrados · verificación biométrica</p>
                                 </div>
-                                <p class="text-[8.5px] text-slate-400 leading-relaxed text-justify"><strong>CONDICIONES:</strong> Tasa mensual: <span id="out-tasa-foot"><span id="out-tasa-mirror">N/D</span></span>%. Comisión por desembolso: <span id="out-comision">N/D</span>%. Ciclo de pago: <span id="out-ciclo">N/D</span>. Fecha de primer pago: <span id="out-fecha">N/D</span>. CAT informativo y demás términos sujetos a aprobación final. MultiMoney México.</p>
+                                <p class="text-[8px] text-slate-300 leading-relaxed text-center">Tasa mensual fija <span id="out-tasa">N/D</span>% · Comisión <span id="out-comision">N/D</span>% · Ciclo <span id="out-ciclo">N/D</span> · Primer pago <span id="out-fecha">N/D</span> · CAT informativo, sujeto a aprobación final · MultiMoney México</p>
                             </div>
                         </div>
                     </div>
@@ -467,10 +460,6 @@
             document.getElementById('out-comision').innerText = data.comision;
             document.getElementById('out-fecha').innerText = data.fecha_primer_pago;
             document.getElementById('out-ciclo').innerText = data.ciclo;
-
-            // Reflejar la tasa también en las condiciones del pie
-            const tasaFoot = document.getElementById('out-tasa-mirror');
-            if (tasaFoot) tasaFoot.innerText = data.tasa_mensual;
         }
         
         function descargarPDFOferta() {
