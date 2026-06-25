@@ -154,34 +154,103 @@
 
                 <div class="bg-[#0f172a] p-4 md:p-8 rounded-2xl flex-grow overflow-auto flex justify-center items-start">
                     <div id="pdf-content-oferta" class="shadow-2xl text-slate-800 flex flex-col">
+                        <!-- Acentos de fondo -->
                         <div class="absolute inset-0 watermark pointer-events-none z-0"></div>
-                        <div class="absolute top-0 left-0 w-full h-4 bg-mmgreen z-20"></div>
-                        <div class="relative z-10 flex flex-col h-full p-[18mm] pt-[25mm]">
-                            <div class="flex justify-between items-center mb-10">
-                                <img src="https://raw.githubusercontent.com/jarodlopez/Ventas-MM/refs/heads/main/MM-Logo-N.png" crossorigin="anonymous" alt="MultiMoney" class="h-12 object-contain">
-                                <div class="inline-block bg-green-50 text-mmgreen px-5 py-2 rounded-full text-sm font-black tracking-widest uppercase border-2 border-green-200">PRE-APROBADO</div>
-                            </div>
-                            <div class="text-center mb-8">
-                                <h2 class="text-[2.2rem] font-black text-slate-900 tracking-tight">¡Felicidades, <br><span id="out-cliente" class="text-mmgreen">Nombre del Cliente</span>!</h2>
-                            </div>
-                            <div class="bg-slate-900 text-white rounded-[2.5rem] p-12 mb-10 flex flex-col items-center justify-center shadow-2xl relative overflow-hidden border border-slate-800">
-                                <div class="absolute -right-20 -top-20 w-64 h-64 bg-mmgreen opacity-20 rounded-full blur-3xl z-0"></div>
-                                <div class="relative z-10 text-center w-full">
-                                    <p class="text-lg text-slate-300 font-bold tracking-widest uppercase mb-4">Tu línea de crédito es de:</p>
-                                    <p id="out-monto" class="text-6xl font-black text-mmgreen tracking-tighter py-2 drop-shadow-lg">N/D</p>
+                        <div class="absolute -left-32 -top-32 w-[420px] h-[420px] rounded-full z-0 pointer-events-none" style="background: radial-gradient(circle, rgba(0,177,0,0.10) 0%, rgba(0,177,0,0) 70%);"></div>
+                        <div class="absolute -right-40 bottom-40 w-[480px] h-[480px] rounded-full z-0 pointer-events-none" style="background: radial-gradient(circle, rgba(0,177,0,0.07) 0%, rgba(0,177,0,0) 70%);"></div>
+                        <!-- Barra superior con degradado de marca -->
+                        <div class="absolute top-0 left-0 w-full h-[7px] z-20" style="background: linear-gradient(90deg, #00B100 0%, #34d058 50%, #00B100 100%);"></div>
+
+                        <div class="relative z-10 flex flex-col h-full p-[16mm] pt-[20mm]">
+
+                            <!-- HEADER: logo + vigencia (urgencia) -->
+                            <div class="flex justify-between items-start mb-8">
+                                <img src="https://raw.githubusercontent.com/jarodlopez/Ventas-MM/refs/heads/main/MM-Logo-N.png" crossorigin="anonymous" alt="MultiMoney" class="h-11 object-contain">
+                                <div class="text-right">
+                                    <div class="inline-flex items-center gap-2 bg-green-50 text-mmgreen px-4 py-2 rounded-full text-[12px] font-black tracking-[0.15em] uppercase border border-green-200">
+                                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>
+                                        Crédito pre-aprobado
+                                    </div>
+                                    <p class="text-[10px] text-slate-400 font-semibold mt-2 tracking-wide">Oferta válida por <span class="text-slate-600 font-bold">72 horas</span></p>
                                 </div>
                             </div>
-                            <div class="text-center mb-12 flex-grow flex flex-col justify-center items-center">
-                                <p class="text-sm text-slate-500 font-bold tracking-widest uppercase mb-2">Tu cuota mensual fija</p>
-                                <p class="text-5xl font-black text-slate-900 tracking-tighter mb-6"><span id="out-pago">N/D</span> <span class="text-2xl text-slate-500">/ mes</span></p>
-                                <div class="bg-slate-100 text-slate-700 px-6 py-3 rounded-full font-semibold text-[15px] inline-flex items-center gap-2 mb-10 border border-slate-200">
-                                    <svg class="w-5 h-5 text-mmgreen" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                                    <span>Plazo de <span id="out-plazo">60</span> meses con <span class="text-mmgreen font-bold">liquidación anticipada sin penalización</span>.</span>
-                                </div>
-                                <div class="bg-mmgreen text-white text-2xl font-black py-5 px-14 rounded-full shadow-[0_12px_30px_rgba(0,177,0,0.4)]">Obtener mi dinero ahora</div>
+
+                            <!-- SALUDO -->
+                            <div class="mb-7">
+                                <p class="text-[13px] font-bold text-mmgreen uppercase tracking-[0.25em] mb-2">Felicidades</p>
+                                <h2 class="text-[2.5rem] leading-[1.05] font-black text-slate-900 tracking-tight"><span id="out-cliente">Nombre del Cliente</span></h2>
+                                <p class="text-[15px] text-slate-500 font-medium mt-3">Tu solicitud fue aprobada. Esto es lo que tenemos preparado para ti:</p>
                             </div>
-                            <div class="mt-auto pt-6 border-t border-slate-200 text-justify">
-                                <p class="text-[9px] text-slate-400 leading-relaxed"><strong>CONDICIONES:</strong> Tasa mensual: <span id="out-tasa">N/D</span>%. Comisión: <span id="out-comision">N/D</span>%. Ciclo: <span id="out-ciclo">N/D</span>. Fecha primer pago: <span id="out-fecha">N/D</span>.</p>
+
+                            <!-- HERO: Línea de crédito -->
+                            <div class="text-white rounded-[2rem] p-10 mb-6 relative overflow-hidden shadow-2xl" style="background: linear-gradient(150deg, #0f172a 0%, #1e293b 55%, #14331b 100%);">
+                                <div class="absolute -right-16 -top-16 w-64 h-64 bg-mmgreen opacity-25 rounded-full blur-3xl z-0"></div>
+                                <div class="absolute -left-10 -bottom-20 w-56 h-56 bg-mmgreen opacity-10 rounded-full blur-3xl z-0"></div>
+                                <div class="relative z-10">
+                                    <div class="flex items-center gap-2 mb-3">
+                                        <span class="w-2 h-2 rounded-full bg-mmgreen"></span>
+                                        <p class="text-[13px] text-slate-300 font-bold tracking-[0.2em] uppercase">Tu línea de crédito</p>
+                                    </div>
+                                    <p id="out-monto" class="text-[4.2rem] leading-none font-black text-white tracking-tighter">N/D</p>
+                                    <p class="text-[13px] text-slate-400 font-medium mt-3">Disponible para disponer de forma inmediata, 100% digital.</p>
+                                </div>
+                            </div>
+
+                            <!-- MÉTRICAS: cuota, plazo, tasa -->
+                            <div class="grid grid-cols-3 gap-4 mb-7">
+                                <div class="bg-white border-2 border-mmgreen rounded-2xl p-5 text-center shadow-[0_8px_24px_rgba(0,177,0,0.12)]">
+                                    <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">Cuota mensual</p>
+                                    <p class="text-[1.9rem] leading-none font-black text-slate-900 tracking-tight"><span id="out-pago">N/D</span></p>
+                                    <p class="text-[11px] text-mmgreen font-bold mt-1">al mes</p>
+                                </div>
+                                <div class="bg-slate-50 border border-slate-200 rounded-2xl p-5 text-center">
+                                    <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">Plazo</p>
+                                    <p class="text-[1.9rem] leading-none font-black text-slate-900 tracking-tight"><span id="out-plazo">60</span></p>
+                                    <p class="text-[11px] text-slate-500 font-bold mt-1">meses</p>
+                                </div>
+                                <div class="bg-slate-50 border border-slate-200 rounded-2xl p-5 text-center">
+                                    <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">Tasa mensual</p>
+                                    <p class="text-[1.9rem] leading-none font-black text-slate-900 tracking-tight"><span id="out-tasa">N/D</span>%</p>
+                                    <p class="text-[11px] text-slate-500 font-bold mt-1">fija</p>
+                                </div>
+                            </div>
+
+                            <!-- BENEFICIOS -->
+                            <div class="grid grid-cols-2 gap-x-6 gap-y-3 mb-7">
+                                <div class="flex items-center gap-2.5">
+                                    <svg class="w-5 h-5 text-mmgreen flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg>
+                                    <span class="text-[12.5px] text-slate-700 font-semibold">Liquidación anticipada <span class="text-mmgreen">sin penalización</span></span>
+                                </div>
+                                <div class="flex items-center gap-2.5">
+                                    <svg class="w-5 h-5 text-mmgreen flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg>
+                                    <span class="text-[12.5px] text-slate-700 font-semibold">Desembolso el <span class="text-mmgreen">mismo día</span></span>
+                                </div>
+                                <div class="flex items-center gap-2.5">
+                                    <svg class="w-5 h-5 text-mmgreen flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg>
+                                    <span class="text-[12.5px] text-slate-700 font-semibold">Proceso <span class="text-mmgreen">100% en línea</span>, sin acudir a sucursal</span>
+                                </div>
+                                <div class="flex items-center gap-2.5">
+                                    <svg class="w-5 h-5 text-mmgreen flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg>
+                                    <span class="text-[12.5px] text-slate-700 font-semibold">Sin aval ni garantías</span>
+                                </div>
+                            </div>
+
+                            <!-- CTA -->
+                            <div class="flex flex-col items-center mb-5">
+                                <div class="bg-mmgreen text-white text-[1.5rem] font-black py-5 px-16 rounded-full shadow-[0_15px_35px_rgba(0,177,0,0.35)] tracking-tight">Quiero mi dinero ahora</div>
+                                <p class="text-[12px] text-slate-500 font-semibold mt-3 flex items-center gap-1.5">
+                                    <svg class="w-4 h-4 text-mmgreen" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"></path></svg>
+                                    Responde este mensaje para activar tu crédito
+                                </p>
+                            </div>
+
+                            <!-- FOOTER: confianza + condiciones -->
+                            <div class="mt-auto pt-5 border-t border-slate-200">
+                                <div class="flex items-center gap-2 mb-3">
+                                    <svg class="w-4 h-4 text-slate-400 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd"></path></svg>
+                                    <p class="text-[10px] text-slate-400 font-semibold">Tus datos viajan cifrados y se procesan bajo verificación biométrica.</p>
+                                </div>
+                                <p class="text-[8.5px] text-slate-400 leading-relaxed text-justify"><strong>CONDICIONES:</strong> Tasa mensual: <span id="out-tasa-foot"><span id="out-tasa-mirror">N/D</span></span>%. Comisión por desembolso: <span id="out-comision">N/D</span>%. Ciclo de pago: <span id="out-ciclo">N/D</span>. Fecha de primer pago: <span id="out-fecha">N/D</span>. CAT informativo y demás términos sujetos a aprobación final. MultiMoney México.</p>
                             </div>
                         </div>
                     </div>
@@ -398,6 +467,10 @@
             document.getElementById('out-comision').innerText = data.comision;
             document.getElementById('out-fecha').innerText = data.fecha_primer_pago;
             document.getElementById('out-ciclo').innerText = data.ciclo;
+
+            // Reflejar la tasa también en las condiciones del pie
+            const tasaFoot = document.getElementById('out-tasa-mirror');
+            if (tasaFoot) tasaFoot.innerText = data.tasa_mensual;
         }
         
         function descargarPDFOferta() {
