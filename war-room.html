@@ -69,15 +69,16 @@
     // Modo prueba: ?prueba=60 envía una alerta de prueba a Slack cada 60s (mín 10). Quita el parámetro para detener.
     const PRUEBA_SLACK_SEG = (() => { try { const v = new URLSearchParams(location.search).get('prueba'); if (v === null) return 0; const n = parseInt(v, 10); return n >= 10 ? n : 60; } catch (e) { return 0; } })();
 
-    // Mapa correo del agente (agentEmail) -> Member ID de Slack (U0XXXX). Para @etiquetar al dueño del lead.
+    // Mapa: nombre del agente COMO APARECE EN VENTAS (ej. "jarod.lopez") -> Member ID de Slack (U0XXXX).
     // Cómo obtener el ID: en Slack, perfil de la persona -> ⋮ Más -> Copiar Member ID.
+    // Con ID => menciona de verdad (ping). Sin ID => escribe "@nombre" como texto (NO notifica).
     const AGENTES_SLACK = {
-      // "ana@multimoney.com": "U0123ABC",
-      // "beto@multimoney.com": "U0456DEF",
+      // "jarod.lopez": "U0123ABC",
     };
-    const mencionSlack = (s) => {
-      const id = s && s.agentEmail && AGENTES_SLACK[String(s.agentEmail).toLowerCase()];
-      return id ? ` <@${id}>` : '';
+    const mencion = (nombre) => {
+      if (!nombre || nombre === 'Sin Asignar') return '';
+      const id = AGENTES_SLACK[nombre];
+      return id ? `<@${id}>` : `@${nombre}`;
     };
 
     const ACTIVE_STATUSES = ["Con oferta", "Acepta oferta", "Long track"];
@@ -176,6 +177,38 @@
           else setTest({ estado: 'err', msg: data.error ? data.error : `Slack respondió ${data.status || r.status}${data.slack ? ' → ' + data.slack : ''}` });
         } catch (e) {
           setTest({ estado: 'err', msg: 'No se pudo contactar /api/slack-alert. ¿Está desplegado en Vercel?' });
+        }
+      };
+
+      // Envía el REPORTE (KPIs + comparativa + Top 5 vendedores, con @menciones) a Slack.
+      const enviarReporte = async () => {
+        if (!ALERTAS.slackEndpoint) { setTest({ estado: 'err', msg: 'slackEndpoint no está configurado.' }); return; }
+        setTest({ estado: 'sending', msg: '' });
+        const c = D.comp;
+        const per = new Intl.DateTimeFormat('es-MX', { month: 'long', year: 'numeric' }).format(view.date);
+        const chg = (a, p) => p > 0 ? ((a - p) / p) * 100 : (a > 0 ? 100 : 0);
+        const fl = (d, suf) => `${d > 0 ? '▲ +' : d < 0 ? '▼ ' : '= '}${d.toFixed(0)}${suf}`;
+        const top = D.leaderboard.filter(a => a.disp > 0).slice(0, 5)
+          .map((a, i) => `${i + 1}. ${mencion(a.name)} — ${money(a.disp)} (${a.dispCount})`).join('\n') || '  (sin dispersiones aún)';
+        const texto = [
+          `📊 *Reporte de ventas — ${per} · Q${D.q}*`,
+          ``,
+          `💰 Dispersado: ${money(D.soldTeam)}  (${D.pct.toFixed(0)}% de meta ${money(D.metaTeam)})`,
+          `📈 Forecast quincena: ${D.metaTeam > 0 ? D.forecastPct.toFixed(0) + '%' : '—'}`,
+          `🎯 Conversión: ${D.winRate.toFixed(0)}%  (${D.dispQ.length} ganados / ${D.lostQ.length} perdidos)`,
+          ``,
+          `📆 vs ${c.prevLabel}:  dispersado ${fl(chg(c.actual.sold, c.prev.sold), '%')} · meta ${fl(c.actual.pct - c.prev.pct, ' pts')}`,
+          ``,
+          `🏆 *Top vendedores:*`,
+          top,
+        ].join('\n');
+        try {
+          const r = await fetch(ALERTAS.slackEndpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mensaje: texto }) });
+          const data = await r.json().catch(() => ({}));
+          if (r.ok && data.ok) setTest({ estado: 'ok', msg: 'Reporte enviado a Slack ✓. Revisa el canal.' });
+          else setTest({ estado: 'err', msg: data.error ? data.error : `Slack respondió ${data.status || r.status}${data.slack ? ' → ' + data.slack : ''}` });
+        } catch (e) {
+          setTest({ estado: 'err', msg: 'No se pudo contactar /api/slack-alert.' });
         }
       };
 
@@ -301,14 +334,15 @@
         if (esPeriodoActual) {
           active.forEach(s => {
             const d = nDays(now - lastActivity(s));
-            if (d >= ALERTAS.frioDias) alerts.push({ sev: 2, tipo: 'Lead frío', icon: 'fa-snowflake', txt: `${s.nombre_cliente || s.folio} · ${getAgentName(s)}${mencionSlack(s)}`, meta: `${Math.floor(d)}d sin actividad`, key: 'frio' + s.id });
+            if (d >= ALERTAS.frioDias) { const cl = s.nombre_cliente || s.folio, ag = getAgentName(s); alerts.push({ sev: 2, tipo: 'Lead frío', icon: 'fa-snowflake', display: `${cl} · ${ag}`, slack: `${cl} · ${mencion(ag)}`, meta: `${Math.floor(d)}d sin actividad`, key: 'frio' + s.id }); }
           });
           active.filter(s => s.estatus === 'Con oferta').forEach(s => {
             const age = nDays(now - parseDate(s.fecha));
-            if (age >= ALERTAS.ofertaVenceDias) alerts.push({ sev: 3, tipo: 'Oferta por vencer', icon: 'fa-hourglass-half', txt: `${s.nombre_cliente || s.folio} · ${getAgentName(s)}${mencionSlack(s)}`, meta: `oferta de ${Math.floor(age)}d`, key: 'vence' + s.id });
+            if (age >= ALERTAS.ofertaVenceDias) { const cl = s.nombre_cliente || s.folio, ag = getAgentName(s); alerts.push({ sev: 3, tipo: 'Oferta por vencer', icon: 'fa-hourglass-half', display: `${cl} · ${ag}`, slack: `${cl} · ${mencion(ag)}`, meta: `oferta de ${Math.floor(age)}d`, key: 'vence' + s.id }); }
           });
           if (metaTeam > 0 && biz.remaining > 0 && forecastPct < 100) {
-            alerts.push({ sev: 3, tipo: 'Meta en riesgo', icon: 'fa-triangle-exclamation', txt: `Proyección ${forecastPct.toFixed(0)}% de la meta${ALERTAS.mencionEquipo ? ' ' + ALERTAS.mencionEquipo : ''}`, meta: `faltan ${money(remaining)} en ${biz.remaining}d`, key: 'meta' });
+            const base = `Proyección ${forecastPct.toFixed(0)}% de la meta`;
+            alerts.push({ sev: 3, tipo: 'Meta en riesgo', icon: 'fa-triangle-exclamation', display: base, slack: `${base}${ALERTAS.mencionEquipo ? ' ' + ALERTAS.mencionEquipo : ''}`, meta: `faltan ${money(remaining)} en ${biz.remaining}d`, key: 'meta' });
           }
           alerts.sort((a, b) => b.sev - a.sev);
         }
@@ -358,7 +392,7 @@
         try { localStorage.setItem('wr_slack_sent', JSON.stringify(sent)); } catch (e) {}
         fetch(ALERTAS.slackEndpoint, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ alerts: nuevas.map(a => ({ tipo: a.tipo, txt: a.txt, meta: a.meta, sev: a.sev })) }),
+          body: JSON.stringify({ alerts: nuevas.map(a => ({ tipo: a.tipo, txt: a.slack, meta: a.meta, sev: a.sev })) }),
         }).catch(() => {});
       }, [D.alerts]);
 
@@ -402,6 +436,13 @@
             <div className="flex items-center gap-4">
               {PRUEBA_SLACK_SEG > 0 && (
                 <span className="text-[11px] font-bold text-amber-400 bg-amber-500/10 px-2.5 py-1 rounded-full whitespace-nowrap"><i className="fas fa-flask mr-1"></i>Prueba c/{PRUEBA_SLACK_SEG}s</span>
+              )}
+              {ALERTAS.slackEndpoint && (
+                <button onClick={enviarReporte} disabled={test.estado === 'sending'}
+                  title="Envía el reporte del periodo (KPIs, comparativa y Top 5) a Slack"
+                  className="text-xs font-bold px-3 py-1.5 rounded-full transition-colors flex items-center gap-1.5 bg-emerald-600 text-white hover:bg-emerald-500">
+                  <i className="fas fa-paper-plane"></i>Reporte a Slack
+                </button>
               )}
               {ALERTAS.slackEndpoint && (
                 <button onClick={probarSlack} disabled={test.estado === 'sending'}
@@ -530,7 +571,7 @@
                     <p className={`text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5 ${al.sev >= 3 ? 'text-rose-400' : 'text-amber-400'}`}>
                       <i className={`fas ${al.icon}`}></i>{al.tipo}
                     </p>
-                    <p className="text-sm font-semibold text-slate-100 leading-tight capitalize">{al.txt}</p>
+                    <p className="text-sm font-semibold text-slate-100 leading-tight capitalize">{al.display}</p>
                     <p className="text-[11px] text-slate-400">{al.meta}</p>
                   </div>
                 ))}

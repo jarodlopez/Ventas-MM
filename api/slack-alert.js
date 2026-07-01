@@ -39,34 +39,26 @@ export default async function handler(req, res) {
   let body = req.body;
   if (typeof body === "string") { try { body = JSON.parse(body); } catch { body = {}; } }
 
-  const alerts = Array.isArray(body && body.alerts)
-    ? body.alerts
-    : (body && body.text ? [{ tipo: body.title || "Alerta", txt: body.text, meta: "", sev: 3 }] : []);
-  if (!alerts.length) return res.status(400).json({ error: "Sin alertas en el cuerpo" });
-
-  const icono = (sev) => (Number(sev) >= 3 ? "🚨" : "⚠️");
-  const lineas = alerts.slice(0, 20).map((a) => {
-    const meta = a.meta ? ` (${a.meta})` : "";
-    return `${icono(a.sev)} ${a.tipo || "Alerta"} — ${a.txt || ""}${meta}`;
-  });
-  const resumen = `📊 Alertas de ventas (${alerts.length})\n` + lineas.join("\n");
+  // Texto a enviar: (a) reporte con formato propio (body.mensaje), o (b) resumen de alertas.
+  let resumen;
+  if (body && typeof body.mensaje === "string" && body.mensaje.trim()) {
+    resumen = body.mensaje;
+  } else {
+    const alerts = Array.isArray(body && body.alerts)
+      ? body.alerts
+      : (body && body.text ? [{ tipo: body.title || "Alerta", txt: body.text, meta: "", sev: 3 }] : []);
+    if (!alerts.length) return res.status(400).json({ error: "Sin alertas ni mensaje en el cuerpo" });
+    const icono = (sev) => (Number(sev) >= 3 ? "🚨" : "⚠️");
+    const lineas = alerts.slice(0, 20).map((a) => {
+      const meta = a.meta ? ` (${a.meta})` : "";
+      return `${icono(a.sev)} ${a.tipo || "Alerta"} — ${a.txt || ""}${meta}`;
+    });
+    resumen = `📊 Alertas de ventas (${alerts.length})\n` + lineas.join("\n");
+  }
 
   const esTrigger = /hooks\.slack\.com\/triggers\//.test(webhook);
-  let payload;
-  if (esTrigger) {
-    // Workflow Builder: payload plano con las variables declaradas en el workflow.
-    const varName = process.env.SLACK_TRIGGER_VAR || "mensaje";
-    payload = { [varName]: resumen };
-  } else {
-    // Incoming Webhook clásico: mensaje con Block Kit.
-    payload = {
-      text: `📊 War Room · Alertas de ventas (${alerts.length})`,
-      blocks: [
-        { type: "header", text: { type: "plain_text", text: `📊 Alertas de ventas (${alerts.length})`, emoji: true } },
-        { type: "section", text: { type: "mrkdwn", text: lineas.map((l) => l.replace(/^🚨 /, ":rotating_light: ").replace(/^⚠️ /, ":warning: ")).join("\n") } },
-      ],
-    };
-  }
+  const varName = process.env.SLACK_TRIGGER_VAR || "mensaje";
+  const payload = esTrigger ? { [varName]: resumen } : { text: resumen };
 
   if (typeof fetch !== "function") {
     return res.status(500).json({ ok: false, error: "El runtime no tiene fetch (usa Node 18+ en Vercel)" });
