@@ -131,6 +131,18 @@
       const [now, setNow] = useState(new Date());
       const [loading, setLoading] = useState(true);
       const [denied, setDenied] = useState(false);
+      const [view, setView] = useState(() => ({ date: new Date(), q: getQuincena(new Date()) }));
+
+      const changePeriod = (dir) => setView(v => {
+        const d = new Date(v.date);
+        if (dir === 1) {
+          if (v.q === 1) return { date: v.date, q: 2 };
+          d.setMonth(d.getMonth() + 1); return { date: d, q: 1 };
+        }
+        if (v.q === 2) return { date: v.date, q: 1 };
+        d.setMonth(d.getMonth() - 1); return { date: d, q: 2 };
+      });
+      const irHoy = () => setView({ date: new Date(), q: getQuincena(new Date()) });
 
       useEffect(() => {
         const unsub = db.collection('sales').onSnapshot(
@@ -152,8 +164,10 @@
       useEffect(() => { const t = setInterval(() => setNow(new Date()), 30000); return () => clearInterval(t); }, []);
 
       const D = useMemo(() => {
-        const year = now.getFullYear(), month = now.getMonth(), q = getQuincena(now);
-        const biz = getBusinessDays(now, q);
+        const vDate = view.date, q = view.q;
+        const year = vDate.getFullYear(), month = vDate.getMonth();
+        const esPeriodoActual = (year === now.getFullYear() && month === now.getMonth() && q === getQuincena(now));
+        const biz = getBusinessDays(vDate, q);
         const lastDay = new Date(year, month + 1, 0).getDate();
         const pStart = new Date(year, month, q === 1 ? 1 : 16, 0, 0, 0);
         const pEnd = new Date(year, month, q === 1 ? 15 : lastDay, 23, 59, 59);
@@ -171,7 +185,8 @@
 
         const dispQ = allSales.filter(s => s.estatus === 'Dispersado' && inPeriod(s.fecha_dispersion || s.fecha));
         const lostQ = allSales.filter(s => LOST_STATUSES.includes(s.estatus) && inPeriod(s.fecha_resolucion || s.fecha));
-        const active = allSales.filter(s => ACTIVE_STATUSES.includes(s.estatus));
+        // Pipeline activo del periodo: leads no terminales creados hasta el fin del periodo (incluye arrastre).
+        const active = allSales.filter(s => ACTIVE_STATUSES.includes(s.estatus) && parseDate(s.fecha) <= pEnd);
 
         const soldTeam = dispQ.reduce((a, s) => a + (Number(s.monto_dispersado) || 0), 0);
         const pipelineTeam = active.reduce((a, s) => a + (Number(s.monto_preaprobado) || 0), 0);
@@ -224,30 +239,32 @@
         lostQ.forEach(s => { const r = s.motivo_perdida || 'Sin motivo'; lostMap[r] = (lostMap[r] || 0) + 1; });
         const lostReasons = Object.entries(lostMap).map(([motivo, count]) => ({ motivo, count })).sort((a, b) => b.count - a.count);
 
-        // Alertas en vivo
+        // Alertas en vivo (solo aplican al periodo actual; en periodos pasados es histórico).
         const lastActivity = (s) => { const ds = [parseDate(s.fecha).getTime(), ...(s.history || []).map(e => parseDate(e.date).getTime())]; return new Date(Math.max.apply(null, ds)); };
         const alerts = [];
-        active.forEach(s => {
-          const d = nDays(now - lastActivity(s));
-          if (d >= ALERTAS.frioDias) alerts.push({ sev: 2, tipo: 'Lead frío', icon: 'fa-snowflake', txt: `${s.nombre_cliente || s.folio} · ${getAgentName(s)}`, meta: `${Math.floor(d)}d sin actividad`, key: 'frio' + s.id });
-        });
-        active.filter(s => s.estatus === 'Con oferta').forEach(s => {
-          const age = nDays(now - parseDate(s.fecha));
-          if (age >= ALERTAS.ofertaVenceDias) alerts.push({ sev: 3, tipo: 'Oferta por vencer', icon: 'fa-hourglass-half', txt: `${s.nombre_cliente || s.folio} · ${getAgentName(s)}`, meta: `oferta de ${Math.floor(age)}d`, key: 'vence' + s.id });
-        });
-        if (metaTeam > 0 && biz.remaining > 0 && forecastPct < 100) {
-          alerts.push({ sev: 3, tipo: 'Meta en riesgo', icon: 'fa-triangle-exclamation', txt: `Proyección ${forecastPct.toFixed(0)}% de la meta`, meta: `faltan ${money(remaining)} en ${biz.remaining}d`, key: 'meta' });
+        if (esPeriodoActual) {
+          active.forEach(s => {
+            const d = nDays(now - lastActivity(s));
+            if (d >= ALERTAS.frioDias) alerts.push({ sev: 2, tipo: 'Lead frío', icon: 'fa-snowflake', txt: `${s.nombre_cliente || s.folio} · ${getAgentName(s)}`, meta: `${Math.floor(d)}d sin actividad`, key: 'frio' + s.id });
+          });
+          active.filter(s => s.estatus === 'Con oferta').forEach(s => {
+            const age = nDays(now - parseDate(s.fecha));
+            if (age >= ALERTAS.ofertaVenceDias) alerts.push({ sev: 3, tipo: 'Oferta por vencer', icon: 'fa-hourglass-half', txt: `${s.nombre_cliente || s.folio} · ${getAgentName(s)}`, meta: `oferta de ${Math.floor(age)}d`, key: 'vence' + s.id });
+          });
+          if (metaTeam > 0 && biz.remaining > 0 && forecastPct < 100) {
+            alerts.push({ sev: 3, tipo: 'Meta en riesgo', icon: 'fa-triangle-exclamation', txt: `Proyección ${forecastPct.toFixed(0)}% de la meta`, meta: `faltan ${money(remaining)} en ${biz.remaining}d`, key: 'meta' });
+          }
+          alerts.sort((a, b) => b.sev - a.sev);
         }
-        alerts.sort((a, b) => b.sev - a.sev);
 
         return {
-          year, month, q, biz, metaTeam, tc, soldTeam, pipelineTeam, pct, winRate, forecast, forecastPct,
+          year, month, q, esPeriodoActual, biz, metaTeam, tc, soldTeam, pipelineTeam, pct, winRate, forecast, forecastPct,
           originalDaily, requiredDaily, remaining, elapsed, dispQ, lostQ, active,
           leaderboard, maxDisp, funnel, funnelMax,
           avgCycle: avg(cycle), avgAccept: avg(tAccept), avgDisperse: avg(tDisperse), avgActiveAge,
           lostReasons, alerts,
         };
-      }, [allSales, metas, now]);
+      }, [allSales, metas, now, view]);
 
       // Envío de alertas a Slack (solo la pantalla abierta con ?alertas=1, con dedup por localStorage).
       useEffect(() => {
@@ -278,7 +295,7 @@
         </div>
       );
 
-      const periodo = new Intl.DateTimeFormat('es-MX', { month: 'long', year: 'numeric' }).format(now);
+      const periodo = new Intl.DateTimeFormat('es-MX', { month: 'long', year: 'numeric' }).format(view.date);
       const hora = new Intl.DateTimeFormat('es-MX', { hour: '2-digit', minute: '2-digit', second: '2-digit' }).format(now);
       const paceColor = D.forecastPct >= 100 ? 'text-emerald-400' : D.forecastPct >= 80 ? 'text-amber-400' : 'text-rose-400';
       const medal = ['🥇', '🥈', '🥉'];
@@ -293,7 +310,15 @@
                 <h1 className="text-xl font-black tracking-tight leading-none">War Room · Ventas</h1>
                 <p className="text-[11px] text-slate-400 capitalize">{periodo} · Q{D.q}</p>
               </div>
-              <span className="ml-3 flex items-center gap-1.5 text-[11px] font-bold text-rose-400 bg-rose-500/10 px-2.5 py-1 rounded-full"><span className="live-dot w-2 h-2 rounded-full bg-rose-500"></span>EN VIVO</span>
+              {/* Navegación de periodo */}
+              <div className="ml-1 flex items-center bg-slate-900 border border-slate-800 rounded-xl p-0.5">
+                <button onClick={() => changePeriod(-1)} className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white transition-colors"><i className="fas fa-chevron-left text-xs"></i></button>
+                <span className="px-2 text-xs font-bold text-slate-200 whitespace-nowrap capitalize">{new Intl.DateTimeFormat('es-MX', { month: 'short', year: '2-digit' }).format(view.date)} · Q{D.q}</span>
+                <button onClick={() => changePeriod(1)} className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white transition-colors"><i className="fas fa-chevron-right text-xs"></i></button>
+              </div>
+              {D.esPeriodoActual
+                ? <span className="flex items-center gap-1.5 text-[11px] font-bold text-rose-400 bg-rose-500/10 px-2.5 py-1 rounded-full"><span className="live-dot w-2 h-2 rounded-full bg-rose-500"></span>EN VIVO</span>
+                : <button onClick={irHoy} className="flex items-center gap-1.5 text-[11px] font-bold text-slate-300 bg-slate-800 hover:bg-slate-700 px-2.5 py-1 rounded-full transition-colors"><i className="fas fa-clock-rotate-left"></i>Histórico · Ir a hoy</button>}
             </div>
             <div className="flex items-center gap-4">
               <span className="font-mono text-lg font-bold text-slate-300 tabular-nums">{hora}</span>
@@ -379,7 +404,9 @@
               </Panel>
 
               <Panel title={`Alertas en vivo · ${D.alerts.length}${ENVIA_SLACK ? ' · Slack ✓' : ''}`} icon="fa-bell" className="flex-1">
-                {D.alerts.length === 0 && <p className="text-slate-500 text-sm flex items-center gap-2"><i className="fas fa-check-circle text-emerald-500"></i>Todo en orden.</p>}
+                {D.alerts.length === 0 && (D.esPeriodoActual
+                  ? <p className="text-slate-500 text-sm flex items-center gap-2"><i className="fas fa-check-circle text-emerald-500"></i>Todo en orden.</p>
+                  : <p className="text-slate-500 text-sm flex items-center gap-2"><i className="fas fa-clock-rotate-left"></i>Vista histórica · las alertas solo aplican al periodo actual.</p>)}
                 {D.alerts.map(al => (
                   <div key={al.key} className={`mb-2 rounded-xl px-3 py-2 border ${al.sev >= 3 ? 'bg-rose-500/10 border-rose-500/25' : 'bg-amber-500/10 border-amber-500/25'}`}>
                     <p className={`text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5 ${al.sev >= 3 ? 'text-rose-400' : 'text-amber-400'}`}>
