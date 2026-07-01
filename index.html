@@ -119,17 +119,22 @@
       trophy: "🏆",
       goal: "🥅",
       gol: "¡GOOOL! 🎉",
-      // Marcador EN VIVO. Fuentes gratuitas, sin llave y con CORS (funcionan desde el navegador).
-      // Se intentan en orden hasta que una responda. openfootball se actualiza durante el torneo;
-      // para quitar el marcador pon enabled: false.
+      // Marcador EN VIVO (gratis, sin llave, con CORS).
+      // PRIMARIO: worldcup26.ir -> trae GOLES en vivo + minuto durante el torneo.
+      // RESPALDO: openfootball -> si el primario falla; marca "EN VIVO" por horario (sin goles minuto a minuto).
+      // Para quitar el marcador pon enabled: false.
       marcador: {
         enabled: true,
+        liveApi: {
+          games: "https://worldcup26.ir/get/games",
+          teams: "https://worldcup26.ir/get/teams",
+        },
         urls: [
           "https://cdn.jsdelivr.net/gh/openfootball/worldcup.json@master/2026/worldcup.json",
           "https://raw.githubusercontent.com/openfootball/worldcup.json/master/2026/worldcup.json",
         ],
-        refrescoSeg: 45,
-        duracionMin: 130,   // ventana (min) que un partido se considera "en vivo" tras su inicio
+        refrescoSeg: 30,
+        duracionMin: 130,   // (respaldo) ventana en min que un partido se considera "en vivo" tras su inicio
       },
     };
 
@@ -161,67 +166,105 @@
     // ===== MUNDIAL 2026: componente del marcador en vivo (eliminar al terminar) =====
     const MarcadorMundial = () => {
       const cfg = MUNDIAL.marcador;
-      const [matches, setMatches] = useState([]);
+      const [vivos, setVivos] = useState([]);      // partidos en vivo normalizados
       const [estado, setEstado] = useState('cargando'); // cargando | ok | error
+      const teamsRef = useRef(null);
 
       useEffect(() => {
         if (!MUNDIAL.enabled || !cfg.enabled) return;
         let activo = true;
-        const cargar = async () => {
+
+        const esVerdad = (v) => v === true || String(v).toUpperCase() === 'TRUE';
+        const sacaArray = (d) => Array.isArray(d) ? d : ((d && (d.games || d.matches || d.data || d.result || d.response)) || []);
+
+        // --- Fuente primaria: worldcup26.ir (goles en vivo + minuto) ---
+        const cargarEquipos = async () => {
+          if (teamsRef.current) return teamsRef.current;
+          try {
+            const r = await fetch(cfg.liveApi.teams, { cache: 'no-store' });
+            if (!r.ok) return {};
+            const arr = sacaArray(await r.json());
+            const map = {};
+            arr.forEach(t => {
+              const id = String(t.id != null ? t.id : (t.team_id != null ? t.team_id : ''));
+              if (id) map[id] = t.name || t.team_name || t.title || t.en_name || t.country || '';
+            });
+            teamsRef.current = map;
+            return map;
+          } catch (e) { return {}; }
+        };
+
+        const desdeLiveApi = async () => {
+          const r = await fetch(cfg.liveApi.games, { cache: 'no-store' });
+          if (!r.ok) throw new Error('games ' + r.status);
+          const games = sacaArray(await r.json());
+          const teams = await cargarEquipos();
+          const nombre = (g, lado) => g[lado + '_team'] || g[lado + '_team_name'] || teams[String(g[lado + '_team_id'])] || '';
+          return games.filter(g => {
+            const te = String(g.time_elapsed != null ? g.time_elapsed : '').toLowerCase();
+            const arranco = te && te !== 'notstarted' && te !== 'null' && te !== 'not_started';
+            return arranco && !esVerdad(g.finished);
+          }).map(g => {
+            const gh = parseInt(g.home_score, 10), ga = parseInt(g.away_score, 10);
+            const te = String(g.time_elapsed != null ? g.time_elapsed : '');
+            const min = /^\d+$/.test(te) ? te + "'" : te.toUpperCase().replace('HALFTIME', 'MT').replace('HALF-TIME', 'MT').replace('HT', 'MT');
+            return {
+              home: nombre(g, 'home'), away: nombre(g, 'away'),
+              score: (isNaN(gh) || isNaN(ga)) ? 'vs' : `${gh} - ${ga}`,
+              min, round: g.type === 'group' ? `Grupo ${g.group || ''}`.trim() : (g.round || g.matchday || ''),
+            };
+          });
+        };
+
+        // --- Respaldo: openfootball (marca EN VIVO por horario, sin goles minuto a minuto) ---
+        const desdeOpenfootball = async () => {
+          const esPlaceholder = (t) => !t || /^(w|l)\s?\d/i.test(t) || /^(winner|loser|runner)/i.test(t) || /group\s+[a-l]$/i.test(t);
+          const tieneFt = (m) => m.score && Array.isArray(m.score.ft) && m.score.ft.length === 2;
+          const inicio = (m) => {
+            if (!m.date) return null;
+            const t = (m.time || '').match(/(\d{1,2}):(\d{2})/);
+            const hh = t ? t[1].padStart(2, '0') : '00', mm = t ? t[2] : '00';
+            const off = (m.time || '').match(/UTC\s*([+-]?\d{1,2})(?::?(\d{2}))?/i);
+            let tz = 'Z';
+            if (off) { const s = off[1].trim().startsWith('-') ? '-' : '+'; tz = `${s}${Math.abs(parseInt(off[1], 10)).toString().padStart(2, '0')}:${off[2] || '00'}`; }
+            const d = new Date(`${m.date}T${hh}:${mm}:00${tz}`);
+            return isNaN(d.getTime()) ? null : d;
+          };
+          const ahora = new Date(), durMs = (cfg.duracionMin || 130) * 60000;
           for (const url of (cfg.urls || [])) {
             try {
               const res = await fetch(url, { cache: 'no-store' });
               if (!res.ok) continue;
               const data = await res.json();
-              const raw = Array.isArray(data.matches) ? data.matches
-                        : (Array.isArray(data.rounds) ? data.rounds.flatMap(r => r.matches || []) : []);
-              if (activo) { setMatches(raw); setEstado('ok'); }
-              return;
-            } catch (e) { /* intenta la siguiente fuente */ }
+              const raw = Array.isArray(data.matches) ? data.matches : (Array.isArray(data.rounds) ? data.rounds.flatMap(r => r.matches || []) : []);
+              return raw
+                .filter(m => !esPlaceholder(m.team1) && !esPlaceholder(m.team2) && !tieneFt(m))
+                .filter(m => { const ini = inicio(m); return ini && ahora >= ini && ahora <= new Date(ini.getTime() + durMs); })
+                .map(m => ({ home: m.team1, away: m.team2, score: (m.score && Array.isArray(m.score.ht)) ? `${m.score.ht[0]} - ${m.score.ht[1]}` : 'vs', min: '', round: m.round || '' }));
+            } catch (e) { /* siguiente fuente */ }
           }
-          if (activo) setEstado('error');
+          throw new Error('openfootball no disponible');
+        };
+
+        const cargar = async () => {
+          try {
+            const lista = await desdeLiveApi();
+            if (activo) { setVivos(lista.slice(0, 8)); setEstado('ok'); }
+          } catch (e1) {
+            try {
+              const lista = await desdeOpenfootball();
+              if (activo) { setVivos(lista.slice(0, 8)); setEstado('ok'); }
+            } catch (e2) {
+              if (activo) setEstado('error');
+            }
+          }
         };
         cargar();
-        const id = setInterval(cargar, (cfg.refrescoSeg || 60) * 1000);
+        const id = setInterval(cargar, (cfg.refrescoSeg || 30) * 1000);
         return () => { activo = false; clearInterval(id); };
       }, []);
 
       if (!MUNDIAL.enabled || !cfg.enabled) return null;
-
-      const tieneFt = (m) => m.score && Array.isArray(m.score.ft) && m.score.ft.length === 2;
-      const esPlaceholder = (t) => !t || /^(w|l)\s?\d/i.test(t) || /^(winner|loser|runner)/i.test(t) || /group\s+[a-l]$/i.test(t);
-
-      // Hora de inicio del partido (usa la zona horaria del campo "time", ej. "12:00 UTC-6").
-      const inicioPartido = (m) => {
-        if (!m.date) return null;
-        const t = (m.time || '').match(/(\d{1,2}):(\d{2})/);
-        const hh = t ? t[1].padStart(2, '0') : '00';
-        const mm = t ? t[2] : '00';
-        const off = (m.time || '').match(/UTC\s*([+-]?\d{1,2})(?::?(\d{2}))?/i);
-        let tz = 'Z';
-        if (off) {
-          const sign = off[1].trim().startsWith('-') ? '-' : '+';
-          const oh = Math.abs(parseInt(off[1], 10)).toString().padStart(2, '0');
-          tz = `${sign}${oh}:${off[2] || '00'}`;
-        }
-        const d = new Date(`${m.date}T${hh}:${mm}:00${tz}`);
-        return isNaN(d.getTime()) ? null : d;
-      };
-
-      // EN VIVO = sin marcador final y "ahora" cae dentro de la ventana desde el inicio.
-      const ahora = new Date();
-      const durMs = (cfg.duracionMin || 130) * 60000;
-      const enVivo = (m) => {
-        if (tieneFt(m)) return false;
-        const ini = inicioPartido(m);
-        if (!ini) return false;
-        return ahora >= ini && ahora <= new Date(ini.getTime() + durMs);
-      };
-
-      const vivos = matches
-        .filter(m => !esPlaceholder(m.team1) && !esPlaceholder(m.team2) && enVivo(m))
-        .sort((a, b) => (a.time || '').localeCompare(b.time || ''))
-        .slice(0, 8);
 
       return (
         <div className="bg-white border-b border-[#E5E5EA] px-3 py-2 flex items-center gap-3">
@@ -244,18 +287,17 @@
           {estado === 'ok' && vivos.length > 0 && (
             <div className="flex items-stretch gap-2 overflow-x-auto flex-1">
               {vivos.map((m, i) => {
-                const a = equipoMini(m.team1), b = equipoMini(m.team2);
-                const marcador = (m.score && Array.isArray(m.score.ht)) ? `${m.score.ht[0]} - ${m.score.ht[1]}` : 'vs';
+                const a = equipoMini(m.home), b = equipoMini(m.away);
                 return (
-                  <div key={i} className="shrink-0 bg-[#ce1126]/5 border border-[#ce1126]/15 rounded-xl px-2.5 py-1 flex flex-col items-center min-w-[132px]">
+                  <div key={i} className="shrink-0 bg-[#ce1126]/5 border border-[#ce1126]/15 rounded-xl px-2.5 py-1 flex flex-col items-center min-w-[136px]">
                     <div className="flex items-center gap-1.5 w-full justify-center text-[12px] font-semibold text-[#1C1C1E]">
                       <span className="flex items-center gap-1"><span>{a.f}</span><span className="text-[10px] text-[#8E8E93]">{a.c}</span></span>
-                      <span className="px-1 text-[#ce1126] font-bold">{marcador}</span>
+                      <span className="px-1 text-[#ce1126] font-bold">{m.score}</span>
                       <span className="flex items-center gap-1"><span className="text-[10px] text-[#8E8E93]">{b.c}</span><span>{b.f}</span></span>
                     </div>
                     <div className="text-[8px] uppercase tracking-wide mt-0.5 flex items-center gap-1 whitespace-nowrap">
-                      <span className="text-[#ce1126] font-bold flex items-center gap-1"><span className="inline-block w-1.5 h-1.5 rounded-full bg-[#ce1126] animate-pulse"></span>EN VIVO</span>
-                      <span className="text-[#C7C7CC] normal-case">· {m.round}</span>
+                      <span className="text-[#ce1126] font-bold flex items-center gap-1"><span className="inline-block w-1.5 h-1.5 rounded-full bg-[#ce1126] animate-pulse"></span>{m.min ? m.min : 'EN VIVO'}</span>
+                      {m.round && <span className="text-[#C7C7CC] normal-case">· {m.round}</span>}
                     </div>
                   </div>
                 );
