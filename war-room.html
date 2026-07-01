@@ -66,9 +66,6 @@
     };
     const ENVIA_SLACK = (() => { try { return new URLSearchParams(location.search).get('alertas') === '1'; } catch (e) { return false; } })();
 
-    // Modo prueba: ?prueba=60 envía una alerta de prueba a Slack cada 60s (mín 10). Quita el parámetro para detener.
-    const PRUEBA_SLACK_SEG = (() => { try { const v = new URLSearchParams(location.search).get('prueba'); if (v === null) return 0; const n = parseInt(v, 10); return n >= 10 ? n : 60; } catch (e) { return 0; } })();
-
     // Mapa: nombre del agente COMO APARECE EN VENTAS (ej. "jarod.lopez") -> Member ID de Slack (U0XXXX).
     // Cómo obtener el ID: en Slack, perfil de la persona -> ⋮ Más -> Copiar Member ID.
     // Con ID => menciona de verdad (ping). Sin ID => escribe "@nombre" como texto (NO notifica).
@@ -211,27 +208,6 @@
           setTest({ estado: 'err', msg: 'No se pudo contactar /api/slack-alert.' });
         }
       };
-
-      // Modo prueba: envía una alerta a Slack cada PRUEBA_SLACK_SEG segundos (?prueba=60).
-      useEffect(() => {
-        if (!PRUEBA_SLACK_SEG || !ALERTAS.slackEndpoint) return;
-        let n = 0;
-        const enviar = () => {
-          n++;
-          const num = n;
-          fetch(ALERTAS.slackEndpoint, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ alerts: [{ tipo: `🧪 Prueba automática #${num}`, txt: 'Pulso de prueba del War Room', meta: new Date().toLocaleTimeString('es-MX'), sev: 3 }] }),
-          }).then(r => r.json().catch(() => ({}))).then(d => {
-            setTest(d && d.ok
-              ? { estado: 'ok', msg: `Prueba #${num} enviada ✓ (${new Date().toLocaleTimeString('es-MX')})` }
-              : { estado: 'err', msg: `Prueba #${num} falló: ${(d && (d.error || d.slack)) || 'error'}` });
-          }).catch(() => setTest({ estado: 'err', msg: `Prueba #${num}: no se pudo contactar el endpoint` }));
-        };
-        enviar();
-        const t = setInterval(enviar, PRUEBA_SLACK_SEG * 1000);
-        return () => clearInterval(t);
-      }, []);
 
       useEffect(() => {
         const unsub = db.collection('sales').onSnapshot(
@@ -434,9 +410,6 @@
                 : <button onClick={irHoy} className="flex items-center gap-1.5 text-[11px] font-bold text-slate-300 bg-slate-800 hover:bg-slate-700 px-2.5 py-1 rounded-full transition-colors"><i className="fas fa-clock-rotate-left"></i>Histórico · Ir a hoy</button>}
             </div>
             <div className="flex items-center gap-4">
-              {PRUEBA_SLACK_SEG > 0 && (
-                <span className="text-[11px] font-bold text-amber-400 bg-amber-500/10 px-2.5 py-1 rounded-full whitespace-nowrap"><i className="fas fa-flask mr-1"></i>Prueba c/{PRUEBA_SLACK_SEG}s</span>
-              )}
               {ALERTAS.slackEndpoint && (
                 <button onClick={enviarReporte} disabled={test.estado === 'sending'}
                   title="Envía el reporte del periodo (KPIs, comparativa y Top 5) a Slack"
