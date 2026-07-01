@@ -119,7 +119,133 @@
       trophy: "🏆",
       goal: "🥅",
       gol: "¡GOOOL! 🎉",
+      // Marcador EN VIVO. Fuente gratuita, sin llave y con CORS (funciona desde el navegador).
+      // openfootball se actualiza durante el torneo; para quitar el marcador pon enabled: false.
+      // Puedes cambiar la url por otra API (adaptando el parseo del componente MarcadorMundial).
+      marcador: {
+        enabled: true,
+        url: "https://raw.githubusercontent.com/openfootball/worldcup.json/master/2026/worldcup.json",
+        refrescoSeg: 60,
+        maxPartidos: 8,
+      },
     };
+
+    // Banderas + código por país para el marcador. Fallback: ⚽ + 3 letras del nombre.
+    const MUNDIAL_EQUIPOS = {
+      "Mexico":{f:"🇲🇽",c:"MEX"},"United States":{f:"🇺🇸",c:"USA"},"Canada":{f:"🇨🇦",c:"CAN"},
+      "Argentina":{f:"🇦🇷",c:"ARG"},"Brazil":{f:"🇧🇷",c:"BRA"},"France":{f:"🇫🇷",c:"FRA"},
+      "Spain":{f:"🇪🇸",c:"ESP"},"Germany":{f:"🇩🇪",c:"GER"},"England":{f:"🏴󠁧󠁢󠁥󠁮󠁧󠁿",c:"ENG"},
+      "Portugal":{f:"🇵🇹",c:"POR"},"Netherlands":{f:"🇳🇱",c:"NED"},"Belgium":{f:"🇧🇪",c:"BEL"},
+      "Italy":{f:"🇮🇹",c:"ITA"},"Croatia":{f:"🇭🇷",c:"CRO"},"Uruguay":{f:"🇺🇾",c:"URU"},
+      "Colombia":{f:"🇨🇴",c:"COL"},"Japan":{f:"🇯🇵",c:"JPN"},"South Korea":{f:"🇰🇷",c:"KOR"},
+      "Morocco":{f:"🇲🇦",c:"MAR"},"Senegal":{f:"🇸🇳",c:"SEN"},"Ghana":{f:"🇬🇭",c:"GHA"},
+      "Nigeria":{f:"🇳🇬",c:"NGA"},"Cameroon":{f:"🇨🇲",c:"CMR"},"Ivory Coast":{f:"🇨🇮",c:"CIV"},
+      "Egypt":{f:"🇪🇬",c:"EGY"},"Tunisia":{f:"🇹🇳",c:"TUN"},"Algeria":{f:"🇩🇿",c:"ALG"},
+      "South Africa":{f:"🇿🇦",c:"RSA"},"Australia":{f:"🇦🇺",c:"AUS"},"Iran":{f:"🇮🇷",c:"IRN"},
+      "Saudi Arabia":{f:"🇸🇦",c:"KSA"},"Qatar":{f:"🇶🇦",c:"QAT"},"Ecuador":{f:"🇪🇨",c:"ECU"},
+      "Peru":{f:"🇵🇪",c:"PER"},"Chile":{f:"🇨🇱",c:"CHI"},"Paraguay":{f:"🇵🇾",c:"PAR"},
+      "Switzerland":{f:"🇨🇭",c:"SUI"},"Denmark":{f:"🇩🇰",c:"DEN"},"Poland":{f:"🇵🇱",c:"POL"},
+      "Sweden":{f:"🇸🇪",c:"SWE"},"Serbia":{f:"🇷🇸",c:"SRB"},"Austria":{f:"🇦🇹",c:"AUT"},
+      "Wales":{f:"🏴󠁧󠁢󠁷󠁬󠁳󠁿",c:"WAL"},"Scotland":{f:"🏴󠁧󠁢󠁳󠁣󠁴󠁿",c:"SCO"},"Norway":{f:"🇳🇴",c:"NOR"},
+      "Turkey":{f:"🇹🇷",c:"TUR"},"Greece":{f:"🇬🇷",c:"GRE"},"Ukraine":{f:"🇺🇦",c:"UKR"},
+      "Costa Rica":{f:"🇨🇷",c:"CRC"},"Panama":{f:"🇵🇦",c:"PAN"},"Jamaica":{f:"🇯🇲",c:"JAM"},
+      "Honduras":{f:"🇭🇳",c:"HON"},"New Zealand":{f:"🇳🇿",c:"NZL"},"Uzbekistan":{f:"🇺🇿",c:"UZB"},
+      "Jordan":{f:"🇯🇴",c:"JOR"},"Cape Verde":{f:"🇨🇻",c:"CPV"},"Haiti":{f:"🇭🇹",c:"HAI"},
+      "Venezuela":{f:"🇻🇪",c:"VEN"},"Bolivia":{f:"🇧🇴",c:"BOL"},
+    };
+    const equipoMini = (nombre) => MUNDIAL_EQUIPOS[nombre] || { f: "⚽", c: (nombre || "").slice(0, 3).toUpperCase() };
+
+    // ===== MUNDIAL 2026: componente del marcador en vivo (eliminar al terminar) =====
+    const MarcadorMundial = () => {
+      const cfg = MUNDIAL.marcador;
+      const [matches, setMatches] = useState([]);
+      const [estado, setEstado] = useState('cargando'); // cargando | ok | error
+
+      useEffect(() => {
+        if (!MUNDIAL.enabled || !cfg.enabled) return;
+        let activo = true;
+        const cargar = async () => {
+          try {
+            const res = await fetch(cfg.url, { cache: 'no-store' });
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            const data = await res.json();
+            const raw = Array.isArray(data.matches) ? data.matches
+                      : (Array.isArray(data.rounds) ? data.rounds.flatMap(r => r.matches || []) : []);
+            if (activo) { setMatches(raw); setEstado('ok'); }
+          } catch (e) {
+            if (activo) setEstado('error');
+          }
+        };
+        cargar();
+        const id = setInterval(cargar, (cfg.refrescoSeg || 60) * 1000);
+        return () => { activo = false; clearInterval(id); };
+      }, []);
+
+      if (!MUNDIAL.enabled || !cfg.enabled) return null;
+
+      const hoyStr = new Date().toISOString().slice(0, 10);
+      const tieneFt = (m) => m.score && Array.isArray(m.score.ft) && m.score.ft.length === 2;
+      const esPlaceholder = (t) => !t || /^(w|l)\s?\d/i.test(t) || /^(winner|loser|runner)/i.test(t) || /group\s+[a-l]$/i.test(t);
+
+      const clasif = matches
+        .filter(m => !esPlaceholder(m.team1) && !esPlaceholder(m.team2))
+        .map(m => {
+          const fin = tieneFt(m);
+          const cat = fin ? 'final' : (m.date === hoyStr ? 'vivo' : (m.date > hoyStr ? 'prox' : 'viejo'));
+          return { ...m, fin, cat };
+        });
+
+      const vivo = clasif.filter(m => m.cat === 'vivo');
+      const prox = clasif.filter(m => m.cat === 'prox').sort((a, b) => (a.date || '').localeCompare(b.date || '')).slice(0, 4);
+      const finales = clasif.filter(m => m.cat === 'final').sort((a, b) => (b.date || '').localeCompare(a.date || '')).slice(0, 4);
+      const lista = [...vivo, ...prox, ...finales].slice(0, cfg.maxPartidos || 8);
+
+      return (
+        <div className="bg-white border-b border-[#E5E5EA] px-3 py-2 flex items-center gap-3">
+          <div className="flex items-center gap-1.5 shrink-0 pr-3 border-r border-[#E5E5EA]">
+            <span className="mundial-bounce text-base">{MUNDIAL.ball}</span>
+            <div className="flex flex-col leading-none">
+              <span className="text-[11px] font-bold text-[#006847]">Marcador Mundial</span>
+              <span className="text-[9px] text-[#8E8E93]">FIFA 2026 · en vivo</span>
+            </div>
+          </div>
+
+          {estado === 'cargando' && <span className="text-[11px] text-[#AEAEB2]">Cargando marcador…</span>}
+          {estado === 'error' && <span className="text-[11px] text-[#AEAEB2]"><i className="fas fa-triangle-exclamation mr-1"></i>No se pudo cargar el marcador</span>}
+          {estado === 'ok' && lista.length === 0 && <span className="text-[11px] text-[#AEAEB2]">Sin partidos para mostrar</span>}
+
+          {estado === 'ok' && lista.length > 0 && (
+            <div className="flex items-stretch gap-2 overflow-x-auto flex-1">
+              {lista.map((m, i) => {
+                const a = equipoMini(m.team1), b = equipoMini(m.team2);
+                const marcador = m.fin ? `${m.score.ft[0]} - ${m.score.ft[1]}`
+                                 : (m.score && Array.isArray(m.score.ht) ? `${m.score.ht[0]} - ${m.score.ht[1]}` : 'vs');
+                const hhmm = (m.time || '').split(' ')[0];
+                const dm = m.date && m.date.length === 10 ? `${m.date.slice(8, 10)}/${m.date.slice(5, 7)}` : (m.date || '');
+                return (
+                  <div key={i} className="shrink-0 bg-[#F2F2F7] rounded-xl px-2.5 py-1 flex flex-col items-center min-w-[132px]">
+                    <div className="flex items-center gap-1.5 w-full justify-center text-[12px] font-semibold text-[#1C1C1E]">
+                      <span className="flex items-center gap-1"><span>{a.f}</span><span className="text-[10px] text-[#8E8E93]">{a.c}</span></span>
+                      <span className={`px-1 ${m.cat === 'vivo' ? 'text-[#ce1126] font-bold' : ''}`}>{marcador}</span>
+                      <span className="flex items-center gap-1"><span className="text-[10px] text-[#8E8E93]">{b.c}</span><span>{b.f}</span></span>
+                    </div>
+                    <div className="text-[8px] uppercase tracking-wide mt-0.5 flex items-center gap-1 whitespace-nowrap">
+                      {m.cat === 'vivo'
+                        ? <span className="text-[#ce1126] font-bold flex items-center gap-1"><span className="inline-block w-1.5 h-1.5 rounded-full bg-[#ce1126] animate-pulse"></span>EN VIVO</span>
+                        : m.cat === 'final'
+                          ? <span className="text-[#8E8E93] font-semibold">Final</span>
+                          : <span className="text-[#007AFF] font-semibold">{dm} {hhmm}</span>}
+                      <span className="text-[#C7C7CC] normal-case">· {m.round}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      );
+    };
+    // ===== FIN MUNDIAL 2026 =====
     const formatDate = (input) => new Intl.DateTimeFormat('es-MX', { day: '2-digit', month: 'short', hour:'2-digit', minute:'2-digit' }).format(parseDate(input));
     const formatTime = (input) => new Intl.DateTimeFormat('es-MX', { hour:'2-digit', minute:'2-digit' }).format(parseDate(input));
 
@@ -1092,6 +1218,10 @@
           </div>
 
           <MetricsHeader sales={filteredSales} metaData={metaData} businessData={businessData} onOpenPlanning={() => setIsPlanningOpen(true)} />
+
+          {/* ===== MUNDIAL 2026: marcador en vivo (eliminar al terminar) ===== */}
+          {MUNDIAL.enabled && MUNDIAL.marcador.enabled && <MarcadorMundial />}
+          {/* ===== FIN MUNDIAL 2026 ===== */}
 
           <div className="flex-1 overflow-x-auto p-4 flex gap-4 pipeline-scroll items-start">
              {PIPELINE_STATUSES.map(status => {
