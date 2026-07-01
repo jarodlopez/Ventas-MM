@@ -68,13 +68,25 @@ export default async function handler(req, res) {
     };
   }
 
+  if (typeof fetch !== "function") {
+    return res.status(500).json({ ok: false, error: "El runtime no tiene fetch (usa Node 18+ en Vercel)" });
+  }
+
   try {
     const r = await fetch(webhook, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
-    return res.status(r.ok ? 200 : 502).json({ ok: r.ok, status: r.status, tipo: esTrigger ? "trigger" : "webhook" });
+    const slackBody = await r.text().catch(() => "");
+    if (!r.ok) {
+      console.error("Slack rechazó:", r.status, slackBody);
+      return res.status(502).json({
+        ok: false, status: r.status, tipo: esTrigger ? "trigger" : "webhook",
+        slack: (slackBody || "").slice(0, 300), enviado: payload,
+      });
+    }
+    return res.status(200).json({ ok: true, status: r.status, tipo: esTrigger ? "trigger" : "webhook", slack: (slackBody || "").slice(0, 200) });
   } catch (e) {
     return res.status(502).json({ ok: false, error: String((e && e.message) || e) });
   }

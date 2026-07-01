@@ -156,7 +156,7 @@
           });
           const data = await r.json().catch(() => ({}));
           if (r.ok && data.ok) setTest({ estado: 'ok', msg: `Slack aceptó la petición (${data.tipo || 'webhook'}). Revisa el canal.` });
-          else setTest({ estado: 'err', msg: data.error ? data.error : `Slack respondió ${data.status || r.status} — revisa SLACK_WEBHOOK_URL o el workflow.` });
+          else setTest({ estado: 'err', msg: data.error ? data.error : `Slack respondió ${data.status || r.status}${data.slack ? ' → ' + data.slack : ''}` });
         } catch (e) {
           setTest({ estado: 'err', msg: 'No se pudo contactar /api/slack-alert. ¿Está desplegado en Vercel?' });
         }
