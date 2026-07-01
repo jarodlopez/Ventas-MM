@@ -52,9 +52,16 @@
     const ALERTAS = {
       frioDias: 3,          // lead activo sin actividad => "frío"
       ofertaVenceDias: 7,   // lead "Con oferta" con esta antigüedad => "por vencer"
-      // OPCIONAL: para enviar a Slack/WhatsApp/email hace falta un relay (serverless). "" = solo en pantalla.
-      webhookUrl: "",
+
+      // --- Envío a Slack (vía relay serverless api/slack-alert.js) ---
+      // "" = desactivado (solo se muestran en pantalla). Deja "/api/slack-alert" para activar.
+      slackEndpoint: "/api/slack-alert",
+      slackMinSeveridad: 3, // 3 = solo críticas (meta en riesgo / oferta por vencer). 2 = también leads fríos.
+      slackReavisoHrs: 6,   // no repetir la misma alerta a Slack antes de estas horas.
+      // Para evitar que cada pantalla abierta mande duplicados, SOLO envía la que abras
+      // con ?alertas=1 en la URL (ej. la TV del piso: war-room.html?alertas=1).
     };
+    const ENVIA_SLACK = (() => { try { return new URLSearchParams(location.search).get('alertas') === '1'; } catch (e) { return false; } })();
 
     const ACTIVE_STATUSES = ["Con oferta", "Acepta oferta", "Long track"];
     const LOST_STATUSES = ["Rechazado", "Cancelado", "Expirado"];
@@ -242,6 +249,25 @@
         };
       }, [allSales, metas, now]);
 
+      // Envío de alertas a Slack (solo la pantalla abierta con ?alertas=1, con dedup por localStorage).
+      useEffect(() => {
+        if (!ENVIA_SLACK || !ALERTAS.slackEndpoint || !D.alerts.length) return;
+        const min = ALERTAS.slackMinSeveridad || 3;
+        const cooldown = (ALERTAS.slackReavisoHrs || 6) * 3600000;
+        const ahora = Date.now();
+        let sent = {};
+        try { sent = JSON.parse(localStorage.getItem('wr_slack_sent') || '{}'); } catch (e) {}
+        const nuevas = D.alerts.filter(a => a.sev >= min && (!sent[a.key] || ahora - sent[a.key] > cooldown));
+        if (!nuevas.length) return;
+        nuevas.forEach(a => { sent[a.key] = ahora; });
+        Object.keys(sent).forEach(k => { if (ahora - sent[k] > cooldown * 4) delete sent[k]; });
+        try { localStorage.setItem('wr_slack_sent', JSON.stringify(sent)); } catch (e) {}
+        fetch(ALERTAS.slackEndpoint, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ alerts: nuevas.map(a => ({ tipo: a.tipo, txt: a.txt, meta: a.meta, sev: a.sev })) }),
+        }).catch(() => {});
+      }, [D.alerts]);
+
       if (loading) return <div className="h-screen flex justify-center items-center"><div className="loader mr-4"></div><span className="text-slate-400 font-bold">Cargando datos…</span></div>;
       if (denied) return (
         <div className="h-screen flex flex-col justify-center items-center text-center px-6">
@@ -352,7 +378,7 @@
                 </div>
               </Panel>
 
-              <Panel title={`Alertas en vivo · ${D.alerts.length}`} icon="fa-bell" className="flex-1">
+              <Panel title={`Alertas en vivo · ${D.alerts.length}${ENVIA_SLACK ? ' · Slack ✓' : ''}`} icon="fa-bell" className="flex-1">
                 {D.alerts.length === 0 && <p className="text-slate-500 text-sm flex items-center gap-2"><i className="fas fa-check-circle text-emerald-500"></i>Todo en orden.</p>}
                 {D.alerts.map(al => (
                   <div key={al.key} className={`mb-2 rounded-xl px-3 py-2 border ${al.sev >= 3 ? 'bg-rose-500/10 border-rose-500/25' : 'bg-amber-500/10 border-amber-500/25'}`}>
