@@ -125,6 +125,9 @@
       // Para quitar el marcador pon enabled: false.
       marcador: {
         enabled: true,
+        // OPCIONAL (datos oficiales confiables): URL de tu Cloudflare Worker (ver mundial-marcador-worker.js).
+        // Si lo defines, tiene prioridad sobre worldcup26.ir. Déjalo "" para no usarlo.
+        proxyUrl: "",
         liveApi: {
           games: "https://worldcup26.ir/get/games",
           teams: "https://worldcup26.ir/get/teams",
@@ -176,6 +179,25 @@
 
         const esVerdad = (v) => v === true || String(v).toUpperCase() === 'TRUE';
         const sacaArray = (d) => Array.isArray(d) ? d : ((d && (d.games || d.matches || d.data || d.result || d.response)) || []);
+
+        // --- Fuente oficial (opcional): Cloudflare Worker que reenvía API-Football (fixtures?live=all) ---
+        const desdeProxy = async () => {
+          const r = await fetch(cfg.proxyUrl, { cache: 'no-store' });
+          if (!r.ok) throw new Error('proxy ' + r.status);
+          const arr = sacaArray(await r.json());
+          return arr.map(x => {
+            const st = (x.fixture && x.fixture.status) || {};
+            const short = String(st.short || '').toUpperCase();
+            const min = short === 'HT' ? 'MT' : (short && !['1H', '2H', 'ET', 'P'].includes(short) ? short : (st.elapsed != null ? st.elapsed + "'" : 'EN VIVO'));
+            const gh = x.goals ? x.goals.home : null, ga = x.goals ? x.goals.away : null;
+            return {
+              home: (x.teams && x.teams.home && x.teams.home.name) || '',
+              away: (x.teams && x.teams.away && x.teams.away.name) || '',
+              score: (gh == null || ga == null) ? 'vs' : `${gh} - ${ga}`,
+              min, round: (x.league && x.league.round) || '',
+            };
+          });
+        };
 
         // --- Fuente primaria: worldcup26.ir (goles en vivo + minuto) ---
         const cargarEquipos = async () => {
@@ -247,17 +269,19 @@
         };
 
         const cargar = async () => {
-          try {
-            const lista = await desdeLiveApi();
-            if (activo) { setVivos(lista.slice(0, 8)); setEstado('ok'); }
-          } catch (e1) {
+          // Orden de intento: proxy oficial (si está configurado) -> worldcup26.ir -> openfootball.
+          const fuentes = [];
+          if (cfg.proxyUrl) fuentes.push(desdeProxy);
+          fuentes.push(desdeLiveApi);
+          fuentes.push(desdeOpenfootball);
+          for (const fuente of fuentes) {
             try {
-              const lista = await desdeOpenfootball();
+              const lista = await fuente();
               if (activo) { setVivos(lista.slice(0, 8)); setEstado('ok'); }
-            } catch (e2) {
-              if (activo) setEstado('error');
-            }
+              return;
+            } catch (e) { /* intenta la siguiente fuente */ }
           }
+          if (activo) setEstado('error');
         };
         cargar();
         const id = setInterval(cargar, (cfg.refrescoSeg || 30) * 1000);
