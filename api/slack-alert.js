@@ -4,20 +4,22 @@
  * ============================================================================
  *
  * El War Room (war-room.html) envía aquí sus alertas y esta función las
- * reenvía a Slack. Así el webhook NO queda expuesto en el navegador y no hay
- * problemas de CORS (esto corre en el servidor).
+ * reenvía a Slack. Así la URL NO queda expuesta en el navegador y no hay CORS.
  *
- * ---- Configuración (una sola vez) ----
- *  1) Crea el Incoming Webhook en Slack:
- *       https://api.slack.com/apps  ->  Create New App  ->  From scratch
- *       -> Incoming Webhooks (On)  ->  Add New Webhook to Workspace
- *       -> elige el canal (ej. #ventas-alertas)  ->  copia la URL.
- *     (Un webhook = un canal. Con uno para el equipo basta; no es por usuario.)
+ * Soporta los DOS tipos de URL de Slack:
+ *   A) Incoming Webhook clásico  -> https://hooks.slack.com/services/T.../B.../xxx
+ *      Publica el mensaje directo (con formato). Funciona en plan gratis.
+ *   B) Trigger de Workflow Builder -> https://hooks.slack.com/triggers/T.../.../...
+ *      Dispara un Workflow tuyo. Requiere plan de pago de Slack y que el
+ *      Workflow tenga: (1) inicio "Desde un webhook" con una variable de texto
+ *      llamada  mensaje , y (2) un paso "Enviar mensaje a un canal" que use esa
+ *      variable {mensaje}. Se envía como { "mensaje": "..." }.
  *
- *  2) En Vercel: Project -> Settings -> Environment Variables -> Add
- *       Name:  SLACK_WEBHOOK_URL
- *       Value: https://hooks.slack.com/services/T.../B.../xxxx
- *     Redeploy. Listo.
+ * ---- Variables de entorno en Vercel (Settings -> Environment Variables) ----
+ *   SLACK_WEBHOOK_URL  = tu URL (de /services/... o de /triggers/...)
+ *   SLACK_TRIGGER_VAR  = (opcional, solo triggers) nombre de la variable del
+ *                        workflow. Por defecto "mensaje".
+ *  Guarda y haz Redeploy.
  *
  *  Espera un POST con { alerts: [{ tipo, txt, meta, sev }] }.
  * ============================================================================
@@ -42,19 +44,29 @@ export default async function handler(req, res) {
     : (body && body.text ? [{ tipo: body.title || "Alerta", txt: body.text, meta: "", sev: 3 }] : []);
   if (!alerts.length) return res.status(400).json({ error: "Sin alertas en el cuerpo" });
 
-  const icono = (sev) => (Number(sev) >= 3 ? ":rotating_light:" : ":warning:");
+  const icono = (sev) => (Number(sev) >= 3 ? "🚨" : "⚠️");
   const lineas = alerts.slice(0, 20).map((a) => {
-    const meta = a.meta ? `  _(${a.meta})_` : "";
-    return `${icono(a.sev)} *${a.tipo || "Alerta"}* — ${a.txt || ""}${meta}`;
+    const meta = a.meta ? ` (${a.meta})` : "";
+    return `${icono(a.sev)} ${a.tipo || "Alerta"} — ${a.txt || ""}${meta}`;
   });
+  const resumen = `📊 Alertas de ventas (${alerts.length})\n` + lineas.join("\n");
 
-  const payload = {
-    text: `:bar_chart: *War Room · Alertas de ventas* (${alerts.length})`,
-    blocks: [
-      { type: "header", text: { type: "plain_text", text: `📊 Alertas de ventas (${alerts.length})`, emoji: true } },
-      { type: "section", text: { type: "mrkdwn", text: lineas.join("\n") } },
-    ],
-  };
+  const esTrigger = /hooks\.slack\.com\/triggers\//.test(webhook);
+  let payload;
+  if (esTrigger) {
+    // Workflow Builder: payload plano con las variables declaradas en el workflow.
+    const varName = process.env.SLACK_TRIGGER_VAR || "mensaje";
+    payload = { [varName]: resumen };
+  } else {
+    // Incoming Webhook clásico: mensaje con Block Kit.
+    payload = {
+      text: `📊 War Room · Alertas de ventas (${alerts.length})`,
+      blocks: [
+        { type: "header", text: { type: "plain_text", text: `📊 Alertas de ventas (${alerts.length})`, emoji: true } },
+        { type: "section", text: { type: "mrkdwn", text: lineas.map((l) => l.replace(/^🚨 /, ":rotating_light: ").replace(/^⚠️ /, ":warning: ")).join("\n") } },
+      ],
+    };
+  }
 
   try {
     const r = await fetch(webhook, {
@@ -62,7 +74,7 @@ export default async function handler(req, res) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
-    return res.status(r.ok ? 200 : 502).json({ ok: r.ok, status: r.status });
+    return res.status(r.ok ? 200 : 502).json({ ok: r.ok, status: r.status, tipo: esTrigger ? "trigger" : "webhook" });
   } catch (e) {
     return res.status(502).json({ ok: false, error: String((e && e.message) || e) });
   }
