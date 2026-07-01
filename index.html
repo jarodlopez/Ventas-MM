@@ -353,7 +353,11 @@
              <div className="hidden sm:block w-px h-10 bg-[#E5E5EA]"></div>
 
              <div>
-                <p className="text-[10px] font-medium text-[#8E8E93] uppercase tracking-wide">Meta (100%) · USD</p>
+                <p className="text-[10px] font-medium text-[#8E8E93] uppercase tracking-wide flex items-center gap-1.5">
+                  Meta (100%) · USD
+                  {meta > 0 && metaData.origen === 'categoria' && <span className="text-[8px] font-bold text-[#5856D6] bg-[#5856D6]/10 px-1.5 py-0.5 rounded-full normal-case">por categoría</span>}
+                  {meta > 0 && metaData.origen === 'global' && <span className="text-[8px] font-bold text-[#007AFF] bg-[#007AFF]/10 px-1.5 py-0.5 rounded-full normal-case">global</span>}
+                </p>
                 <p className="text-xl font-semibold text-[#3A3A3C] leading-none tracking-tight">{moneyUSD(meta / tc)}</p>
                 <p className="text-[10px] text-[#AEAEB2] font-medium mt-1 tracking-wide">≈ {money(meta)} MXN</p>
              </div>
@@ -702,10 +706,12 @@
       const [allSales, setAllSales] = useState([]);
       const [isPlanningOpen, setIsPlanningOpen] = useState(false);
 
-      const [metaData, setMetaData] = useState({
-          monto: 0, tipoCambio: 18.00
-      });
-      
+      // Metas: propia (auto-editable), por categoría y global (fijadas por admin).
+      const [selfMeta, setSelfMeta] = useState(null);         // metas/{uid_period}
+      const [catMetaDoc, setCatMetaDoc] = useState(null);     // metas_categoria/{period}
+      const [globalMetaDoc, setGlobalMetaDoc] = useState(null); // metas_globales/{period}
+      const [miCategoria, setMiCategoria] = useState('');     // agentes/{uid}.categoria
+
       const [showForm, setShowForm] = useState(false);
       const [formError, setFormError] = useState(''); 
       const [searchTerm, setSearchTerm] = useState('');
@@ -718,7 +724,8 @@
       
       const [editSaleData, setEditSaleData] = useState(null);
 
-      const periodKey = `${user.uid}_${currentDate.getFullYear()}-${currentDate.getMonth()}-${currentQuincena}`;
+      const periodOnly = `${currentDate.getFullYear()}-${currentDate.getMonth()}-${currentQuincena}`;
+      const periodKey = `${user.uid}_${periodOnly}`;
 
       useEffect(() => {
         const unsub = db.collection('sales')
@@ -731,19 +738,45 @@
         return () => unsub();
       }, [user.uid]);
 
+      // Registro del agente + control de baja (desactivación) + su categoría.
+      useEffect(() => {
+        const ref = db.collection('agentes').doc(user.uid);
+        ref.set({ email: user.email || '', nombre: (user.email || '').split('@')[0], ultimoAcceso: new Date().toISOString() }, { merge: true }).catch(() => {});
+        const unsub = ref.onSnapshot(doc => {
+          const d = doc.exists ? doc.data() : {};
+          if (d.activo === false) { alert('Tu cuenta fue desactivada. Contacta a tu supervisor.'); auth.signOut(); return; }
+          setMiCategoria(d.categoria || '');
+        }, () => {});
+        return () => unsub();
+      }, [user.uid]);
+
+      // Meta propia (la que el usuario edita en "Ajustar Plan").
       useEffect(() => {
         const unsub = db.collection('metas').doc(periodKey).onSnapshot(doc => {
-            if(doc.exists) {
-                const data = doc.data();
-                setMetaData({
-                    monto: data.monto || 0, tipoCambio: data.tipoCambio || 18.00
-                });
-            } else {
-                setMetaData({ monto: 0, tipoCambio: 18.00 });
-            }
-        });
+          setSelfMeta(doc.exists ? doc.data() : null);
+        }, () => {});
         return () => unsub();
       }, [periodKey]);
+
+      // Metas fijadas por admin: por categoría y global (respaldo).
+      useEffect(() => {
+        const u1 = db.collection('metas_categoria').doc(periodOnly).onSnapshot(doc => setCatMetaDoc(doc.exists ? doc.data() : null), () => {});
+        const u2 = db.collection('metas_globales').doc(periodOnly).onSnapshot(doc => setGlobalMetaDoc(doc.exists ? doc.data() : null), () => {});
+        return () => { u1(); u2(); };
+      }, [periodOnly]);
+
+      // Resolución de la meta: PROPIA manda; si no, la de su CATEGORÍA; si no, la GLOBAL.
+      const metaData = useMemo(() => {
+        const tcCat = catMetaDoc && Number(catMetaDoc.tipoCambio);
+        const tcGlobal = globalMetaDoc && Number(globalMetaDoc.tipoCambio);
+        const tc = (selfMeta && Number(selfMeta.tipoCambio)) || tcCat || tcGlobal || 18;
+        if (selfMeta && Number(selfMeta.monto) > 0) return { monto: Number(selfMeta.monto), tipoCambio: Number(selfMeta.tipoCambio) || tc, origen: 'propia' };
+        const catMonto = catMetaDoc && catMetaDoc.cats && miCategoria ? Number(catMetaDoc.cats[miCategoria]) : 0;
+        if (catMonto > 0) return { monto: catMonto, tipoCambio: tcCat || tc, origen: 'categoria' };
+        const gMonto = globalMetaDoc ? Number(globalMetaDoc.monto) : 0;
+        if (gMonto > 0) return { monto: gMonto, tipoCambio: tcGlobal || tc, origen: 'global' };
+        return { monto: (selfMeta && Number(selfMeta.monto)) || 0, tipoCambio: tc, origen: 'propia' };
+      }, [selfMeta, catMetaDoc, globalMetaDoc, miCategoria]);
 
       const saveMeta = (dataObj) => db.collection('metas').doc(periodKey).set({ ...dataObj, userId: user.uid }, { merge: true });
 

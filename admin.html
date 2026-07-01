@@ -61,12 +61,177 @@
        return 'Sin Asignar';
     };
 
+    const CATS_DEFAULT = ["Vendedor", "Closer", "Depurador"];
+
+    // ===== Panel de Administración: usuarios, categorías/roles y metas =====
+    const AdminPanel = ({ allSales, vista }) => {
+      const [agentes, setAgentes] = useState([]);
+      const [categorias, setCategorias] = useState(CATS_DEFAULT);
+      const [nuevaCat, setNuevaCat] = useState('');
+      const [metaMonth, setMetaMonth] = useState(new Date());
+      const [metaQ, setMetaQ] = useState(new Date().getDate() <= 15 ? 1 : 2);
+      const [globalMeta, setGlobalMeta] = useState(null);
+      const [catMeta, setCatMeta] = useState(null);
+      const [form, setForm] = useState({ tipoCambio: 18, global: '', cats: {} });
+
+      const metaPeriod = `${metaMonth.getFullYear()}-${metaMonth.getMonth()}-${metaQ}`;
+
+      useEffect(() => db.collection('agentes').onSnapshot(s => setAgentes(s.docs.map(d => ({ id: d.id, ...d.data() }))), () => {}), []);
+      useEffect(() => {
+        const ref = db.collection('config').doc('categorias');
+        return ref.onSnapshot(doc => {
+          if (doc.exists && Array.isArray(doc.data().lista)) setCategorias(doc.data().lista);
+          else ref.set({ lista: CATS_DEFAULT }, { merge: true }).catch(() => {});
+        }, () => {});
+      }, []);
+      useEffect(() => {
+        const u1 = db.collection('metas_globales').doc(metaPeriod).onSnapshot(d => setGlobalMeta(d.exists ? d.data() : null), () => {});
+        const u2 = db.collection('metas_categoria').doc(metaPeriod).onSnapshot(d => setCatMeta(d.exists ? d.data() : null), () => {});
+        return () => { u1(); u2(); };
+      }, [metaPeriod]);
+      useEffect(() => {
+        setForm({
+          tipoCambio: (globalMeta && globalMeta.tipoCambio) || (catMeta && catMeta.tipoCambio) || 18,
+          global: globalMeta && globalMeta.monto ? String(globalMeta.monto) : '',
+          cats: (catMeta && catMeta.cats) ? { ...catMeta.cats } : {},
+        });
+      }, [metaPeriod, globalMeta, catMeta]);
+
+      if (vista !== 'admin') return null;
+
+      const agentesMap = {};
+      agentes.forEach(a => { agentesMap[a.id] = { ...a }; });
+      allSales.forEach(s => { if (s.userId && !agentesMap[s.userId]) agentesMap[s.userId] = { id: s.userId, email: s.agentEmail || '', nombre: getAgentName(s) }; });
+      const listaAgentes = Object.values(agentesMap).sort((a, b) => (a.email || '').localeCompare(b.email || ''));
+
+      const ultimaActividad = (uid) => {
+        const f = allSales.filter(s => s.userId === uid).map(s => parseDate(s.fecha).getTime());
+        return f.length ? new Date(Math.max.apply(null, f)) : null;
+      };
+
+      const setCategoria = (a, cat) => db.collection('agentes').doc(a.id).set({ email: a.email || '', categoria: cat }, { merge: true });
+      const toggleActivo = (a) => db.collection('agentes').doc(a.id).set({ email: a.email || '', activo: a.activo === false }, { merge: true });
+      const addCat = () => { const c = nuevaCat.trim(); if (!c || categorias.includes(c)) { setNuevaCat(''); return; } db.collection('config').doc('categorias').set({ lista: firebase.firestore.FieldValue.arrayUnion(c) }, { merge: true }); setNuevaCat(''); };
+      const removeCat = (c) => db.collection('config').doc('categorias').set({ lista: firebase.firestore.FieldValue.arrayRemove(c) }, { merge: true });
+      const guardarMetas = () => {
+        const tc = Number(form.tipoCambio) || 18;
+        db.collection('metas_globales').doc(metaPeriod).set({ monto: Number(form.global) || 0, tipoCambio: tc }, { merge: true });
+        const cats = {};
+        categorias.forEach(c => { cats[c] = Number(form.cats[c]) || 0; });
+        db.collection('metas_categoria').doc(metaPeriod).set({ cats, tipoCambio: tc }, { merge: true });
+        alert('Metas guardadas para ' + metaPeriod);
+      };
+      const cambiarPeriodo = (dir) => {
+        if (dir === 1) { if (metaQ === 1) setMetaQ(2); else { setMetaQ(1); const d = new Date(metaMonth); d.setMonth(d.getMonth() + 1); setMetaMonth(d); } }
+        else { if (metaQ === 2) setMetaQ(1); else { setMetaQ(2); const d = new Date(metaMonth); d.setMonth(d.getMonth() - 1); setMetaMonth(d); } }
+      };
+
+      return (
+        <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-6 max-w-6xl mx-auto w-full">
+          {/* METAS */}
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
+            <div className="p-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center flex-wrap gap-3">
+              <h2 className="font-bold text-slate-700"><i className="fas fa-bullseye mr-2 text-purple-500"></i>Metas del periodo</h2>
+              <div className="flex items-center gap-2">
+                <button onClick={() => cambiarPeriodo(-1)} className="w-8 h-8 rounded bg-slate-100 hover:bg-slate-200 text-slate-600"><i className="fas fa-chevron-left"></i></button>
+                <span className="font-bold text-sm text-slate-700 w-44 text-center capitalize">{new Intl.DateTimeFormat('es-MX', { month: 'long', year: 'numeric' }).format(metaMonth)} · Q{metaQ}</span>
+                <button onClick={() => cambiarPeriodo(1)} className="w-8 h-8 rounded bg-slate-100 hover:bg-slate-200 text-slate-600"><i className="fas fa-chevron-right"></i></button>
+              </div>
+            </div>
+            <div className="p-4 grid md:grid-cols-2 gap-6">
+              <div>
+                <label className="text-xs font-bold text-slate-500 uppercase">Meta Global (MXN)</label>
+                <input type="number" value={form.global} onChange={e => setForm({ ...form, global: e.target.value })} className="w-full border border-slate-300 rounded-lg px-3 py-2 mt-1 outline-none focus:border-purple-500" placeholder="0" />
+                <label className="text-xs font-bold text-slate-500 uppercase mt-3 block">Tipo de cambio (MXN/USD)</label>
+                <input type="number" step="0.01" value={form.tipoCambio} onChange={e => setForm({ ...form, tipoCambio: e.target.value })} className="w-full border border-slate-300 rounded-lg px-3 py-2 mt-1 outline-none focus:border-purple-500" />
+                <p className="text-[11px] text-slate-400 mt-2">La meta global aplica como respaldo a quien no tenga meta propia ni de categoría.</p>
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-500 uppercase">Meta por categoría (MXN)</label>
+                <div className="mt-1 flex flex-col gap-2">
+                  {categorias.map(c => (
+                    <div key={c} className="flex items-center gap-2">
+                      <span className="text-sm font-semibold text-slate-700 w-28 truncate">{c}</span>
+                      <input type="number" value={form.cats[c] || ''} onChange={e => setForm({ ...form, cats: { ...form.cats, [c]: e.target.value } })} className="flex-1 border border-slate-300 rounded-lg px-3 py-1.5 outline-none focus:border-purple-500" placeholder="0" />
+                    </div>
+                  ))}
+                  {categorias.length === 0 && <p className="text-slate-400 text-sm">Agrega categorías abajo.</p>}
+                </div>
+              </div>
+            </div>
+            <div className="p-4 border-t border-slate-200 flex justify-end">
+              <button onClick={guardarMetas} className="bg-purple-600 hover:bg-purple-500 text-white font-bold px-5 py-2 rounded-lg transition-colors"><i className="fas fa-save mr-2"></i>Guardar metas del periodo</button>
+            </div>
+          </div>
+
+          {/* CATEGORÍAS */}
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
+            <div className="p-4 border-b border-slate-200 bg-slate-50"><h2 className="font-bold text-slate-700"><i className="fas fa-tags mr-2 text-purple-500"></i>Categorías / Roles</h2></div>
+            <div className="p-4 flex flex-wrap gap-2 items-center">
+              {categorias.map(c => (
+                <span key={c} className="inline-flex items-center gap-2 bg-purple-50 text-purple-700 border border-purple-200 rounded-full px-3 py-1 text-sm font-bold">
+                  {c}<button onClick={() => removeCat(c)} className="text-purple-400 hover:text-red-500"><i className="fas fa-times"></i></button>
+                </span>
+              ))}
+              <div className="flex items-center gap-2 ml-2">
+                <input value={nuevaCat} onChange={e => setNuevaCat(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') addCat(); }} placeholder="Nueva categoría" className="border border-slate-300 rounded-lg px-3 py-1.5 text-sm outline-none focus:border-purple-500" />
+                <button onClick={addCat} className="bg-slate-800 hover:bg-slate-700 text-white rounded-lg px-3 py-1.5 text-sm font-bold"><i className="fas fa-plus"></i></button>
+              </div>
+            </div>
+          </div>
+
+          {/* USUARIOS */}
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
+            <div className="p-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
+              <h2 className="font-bold text-slate-700"><i className="fas fa-users mr-2 text-purple-500"></i>Usuarios</h2>
+              <span className="text-xs font-bold bg-purple-100 text-purple-700 px-3 py-1 rounded-full">{listaAgentes.length}</span>
+            </div>
+            <div className="overflow-auto">
+              <table className="w-full text-left min-w-max">
+                <thead className="bg-white border-b"><tr>
+                  <th className="py-2 px-4 text-xs font-bold text-slate-500 uppercase">Usuario</th>
+                  <th className="py-2 px-4 text-xs font-bold text-slate-500 uppercase">Categoría</th>
+                  <th className="py-2 px-4 text-xs font-bold text-slate-500 uppercase">Última actividad</th>
+                  <th className="py-2 px-4 text-xs font-bold text-slate-500 uppercase text-center">Estado</th>
+                  <th className="py-2 px-4 text-xs font-bold text-slate-500 uppercase text-right">Acción</th>
+                </tr></thead>
+                <tbody className="divide-y divide-slate-100">
+                  {listaAgentes.map(a => {
+                    const act = a.activo !== false;
+                    const ult = ultimaActividad(a.id);
+                    return (
+                      <tr key={a.id} className={act ? '' : 'bg-red-50/60'}>
+                        <td className="py-2 px-4"><div className="font-bold text-sm text-slate-800">{a.nombre || (a.email || '').split('@')[0] || 'Sin nombre'}</div><div className="text-[11px] text-slate-400">{a.email}</div></td>
+                        <td className="py-2 px-4">
+                          <select value={a.categoria || ''} onChange={e => setCategoria(a, e.target.value)} className="border border-slate-300 rounded-lg px-2 py-1 text-sm outline-none focus:border-purple-500">
+                            <option value="">— sin categoría —</option>
+                            {categorias.map(c => <option key={c} value={c}>{c}</option>)}
+                          </select>
+                        </td>
+                        <td className="py-2 px-4 text-xs text-slate-500">{ult ? formatDate(ult) : 'Sin ventas'}</td>
+                        <td className="py-2 px-4 text-center"><span className={`text-[10px] font-bold px-2 py-1 rounded-full ${act ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{act ? 'Activo' : 'Inactivo'}</span></td>
+                        <td className="py-2 px-4 text-right">
+                          <button onClick={() => toggleActivo(a)} className={`text-xs font-bold px-3 py-1.5 rounded-lg transition-colors ${act ? 'bg-red-100 text-red-700 hover:bg-red-200' : 'bg-green-100 text-green-700 hover:bg-green-200'}`}>{act ? 'Dar de baja' : 'Reactivar'}</button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {listaAgentes.length === 0 && <tr><td colSpan="5" className="py-8 text-center text-slate-400 font-bold">Sin usuarios aún.</td></tr>}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      );
+    };
+
     const AdminDashboard = ({ user }) => {
       const [allSales, setAllSales] = useState([]);
       const [loading, setLoading] = useState(true);
       const [isAdmin, setIsAdmin] = useState(true); 
       
       const [selectedAgent, setSelectedAgent] = useState('Todos');
+      const [vista, setVista] = useState('bi'); // 'bi' | 'admin'
 
       useEffect(() => {
         const unsub = db.collection('sales')
@@ -164,16 +329,21 @@
             <div className="flex items-center gap-3">
               <i className="fas fa-chart-pie text-purple-400 text-3xl"></i>
               <div>
-                 <h1 className="font-bold text-xl leading-none">Business Intelligence</h1>
-                 <span className="text-xs text-purple-300">Vista de Supervisor</span>
+                 <h1 className="font-bold text-xl leading-none">Panel de Supervisor</h1>
+                 <span className="text-xs text-purple-300">MultiMoney</span>
+              </div>
+              <div className="flex items-center gap-1 bg-purple-800 rounded-lg p-1 ml-2">
+                 <button onClick={() => setVista('bi')} className={`px-3 py-1.5 rounded text-sm font-bold transition-colors ${vista === 'bi' ? 'bg-white text-purple-900' : 'text-purple-200 hover:bg-purple-700'}`}><i className="fas fa-chart-pie md:mr-1.5"></i><span className="hidden md:inline">BI</span></button>
+                 <button onClick={() => setVista('admin')} className={`px-3 py-1.5 rounded text-sm font-bold transition-colors ${vista === 'admin' ? 'bg-white text-purple-900' : 'text-purple-200 hover:bg-purple-700'}`}><i className="fas fa-users-gear md:mr-1.5"></i><span className="hidden md:inline">Administración</span></button>
               </div>
             </div>
-            
+
+            {vista === 'bi' && (
             <div className="flex items-center gap-4 bg-purple-800 p-2 rounded-lg border border-purple-700">
                <div className="flex items-center gap-2">
                  <i className="fas fa-filter text-purple-300"></i>
-                 <select 
-                   value={selectedAgent} 
+                 <select
+                   value={selectedAgent}
                    onChange={e => setSelectedAgent(e.target.value)}
                    className="bg-white text-slate-800 text-sm font-bold px-3 py-1.5 rounded outline-none w-48"
                  >
@@ -181,19 +351,22 @@
                  </select>
                </div>
             </div>
+            )}
 
             <div className="flex gap-2">
+               {vista === 'bi' && (
                <button onClick={exportToCSV} className="bg-green-600 hover:bg-green-500 px-4 py-2 rounded text-sm font-bold flex items-center transition-colors shadow-lg">
                  <i className="fas fa-file-excel mr-2"></i><span className="hidden md:inline">Descargar CSV</span>
                </button>
+               )}
                <button onClick={() => window.location.replace("index.html")} className="bg-slate-800 hover:bg-slate-700 px-4 py-2 rounded text-sm font-bold flex items-center transition-colors shadow-lg">
                  <i className="fas fa-arrow-left md:mr-2"></i><span className="hidden md:inline">Salir</span>
                </button>
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-6 max-w-7xl mx-auto w-full">
-            
+          <div className={`flex-1 overflow-y-auto p-6 flex flex-col gap-6 max-w-7xl mx-auto w-full ${vista === 'bi' ? '' : 'hidden'}`}>
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 shrink-0">
                <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm border-l-4 border-l-green-500">
                   <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Volumen Dispersado</p>
@@ -311,6 +484,8 @@
             </div>
 
           </div>
+
+          <AdminPanel allSales={allSales} vista={vista} />
         </div>
       );
     };
