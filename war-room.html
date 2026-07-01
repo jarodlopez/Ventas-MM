@@ -144,6 +144,24 @@
       });
       const irHoy = () => setView({ date: new Date(), q: getQuincena(new Date()) });
 
+      // Prueba manual del webhook de Slack (verifica War Room -> relay -> Slack).
+      const [test, setTest] = useState({ estado: 'idle', msg: '' });
+      const probarSlack = async () => {
+        if (!ALERTAS.slackEndpoint) { setTest({ estado: 'err', msg: 'slackEndpoint no está configurado en el código.' }); return; }
+        setTest({ estado: 'sending', msg: '' });
+        try {
+          const r = await fetch(ALERTAS.slackEndpoint, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ alerts: [{ tipo: '🔔 Prueba de conexión', txt: 'Si ves esto en Slack, el webhook del War Room funciona.', meta: new Date().toLocaleString('es-MX'), sev: 3 }] }),
+          });
+          const data = await r.json().catch(() => ({}));
+          if (r.ok && data.ok) setTest({ estado: 'ok', msg: `Slack aceptó la petición (${data.tipo || 'webhook'}). Revisa el canal.` });
+          else setTest({ estado: 'err', msg: data.error ? data.error : `Slack respondió ${data.status || r.status} — revisa SLACK_WEBHOOK_URL o el workflow.` });
+        } catch (e) {
+          setTest({ estado: 'err', msg: 'No se pudo contactar /api/slack-alert. ¿Está desplegado en Vercel?' });
+        }
+      };
+
       useEffect(() => {
         const unsub = db.collection('sales').onSnapshot(
           snap => { setAllSales(snap.docs.map(d => ({ id: d.id, ...d.data() }))); setLoading(false); },
@@ -321,10 +339,23 @@
                 : <button onClick={irHoy} className="flex items-center gap-1.5 text-[11px] font-bold text-slate-300 bg-slate-800 hover:bg-slate-700 px-2.5 py-1 rounded-full transition-colors"><i className="fas fa-clock-rotate-left"></i>Histórico · Ir a hoy</button>}
             </div>
             <div className="flex items-center gap-4">
+              {ALERTAS.slackEndpoint && (
+                <button onClick={probarSlack} disabled={test.estado === 'sending'}
+                  title={test.msg || 'Envía una alerta de prueba a Slack'}
+                  className={`text-xs font-bold px-3 py-1.5 rounded-full transition-colors flex items-center gap-1.5 ${test.estado === 'ok' ? 'bg-emerald-500/15 text-emerald-400' : test.estado === 'err' ? 'bg-rose-500/15 text-rose-400' : 'bg-slate-800 text-slate-200 hover:bg-slate-700'}`}>
+                  <i className={`fab fa-slack ${test.estado === 'sending' ? 'fa-fade' : ''}`}></i>
+                  {test.estado === 'sending' ? 'Enviando…' : test.estado === 'ok' ? 'Enviado ✓' : test.estado === 'err' ? 'Falló ✗' : 'Probar Slack'}
+                </button>
+              )}
               <span className="font-mono text-lg font-bold text-slate-300 tabular-nums">{hora}</span>
               <a href="index.html" className="text-slate-400 hover:text-white text-sm font-semibold"><i className="fas fa-arrow-left mr-1.5"></i>Tablero</a>
             </div>
           </div>
+          {test.msg && test.estado !== 'sending' && (
+            <div className={`shrink-0 -mt-1 text-xs font-semibold px-3 py-1.5 rounded-lg ${test.estado === 'ok' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}`}>
+              <i className={`fas ${test.estado === 'ok' ? 'fa-circle-check' : 'fa-circle-exclamation'} mr-1.5`}></i>{test.msg}
+            </div>
+          )}
 
           {/* KPIs */}
           <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 shrink-0">
