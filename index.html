@@ -119,14 +119,17 @@
       trophy: "🏆",
       goal: "🥅",
       gol: "¡GOOOL! 🎉",
-      // Marcador EN VIVO. Fuente gratuita, sin llave y con CORS (funciona desde el navegador).
-      // openfootball se actualiza durante el torneo; para quitar el marcador pon enabled: false.
-      // Puedes cambiar la url por otra API (adaptando el parseo del componente MarcadorMundial).
+      // Marcador EN VIVO. Fuentes gratuitas, sin llave y con CORS (funcionan desde el navegador).
+      // Se intentan en orden hasta que una responda. openfootball se actualiza durante el torneo;
+      // para quitar el marcador pon enabled: false.
       marcador: {
         enabled: true,
-        url: "https://raw.githubusercontent.com/openfootball/worldcup.json/master/2026/worldcup.json",
-        refrescoSeg: 60,
-        maxPartidos: 8,
+        urls: [
+          "https://cdn.jsdelivr.net/gh/openfootball/worldcup.json@master/2026/worldcup.json",
+          "https://raw.githubusercontent.com/openfootball/worldcup.json/master/2026/worldcup.json",
+        ],
+        refrescoSeg: 45,
+        duracionMin: 130,   // ventana (min) que un partido se considera "en vivo" tras su inicio
       },
     };
 
@@ -165,16 +168,18 @@
         if (!MUNDIAL.enabled || !cfg.enabled) return;
         let activo = true;
         const cargar = async () => {
-          try {
-            const res = await fetch(cfg.url, { cache: 'no-store' });
-            if (!res.ok) throw new Error('HTTP ' + res.status);
-            const data = await res.json();
-            const raw = Array.isArray(data.matches) ? data.matches
-                      : (Array.isArray(data.rounds) ? data.rounds.flatMap(r => r.matches || []) : []);
-            if (activo) { setMatches(raw); setEstado('ok'); }
-          } catch (e) {
-            if (activo) setEstado('error');
+          for (const url of (cfg.urls || [])) {
+            try {
+              const res = await fetch(url, { cache: 'no-store' });
+              if (!res.ok) continue;
+              const data = await res.json();
+              const raw = Array.isArray(data.matches) ? data.matches
+                        : (Array.isArray(data.rounds) ? data.rounds.flatMap(r => r.matches || []) : []);
+              if (activo) { setMatches(raw); setEstado('ok'); }
+              return;
+            } catch (e) { /* intenta la siguiente fuente */ }
           }
+          if (activo) setEstado('error');
         };
         cargar();
         const id = setInterval(cargar, (cfg.refrescoSeg || 60) * 1000);
@@ -183,22 +188,40 @@
 
       if (!MUNDIAL.enabled || !cfg.enabled) return null;
 
-      const hoyStr = new Date().toISOString().slice(0, 10);
       const tieneFt = (m) => m.score && Array.isArray(m.score.ft) && m.score.ft.length === 2;
       const esPlaceholder = (t) => !t || /^(w|l)\s?\d/i.test(t) || /^(winner|loser|runner)/i.test(t) || /group\s+[a-l]$/i.test(t);
 
-      const clasif = matches
-        .filter(m => !esPlaceholder(m.team1) && !esPlaceholder(m.team2))
-        .map(m => {
-          const fin = tieneFt(m);
-          const cat = fin ? 'final' : (m.date === hoyStr ? 'vivo' : (m.date > hoyStr ? 'prox' : 'viejo'));
-          return { ...m, fin, cat };
-        });
+      // Hora de inicio del partido (usa la zona horaria del campo "time", ej. "12:00 UTC-6").
+      const inicioPartido = (m) => {
+        if (!m.date) return null;
+        const t = (m.time || '').match(/(\d{1,2}):(\d{2})/);
+        const hh = t ? t[1].padStart(2, '0') : '00';
+        const mm = t ? t[2] : '00';
+        const off = (m.time || '').match(/UTC\s*([+-]?\d{1,2})(?::?(\d{2}))?/i);
+        let tz = 'Z';
+        if (off) {
+          const sign = off[1].trim().startsWith('-') ? '-' : '+';
+          const oh = Math.abs(parseInt(off[1], 10)).toString().padStart(2, '0');
+          tz = `${sign}${oh}:${off[2] || '00'}`;
+        }
+        const d = new Date(`${m.date}T${hh}:${mm}:00${tz}`);
+        return isNaN(d.getTime()) ? null : d;
+      };
 
-      const vivo = clasif.filter(m => m.cat === 'vivo');
-      const prox = clasif.filter(m => m.cat === 'prox').sort((a, b) => (a.date || '').localeCompare(b.date || '')).slice(0, 4);
-      const finales = clasif.filter(m => m.cat === 'final').sort((a, b) => (b.date || '').localeCompare(a.date || '')).slice(0, 4);
-      const lista = [...vivo, ...prox, ...finales].slice(0, cfg.maxPartidos || 8);
+      // EN VIVO = sin marcador final y "ahora" cae dentro de la ventana desde el inicio.
+      const ahora = new Date();
+      const durMs = (cfg.duracionMin || 130) * 60000;
+      const enVivo = (m) => {
+        if (tieneFt(m)) return false;
+        const ini = inicioPartido(m);
+        if (!ini) return false;
+        return ahora >= ini && ahora <= new Date(ini.getTime() + durMs);
+      };
+
+      const vivos = matches
+        .filter(m => !esPlaceholder(m.team1) && !esPlaceholder(m.team2) && enVivo(m))
+        .sort((a, b) => (a.time || '').localeCompare(b.time || ''))
+        .slice(0, 8);
 
       return (
         <div className="bg-white border-b border-[#E5E5EA] px-3 py-2 flex items-center gap-3">
@@ -206,35 +229,32 @@
             <span className="mundial-bounce text-base">{MUNDIAL.ball}</span>
             <div className="flex flex-col leading-none">
               <span className="text-[11px] font-bold text-[#006847]">Marcador Mundial</span>
-              <span className="text-[9px] text-[#8E8E93]">FIFA 2026 · en vivo</span>
+              <span className="text-[9px] text-[#8E8E93] flex items-center gap-1">
+                {estado === 'ok' && vivos.length > 0
+                  ? <><span className="inline-block w-1.5 h-1.5 rounded-full bg-[#ce1126] animate-pulse"></span>{vivos.length} en vivo</>
+                  : 'FIFA 2026'}
+              </span>
             </div>
           </div>
 
-          {estado === 'cargando' && <span className="text-[11px] text-[#AEAEB2]">Cargando marcador…</span>}
+          {estado === 'cargando' && <span className="text-[11px] text-[#AEAEB2]">Cargando…</span>}
           {estado === 'error' && <span className="text-[11px] text-[#AEAEB2]"><i className="fas fa-triangle-exclamation mr-1"></i>No se pudo cargar el marcador</span>}
-          {estado === 'ok' && lista.length === 0 && <span className="text-[11px] text-[#AEAEB2]">Sin partidos para mostrar</span>}
+          {estado === 'ok' && vivos.length === 0 && <span className="text-[11px] text-[#AEAEB2]">Sin partidos en vivo ahora mismo</span>}
 
-          {estado === 'ok' && lista.length > 0 && (
+          {estado === 'ok' && vivos.length > 0 && (
             <div className="flex items-stretch gap-2 overflow-x-auto flex-1">
-              {lista.map((m, i) => {
+              {vivos.map((m, i) => {
                 const a = equipoMini(m.team1), b = equipoMini(m.team2);
-                const marcador = m.fin ? `${m.score.ft[0]} - ${m.score.ft[1]}`
-                                 : (m.score && Array.isArray(m.score.ht) ? `${m.score.ht[0]} - ${m.score.ht[1]}` : 'vs');
-                const hhmm = (m.time || '').split(' ')[0];
-                const dm = m.date && m.date.length === 10 ? `${m.date.slice(8, 10)}/${m.date.slice(5, 7)}` : (m.date || '');
+                const marcador = (m.score && Array.isArray(m.score.ht)) ? `${m.score.ht[0]} - ${m.score.ht[1]}` : 'vs';
                 return (
-                  <div key={i} className="shrink-0 bg-[#F2F2F7] rounded-xl px-2.5 py-1 flex flex-col items-center min-w-[132px]">
+                  <div key={i} className="shrink-0 bg-[#ce1126]/5 border border-[#ce1126]/15 rounded-xl px-2.5 py-1 flex flex-col items-center min-w-[132px]">
                     <div className="flex items-center gap-1.5 w-full justify-center text-[12px] font-semibold text-[#1C1C1E]">
                       <span className="flex items-center gap-1"><span>{a.f}</span><span className="text-[10px] text-[#8E8E93]">{a.c}</span></span>
-                      <span className={`px-1 ${m.cat === 'vivo' ? 'text-[#ce1126] font-bold' : ''}`}>{marcador}</span>
+                      <span className="px-1 text-[#ce1126] font-bold">{marcador}</span>
                       <span className="flex items-center gap-1"><span className="text-[10px] text-[#8E8E93]">{b.c}</span><span>{b.f}</span></span>
                     </div>
                     <div className="text-[8px] uppercase tracking-wide mt-0.5 flex items-center gap-1 whitespace-nowrap">
-                      {m.cat === 'vivo'
-                        ? <span className="text-[#ce1126] font-bold flex items-center gap-1"><span className="inline-block w-1.5 h-1.5 rounded-full bg-[#ce1126] animate-pulse"></span>EN VIVO</span>
-                        : m.cat === 'final'
-                          ? <span className="text-[#8E8E93] font-semibold">Final</span>
-                          : <span className="text-[#007AFF] font-semibold">{dm} {hhmm}</span>}
+                      <span className="text-[#ce1126] font-bold flex items-center gap-1"><span className="inline-block w-1.5 h-1.5 rounded-full bg-[#ce1126] animate-pulse"></span>EN VIVO</span>
                       <span className="text-[#C7C7CC] normal-case">· {m.round}</span>
                     </div>
                   </div>
