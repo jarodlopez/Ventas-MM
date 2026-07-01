@@ -95,9 +95,9 @@
     };
 
     const money = (val) => new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 }).format(val || 0);
-    const moneyUSD = (val) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(val || 0);
+    const moneyNIO = (val) => new Intl.NumberFormat('es-NI', { style: 'currency', currency: 'NIO', maximumFractionDigits: 0 }).format(val || 0);
 
-    // Comisiones FIJAS (en USD) por nivel de cumplimiento de meta.
+    // Comisiones FIJAS (en córdobas C$) por nivel de cumplimiento de meta.
     const COMISIONES = { bono80: 115, bono100: 240, bono120: 320, bono140: 500 };
     const NIVELES_COMISION = [
       { pct: 80,  bono: COMISIONES.bono80  },
@@ -245,26 +245,26 @@
                           <div className="flex-1">
                               <label className="text-[11px] font-medium text-[#8E8E93] mb-1 block">Meta al 100% (MXN)</label>
                               <input type="number" name="monto" value={localMeta.monto} onChange={handleChange} className="w-full bg-[#F2F2F7] border border-transparent rounded-xl px-3 py-2.5 font-semibold focus:outline-none focus:bg-white focus:border-[#007AFF] transition-colors" />
-                              <p className="text-[10px] text-[#34C759] font-semibold mt-1">≈ {moneyUSD((Number(localMeta.monto) || 0) / (Number(localMeta.tipoCambio) || 1))} USD</p>
+                              <p className="text-[10px] text-[#34C759] font-semibold mt-1">≈ {moneyNIO((Number(localMeta.monto) || 0) / (Number(localMeta.tipoCambio) || 1))} C$</p>
                           </div>
                           <div className="w-1/3">
                               <label className="text-[11px] font-medium text-[#8E8E93] mb-1 block">T. de Cambio</label>
                               <input type="number" step="0.01" name="tipoCambio" value={localMeta.tipoCambio} onChange={handleChange} className="w-full bg-[#F2F2F7] border border-transparent rounded-xl px-3 py-2.5 text-center focus:outline-none focus:bg-white focus:border-[#007AFF] transition-colors" />
-                              <p className="text-[10px] text-[#AEAEB2] font-medium mt-1 text-center">MXN / USD</p>
+                              <p className="text-[10px] text-[#AEAEB2] font-medium mt-1 text-center">MXN / C$</p>
                           </div>
                       </div>
                   </div>
 
                   <div className="bg-white p-4 rounded-2xl">
                       <div className="flex items-center justify-between mb-3">
-                          <h3 className="font-semibold text-[#34C759] text-sm flex items-center gap-2"><i className="fas fa-money-bill-wave"></i>Esquema de Comisiones ($ USD)</h3>
+                          <h3 className="font-semibold text-[#34C759] text-sm flex items-center gap-2"><i className="fas fa-money-bill-wave"></i>Esquema de Comisiones (C$)</h3>
                           <span className="text-[9px] font-semibold text-[#8E8E93] bg-[#F2F2F7] px-2 py-1 rounded-full flex items-center gap-1"><i className="fas fa-lock text-[8px]"></i>FIJAS</span>
                       </div>
                       <div className="grid grid-cols-2 gap-3">
                           {NIVELES_COMISION.map(n => (
                             <div key={n.pct} className="bg-[#34C759]/5 border border-[#34C759]/15 rounded-xl px-3 py-2.5 flex items-center justify-between">
                                 <span className="text-[11px] font-semibold text-[#8E8E93]">Al {n.pct}%</span>
-                                <span className="text-base font-bold text-[#34C759] tracking-tight">{moneyUSD(n.bono)}</span>
+                                <span className="text-base font-bold text-[#34C759] tracking-tight">{moneyNIO(n.bono)}</span>
                             </div>
                           ))}
                       </div>
@@ -276,7 +276,7 @@
                  <div className="px-3 py-2.5 border-b border-[#E5E5EA] font-semibold text-xs text-[#8E8E93] text-center uppercase tracking-wide">Proyección de Venta Diaria</div>
                  <div className="overflow-y-auto flex-1">
                   <table className="w-full text-sm">
-                    <thead><tr className="text-left text-[10px] uppercase text-[#AEAEB2] bg-[#F2F2F7]"><th className="p-2 pl-4">Día</th><th className="p-2 text-right pr-4">Acumulado Ideal (USD)</th></tr></thead>
+                    <thead><tr className="text-left text-[10px] uppercase text-[#AEAEB2] bg-[#F2F2F7]"><th className="p-2 pl-4">Día</th><th className="p-2 text-right pr-4">Acumulado Ideal (C$)</th></tr></thead>
                     <tbody>
                       {projection.map(row => (
                         <tr key={row.day} className={`border-b border-[#F2F2F7] ${row.isWeekend ? 'text-[#AEAEB2]' : ''} ${row.isToday ? 'bg-[#007AFF]/5 font-semibold' : ''}`}>
@@ -284,7 +284,7 @@
                           <td className="p-2 text-right pr-4 font-mono text-xs">
                             {row.isWeekend ? '-' : (
                               <div className="leading-tight">
-                                <div className="font-semibold text-[#1C1C1E]">{moneyUSD(row.expected / tc)}</div>
+                                <div className="font-semibold text-[#1C1C1E]">{moneyNIO(row.expected / tc)}</div>
                                 <div className="text-[9px] text-[#AEAEB2]">{money(row.expected)}</div>
                               </div>
                             )}
@@ -346,19 +346,19 @@
           <div className="flex flex-wrap gap-4 md:gap-6 items-center flex-1 w-full lg:w-auto">
 
              <div>
-                <p className="text-[10px] font-medium text-[#8E8E93] uppercase tracking-wide">Real Dispersado · USD</p>
-                <p className="text-2xl font-semibold text-[#1C1C1E] leading-none tracking-tight">{moneyUSD(sold / tc)}</p>
+                <p className="text-[10px] font-medium text-[#8E8E93] uppercase tracking-wide">Real Dispersado · C$</p>
+                <p className="text-2xl font-semibold text-[#1C1C1E] leading-none tracking-tight">{moneyNIO(sold / tc)}</p>
                 <p className="text-[10px] text-[#34C759] font-semibold mt-1 tracking-wide">≈ {money(sold)} MXN</p>
              </div>
              <div className="hidden sm:block w-px h-10 bg-[#E5E5EA]"></div>
 
              <div>
                 <p className="text-[10px] font-medium text-[#8E8E93] uppercase tracking-wide flex items-center gap-1.5">
-                  Meta (100%) · USD
+                  Meta (100%) · C$
                   {meta > 0 && metaData.origen === 'categoria' && <span className="text-[8px] font-bold text-[#5856D6] bg-[#5856D6]/10 px-1.5 py-0.5 rounded-full normal-case">por categoría</span>}
                   {meta > 0 && metaData.origen === 'global' && <span className="text-[8px] font-bold text-[#007AFF] bg-[#007AFF]/10 px-1.5 py-0.5 rounded-full normal-case">global</span>}
                 </p>
-                <p className="text-xl font-semibold text-[#3A3A3C] leading-none tracking-tight">{moneyUSD(meta / tc)}</p>
+                <p className="text-xl font-semibold text-[#3A3A3C] leading-none tracking-tight">{moneyNIO(meta / tc)}</p>
                 <p className="text-[10px] text-[#AEAEB2] font-medium mt-1 tracking-wide">≈ {money(meta)} MXN</p>
              </div>
              <div className="hidden md:block w-px h-10 bg-[#E5E5EA]"></div>
@@ -388,8 +388,8 @@
                         const bonoDeEstaMarca = COMISIONES['bono' + mark] || 0;
                         const alcanzada = percent >= mark;
                         const tooltipText = faltaParaEstaMarca > 0
-                            ? `Te faltan ${moneyUSD(faltaParaEstaMarca / tc)} (${money(faltaParaEstaMarca)}) para el ${mark}% → comisión ${moneyUSD(bonoDeEstaMarca)}`
-                            : `¡${mark}% alcanzado! Comisión ${moneyUSD(bonoDeEstaMarca)} liberada`;
+                            ? `Te faltan ${moneyNIO(faltaParaEstaMarca / tc)} (${money(faltaParaEstaMarca)}) para el ${mark}% → comisión ${moneyNIO(bonoDeEstaMarca)}`
+                            : `¡${mark}% alcanzado! Comisión ${moneyNIO(bonoDeEstaMarca)} liberada`;
 
                         return (
                             <div key={mark} className="absolute top-0 bottom-0 border-l-2 border-white/70 z-10 group cursor-help" style={{ left: `${(mark / maxVisualScale) * 100}%` }} title={tooltipText}>
@@ -397,7 +397,7 @@
                                     {mark}%
                                 </span>
                                 <span className={`absolute top-[26px] -translate-x-1/2 text-[8px] font-semibold whitespace-nowrap ${alcanzada ? 'text-[#34C759]' : 'text-[#C7C7CC] group-hover:text-[#34C759]'}`}>
-                                    {moneyUSD(bonoDeEstaMarca)}
+                                    {moneyNIO(bonoDeEstaMarca)}
                                 </span>
                             </div>
                         )
@@ -430,11 +430,11 @@
                  <div className="-mt-1">
                      {nextPercent > 0 ? (
                          <p className="text-[10px] text-[#8E8E93] font-medium">
-                             🎯 Faltan <span className="font-semibold text-[#3A3A3C]">{moneyUSD(missingForNext / tc)}</span> <span className="text-[#AEAEB2]">({money(missingForNext)})</span> para el {nextPercent}% y liberar <span className="font-semibold text-[#34C759]">{moneyUSD(nextBonus)}</span>
+                             🎯 Faltan <span className="font-semibold text-[#3A3A3C]">{moneyNIO(missingForNext / tc)}</span> <span className="text-[#AEAEB2]">({money(missingForNext)})</span> para el {nextPercent}% y liberar <span className="font-semibold text-[#34C759]">{moneyNIO(nextBonus)}</span>
                          </p>
                      ) : (
                          <p className="text-[10px] text-[#AF52DE] font-semibold">
-                             🚀 ¡Tope máximo (140%) alcanzado! Comisión {moneyUSD(currentBonus)}
+                             🚀 ¡Tope máximo (140%) alcanzado! Comisión {moneyNIO(currentBonus)}
                          </p>
                      )}
                  </div>
@@ -442,8 +442,8 @@
              <div className="hidden lg:block w-px h-10 bg-[#E5E5EA]"></div>
 
              <div className="hidden sm:block">
-                <p className="text-[10px] font-medium text-[#FF9500] uppercase tracking-wide flex items-center gap-1"><i className="fas fa-fire"></i> Caliente · USD</p>
-                <p className="text-xl font-semibold text-[#1C1C1E] leading-none tracking-tight">{moneyUSD(hotMoney / tc)}</p>
+                <p className="text-[10px] font-medium text-[#FF9500] uppercase tracking-wide flex items-center gap-1"><i className="fas fa-fire"></i> Caliente · C$</p>
+                <p className="text-xl font-semibold text-[#1C1C1E] leading-none tracking-tight">{moneyNIO(hotMoney / tc)}</p>
                 <p className="text-[10px] text-[#FF9500] font-semibold mt-1 tracking-wide">≈ {money(hotMoney)} MXN</p>
              </div>
              <div className="hidden xl:block w-px h-10 bg-[#E5E5EA]"></div>
@@ -452,11 +452,11 @@
                  <div className="bg-[#34C759]/15 w-8 h-8 rounded-full flex items-center justify-center"><i className="fas fa-sack-dollar text-[#34C759] text-sm"></i></div>
                  <div>
                      <p className="text-[9px] font-medium text-[#2E9E4F] uppercase tracking-wide">Comisión Liberada</p>
-                     <p className="text-lg font-semibold text-[#34C759] leading-none tracking-tight">{moneyUSD(currentBonus)}</p>
+                     <p className="text-lg font-semibold text-[#34C759] leading-none tracking-tight">{moneyNIO(currentBonus)}</p>
                  </div>
                  {nextPercent > 0 ? (
                    <div className="ml-1 hidden xl:flex flex-col border-l border-[#34C759]/20 pl-2 min-w-[96px]">
-                       <p className="text-[9px] font-semibold text-[#34C759]/90 leading-none">Sig: {moneyUSD(nextBonus)} <span className="text-[#2E9E4F]">({nextBonusLvl})</span></p>
+                       <p className="text-[9px] font-semibold text-[#34C759]/90 leading-none">Sig: {moneyNIO(nextBonus)} <span className="text-[#2E9E4F]">({nextBonusLvl})</span></p>
                        <div className="mt-1.5 w-full bg-[#34C759]/15 rounded-full h-1">
                            <div className="h-full rounded-full bg-[#34C759] transition-all duration-700" style={{ width: `${nextBonusProgress}%` }}></div>
                        </div>
@@ -480,7 +480,7 @@
                 {businessData.remainingDays > 0 && meta > 0 ? (
                   <>
                     <p className={`text-xl font-semibold leading-none mt-0.5 tracking-tight ${requiredDaily > originalDailyGoal * 1.2 ? 'text-[#FF3B30]' : requiredDaily > originalDailyGoal ? 'text-[#FF9500]' : 'text-[#34C759]'}`}>
-                      {moneyUSD(requiredDaily / tc)}
+                      {moneyNIO(requiredDaily / tc)}
                     </p>
                     <p className="text-[10px] text-[#AEAEB2] font-medium">≈ {money(requiredDaily)} / día hábil</p>
                     <div className="mt-1.5 relative w-full bg-[#E5E5EA] rounded-full h-1.5">
@@ -489,7 +489,7 @@
                         style={{ width: `${Math.min((requiredDaily / Math.max(originalDailyGoal, 1)) * 100, 100)}%` }}
                       ></div>
                     </div>
-                    <p className="text-[10px] text-[#AEAEB2] mt-1">Base plan: {moneyUSD(originalDailyGoal / tc)}</p>
+                    <p className="text-[10px] text-[#AEAEB2] mt-1">Base plan: {moneyNIO(originalDailyGoal / tc)}</p>
                   </>
                 ) : meta === 0 ? (
                   <p className="text-sm font-medium text-[#AEAEB2] mt-1">Sin meta definida</p>
@@ -1096,7 +1096,7 @@
                            {paceStatus === 'superado' ? '¡Meta Superada!' : 'Ritmo Diario Requerido'}
                        </span>
                        <span className="text-sm font-semibold text-[#1C1C1E] leading-none">
-                           {paceStatus === 'superado' ? 'A BUSCAR EL BONO MAX' : `${moneyUSD(requiredDaily / tc)} / día`}
+                           {paceStatus === 'superado' ? 'A BUSCAR EL BONO MAX' : `${moneyNIO(requiredDaily / tc)} / día`}
                        </span>
                    </div>
                </div>
