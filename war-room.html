@@ -313,8 +313,29 @@
           alerts.sort((a, b) => b.sev - a.sev);
         }
 
+        // Comparativa: quincena anterior vs actual (datos reales)
+        const resumen = (y, m, qq) => {
+          const ld2 = new Date(y, m + 1, 0).getDate();
+          const s2 = new Date(y, m, qq === 1 ? 1 : 16, 0, 0, 0);
+          const e2 = new Date(y, m, qq === 1 ? 15 : ld2, 23, 59, 59);
+          const inP2 = (d) => { const x = parseDate(d); return x >= s2 && x <= e2; };
+          const suf2 = `_${y}-${m}-${qq}`;
+          const metaP = metas.filter(mm => mm.id.endsWith(suf2)).reduce((a, mm) => a + (Number(mm.monto) || 0), 0);
+          const dispP = allSales.filter(x => x.estatus === 'Dispersado' && inP2(x.fecha_dispersion || x.fecha));
+          const lostP = allSales.filter(x => LOST_STATUSES.includes(x.estatus) && inP2(x.fecha_resolucion || x.fecha));
+          const soldP = dispP.reduce((a, x) => a + (Number(x.monto_dispersado) || 0), 0);
+          return { sold: soldP, meta: metaP, pct: metaP > 0 ? (soldP / metaP) * 100 : 0, dispCount: dispP.length, winRate: (dispP.length + lostP.length) > 0 ? (dispP.length / (dispP.length + lostP.length)) * 100 : 0 };
+        };
+        let pY = year, pM = month, pQ = 1;
+        if (q === 1) { pQ = 2; pM = month - 1; if (pM < 0) { pM = 11; pY = year - 1; } }
+        const comp = {
+          actual: { sold: soldTeam, meta: metaTeam, pct, dispCount: dispQ.length, winRate },
+          prev: resumen(pY, pM, pQ),
+          prevLabel: new Intl.DateTimeFormat('es-MX', { month: 'short' }).format(new Date(pY, pM, 1)) + ' Q' + pQ,
+        };
+
         return {
-          year, month, q, esPeriodoActual, biz, metaTeam, tc, soldTeam, pipelineTeam, pct, winRate, forecast, forecastPct,
+          year, month, q, esPeriodoActual, comp, biz, metaTeam, tc, soldTeam, pipelineTeam, pct, winRate, forecast, forecastPct,
           originalDaily, requiredDaily, remaining, elapsed, dispQ, lostQ, active,
           leaderboard, maxDisp, funnel, funnelMax,
           avgCycle: avg(cycle), avgAccept: avg(tAccept), avgDisperse: avg(tDisperse), avgActiveAge,
@@ -355,6 +376,8 @@
       const hora = new Intl.DateTimeFormat('es-MX', { hour: '2-digit', minute: '2-digit', second: '2-digit' }).format(now);
       const paceColor = D.forecastPct >= 100 ? 'text-emerald-400' : D.forecastPct >= 80 ? 'text-amber-400' : 'text-rose-400';
       const medal = ['🥇', '🥈', '🥉'];
+      const cmpColor = (d) => d > 0 ? 'text-emerald-400' : d < 0 ? 'text-rose-400' : 'text-slate-500';
+      const cmpIcon = (d) => d > 0 ? 'fa-arrow-up' : d < 0 ? 'fa-arrow-down' : 'fa-minus';
 
       return (
         <div className="h-full flex flex-col p-3 gap-3">
@@ -473,6 +496,29 @@
                   <div className="bg-slate-800/60 rounded-xl py-2"><p className="text-[9px] uppercase tracking-wider text-slate-500">Ritmo req./día</p><p className="text-base font-bold text-slate-100">{D.metaTeam > 0 ? money(D.requiredDaily) : '—'}</p></div>
                   <div className="bg-slate-800/60 rounded-xl py-2"><p className="text-[9px] uppercase tracking-wider text-slate-500">Días restantes</p><p className="text-base font-bold text-slate-100">{D.biz.remaining}</p></div>
                 </div>
+              </Panel>
+
+              <Panel title={`Anterior (${D.comp.prevLabel}) → actual`} icon="fa-scale-balanced" className="shrink-0">
+                {[
+                  { label: 'Dispersado', a: D.comp.actual.sold, p: D.comp.prev.sold, fmt: 'money', mode: 'pct' },
+                  { label: '% de meta', a: D.comp.actual.pct, p: D.comp.prev.pct, fmt: 'pct', mode: 'pts' },
+                  { label: 'Créditos', a: D.comp.actual.dispCount, p: D.comp.prev.dispCount, fmt: 'num', mode: 'pct' },
+                  { label: 'Conversión', a: D.comp.actual.winRate, p: D.comp.prev.winRate, fmt: 'pct', mode: 'pts' },
+                ].map(r => {
+                  const d = r.mode === 'pts' ? (r.a - r.p) : (r.p > 0 ? ((r.a - r.p) / r.p) * 100 : (r.a > 0 ? 100 : 0));
+                  const fmtV = (v) => r.fmt === 'money' ? money(v) : r.fmt === 'pct' ? `${v.toFixed(0)}%` : `${v}`;
+                  return (
+                    <div key={r.label} className="flex items-center justify-between py-1.5 border-b border-slate-800 last:border-0">
+                      <span className="text-sm font-semibold text-slate-300">{r.label}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[11px] text-slate-500">{fmtV(r.p)}</span>
+                        <i className="fas fa-arrow-right-long text-slate-600 text-[10px]"></i>
+                        <span className="text-sm font-bold text-slate-100">{fmtV(r.a)}</span>
+                        <span className={`text-[11px] font-bold text-right w-14 ${cmpColor(d)}`}><i className={`fas ${cmpIcon(d)} mr-0.5`}></i>{`${d >= 0 ? '+' : ''}${d.toFixed(0)}${r.mode === 'pts' ? 'pts' : '%'}`}</span>
+                      </div>
+                    </div>
+                  );
+                })}
               </Panel>
 
               <Panel title={`Alertas en vivo · ${D.alerts.length}${ENVIA_SLACK ? ' · Slack ✓' : ''}`} icon="fa-bell" className="flex-1">
