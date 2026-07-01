@@ -60,8 +60,25 @@
       slackReavisoHrs: 6,   // no repetir la misma alerta a Slack antes de estas horas.
       // Para evitar que cada pantalla abierta mande duplicados, SOLO envía la que abras
       // con ?alertas=1 en la URL (ej. la TV del piso: war-room.html?alertas=1).
+
+      // A quién etiquetar en la alerta de EQUIPO (meta en riesgo). Ej: "<!here>" o "<@U0SUPERVISOR>". "" = nadie.
+      mencionEquipo: "",
     };
     const ENVIA_SLACK = (() => { try { return new URLSearchParams(location.search).get('alertas') === '1'; } catch (e) { return false; } })();
+
+    // Modo prueba: ?prueba=60 envía una alerta de prueba a Slack cada 60s (mín 10). Quita el parámetro para detener.
+    const PRUEBA_SLACK_SEG = (() => { try { const v = new URLSearchParams(location.search).get('prueba'); if (v === null) return 0; const n = parseInt(v, 10); return n >= 10 ? n : 60; } catch (e) { return 0; } })();
+
+    // Mapa correo del agente (agentEmail) -> Member ID de Slack (U0XXXX). Para @etiquetar al dueño del lead.
+    // Cómo obtener el ID: en Slack, perfil de la persona -> ⋮ Más -> Copiar Member ID.
+    const AGENTES_SLACK = {
+      // "ana@multimoney.com": "U0123ABC",
+      // "beto@multimoney.com": "U0456DEF",
+    };
+    const mencionSlack = (s) => {
+      const id = s && s.agentEmail && AGENTES_SLACK[String(s.agentEmail).toLowerCase()];
+      return id ? ` <@${id}>` : '';
+    };
 
     const ACTIVE_STATUSES = ["Con oferta", "Acepta oferta", "Long track"];
     const LOST_STATUSES = ["Rechazado", "Cancelado", "Expirado"];
@@ -161,6 +178,27 @@
           setTest({ estado: 'err', msg: 'No se pudo contactar /api/slack-alert. ¿Está desplegado en Vercel?' });
         }
       };
+
+      // Modo prueba: envía una alerta a Slack cada PRUEBA_SLACK_SEG segundos (?prueba=60).
+      useEffect(() => {
+        if (!PRUEBA_SLACK_SEG || !ALERTAS.slackEndpoint) return;
+        let n = 0;
+        const enviar = () => {
+          n++;
+          const num = n;
+          fetch(ALERTAS.slackEndpoint, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ alerts: [{ tipo: `🧪 Prueba automática #${num}`, txt: 'Pulso de prueba del War Room', meta: new Date().toLocaleTimeString('es-MX'), sev: 3 }] }),
+          }).then(r => r.json().catch(() => ({}))).then(d => {
+            setTest(d && d.ok
+              ? { estado: 'ok', msg: `Prueba #${num} enviada ✓ (${new Date().toLocaleTimeString('es-MX')})` }
+              : { estado: 'err', msg: `Prueba #${num} falló: ${(d && (d.error || d.slack)) || 'error'}` });
+          }).catch(() => setTest({ estado: 'err', msg: `Prueba #${num}: no se pudo contactar el endpoint` }));
+        };
+        enviar();
+        const t = setInterval(enviar, PRUEBA_SLACK_SEG * 1000);
+        return () => clearInterval(t);
+      }, []);
 
       useEffect(() => {
         const unsub = db.collection('sales').onSnapshot(
@@ -263,14 +301,14 @@
         if (esPeriodoActual) {
           active.forEach(s => {
             const d = nDays(now - lastActivity(s));
-            if (d >= ALERTAS.frioDias) alerts.push({ sev: 2, tipo: 'Lead frío', icon: 'fa-snowflake', txt: `${s.nombre_cliente || s.folio} · ${getAgentName(s)}`, meta: `${Math.floor(d)}d sin actividad`, key: 'frio' + s.id });
+            if (d >= ALERTAS.frioDias) alerts.push({ sev: 2, tipo: 'Lead frío', icon: 'fa-snowflake', txt: `${s.nombre_cliente || s.folio} · ${getAgentName(s)}${mencionSlack(s)}`, meta: `${Math.floor(d)}d sin actividad`, key: 'frio' + s.id });
           });
           active.filter(s => s.estatus === 'Con oferta').forEach(s => {
             const age = nDays(now - parseDate(s.fecha));
-            if (age >= ALERTAS.ofertaVenceDias) alerts.push({ sev: 3, tipo: 'Oferta por vencer', icon: 'fa-hourglass-half', txt: `${s.nombre_cliente || s.folio} · ${getAgentName(s)}`, meta: `oferta de ${Math.floor(age)}d`, key: 'vence' + s.id });
+            if (age >= ALERTAS.ofertaVenceDias) alerts.push({ sev: 3, tipo: 'Oferta por vencer', icon: 'fa-hourglass-half', txt: `${s.nombre_cliente || s.folio} · ${getAgentName(s)}${mencionSlack(s)}`, meta: `oferta de ${Math.floor(age)}d`, key: 'vence' + s.id });
           });
           if (metaTeam > 0 && biz.remaining > 0 && forecastPct < 100) {
-            alerts.push({ sev: 3, tipo: 'Meta en riesgo', icon: 'fa-triangle-exclamation', txt: `Proyección ${forecastPct.toFixed(0)}% de la meta`, meta: `faltan ${money(remaining)} en ${biz.remaining}d`, key: 'meta' });
+            alerts.push({ sev: 3, tipo: 'Meta en riesgo', icon: 'fa-triangle-exclamation', txt: `Proyección ${forecastPct.toFixed(0)}% de la meta${ALERTAS.mencionEquipo ? ' ' + ALERTAS.mencionEquipo : ''}`, meta: `faltan ${money(remaining)} en ${biz.remaining}d`, key: 'meta' });
           }
           alerts.sort((a, b) => b.sev - a.sev);
         }
@@ -339,6 +377,9 @@
                 : <button onClick={irHoy} className="flex items-center gap-1.5 text-[11px] font-bold text-slate-300 bg-slate-800 hover:bg-slate-700 px-2.5 py-1 rounded-full transition-colors"><i className="fas fa-clock-rotate-left"></i>Histórico · Ir a hoy</button>}
             </div>
             <div className="flex items-center gap-4">
+              {PRUEBA_SLACK_SEG > 0 && (
+                <span className="text-[11px] font-bold text-amber-400 bg-amber-500/10 px-2.5 py-1 rounded-full whitespace-nowrap"><i className="fas fa-flask mr-1"></i>Prueba c/{PRUEBA_SLACK_SEG}s</span>
+              )}
               {ALERTAS.slackEndpoint && (
                 <button onClick={probarSlack} disabled={test.estado === 'sending'}
                   title={test.msg || 'Envía una alerta de prueba a Slack'}
