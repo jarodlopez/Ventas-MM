@@ -109,17 +109,19 @@
         return f.length ? new Date(Math.max.apply(null, f)) : null;
       };
 
-      const setCategoria = (a, cat) => db.collection('agentes').doc(a.id).set({ email: a.email || '', categoria: cat }, { merge: true });
-      const toggleActivo = (a) => db.collection('agentes').doc(a.id).set({ email: a.email || '', activo: a.activo === false }, { merge: true });
-      const addCat = () => { const c = nuevaCat.trim(); if (!c || categorias.includes(c)) { setNuevaCat(''); return; } db.collection('config').doc('categorias').set({ lista: firebase.firestore.FieldValue.arrayUnion(c) }, { merge: true }); setNuevaCat(''); };
-      const removeCat = (c) => db.collection('config').doc('categorias').set({ lista: firebase.firestore.FieldValue.arrayRemove(c) }, { merge: true });
+      const onErr = (e) => alert('No se pudo guardar. Suele ser por reglas de Firestore (permiso denegado).\n\nDetalle: ' + (e && e.message ? e.message : e));
+      const setCategoria = (a, cat) => db.collection('agentes').doc(a.id).set({ email: a.email || '', categoria: cat }, { merge: true }).catch(onErr);
+      const toggleActivo = (a) => db.collection('agentes').doc(a.id).set({ email: a.email || '', activo: a.activo === false }, { merge: true }).catch(onErr);
+      const addCat = () => { const c = nuevaCat.trim(); if (!c || categorias.includes(c)) { setNuevaCat(''); return; } db.collection('config').doc('categorias').set({ lista: firebase.firestore.FieldValue.arrayUnion(c) }, { merge: true }).catch(onErr); setNuevaCat(''); };
+      const removeCat = (c) => db.collection('config').doc('categorias').set({ lista: firebase.firestore.FieldValue.arrayRemove(c) }, { merge: true }).catch(onErr);
       const guardarMetas = () => {
         const tc = Number(form.tipoCambio) || 18;
-        db.collection('metas_globales').doc(metaPeriod).set({ monto: Number(form.global) || 0, tipoCambio: tc }, { merge: true });
         const cats = {};
         categorias.forEach(c => { cats[c] = Number(form.cats[c]) || 0; });
-        db.collection('metas_categoria').doc(metaPeriod).set({ cats, tipoCambio: tc }, { merge: true });
-        alert('Metas guardadas para ' + metaPeriod);
+        Promise.all([
+          db.collection('metas_globales').doc(metaPeriod).set({ monto: Number(form.global) || 0, tipoCambio: tc }, { merge: true }),
+          db.collection('metas_categoria').doc(metaPeriod).set({ cats, tipoCambio: tc }, { merge: true }),
+        ]).then(() => alert('✓ Metas guardadas para ' + metaPeriod)).catch(onErr);
       };
       const cambiarPeriodo = (dir) => {
         if (dir === 1) { if (metaQ === 1) setMetaQ(2); else { setMetaQ(1); const d = new Date(metaMonth); d.setMonth(d.getMonth() + 1); setMetaMonth(d); } }
