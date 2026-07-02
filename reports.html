@@ -51,7 +51,7 @@
       return new Date(input);
     };
 
-    const money = (val) => new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 }).format(val);
+    const money = (val) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 }).format(val);
     const formatDate = (input) => new Intl.DateTimeFormat('es-MX', { day: '2-digit', month: 'short', year: 'numeric', hour:'2-digit', minute:'2-digit' }).format(parseDate(input));
 
     // Función segura para comparar fechas ignorando la zona horaria (evita que el 1 de marzo se lea como 28 de febrero)

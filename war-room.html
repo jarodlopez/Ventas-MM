@@ -83,7 +83,7 @@
     const FUNNEL_STAGES = ["Con oferta", "Long track", "Acepta oferta", "Dispersado"];
 
     const parseDate = (input) => { if (!input) return new Date(); if (input.toDate) return input.toDate(); const d = new Date(input); return isNaN(d) ? new Date() : d; };
-    const money = (v) => new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 }).format(v || 0);
+    const money = (v) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 }).format(v || 0);
     const nDays = (ms) => ms / 86400000;
     const avg = (arr) => { const c = arr.filter(x => typeof x === 'number' && isFinite(x) && x >= 0); return c.length ? c.reduce((a, b) => a + b, 0) / c.length : 0; };
     const fmtDays = (d) => `${d.toFixed(1)} d`;

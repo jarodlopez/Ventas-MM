@@ -51,7 +51,7 @@
       return new Date(input);
     };
 
-    const money = (val) => new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 }).format(val);
+    const money = (val) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 }).format(val);
     const formatDate = (input) => new Intl.DateTimeFormat('es-MX', { day: '2-digit', month: 'short', year: 'numeric' }).format(parseDate(input));
 
     // Función segura para sacar el nombre del Agente

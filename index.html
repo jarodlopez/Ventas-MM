@@ -94,7 +94,8 @@
       return isNaN(d) ? new Date() : d;
     };
 
-    const money = (val) => new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 }).format(val || 0);
+    // en-US + MXN muestra "MX$" (peso inequívoco), evitando confundir con dólar.
+    const money = (val) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 }).format(val || 0);
 
     // Comisiones FIJAS (en pesos MX) por nivel de cumplimiento de meta.
     const COMISIONES = { bono80: 115, bono100: 240, bono120: 320, bono140: 500 };
