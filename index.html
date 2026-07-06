@@ -397,87 +397,87 @@
       const fillVisualWidth = Math.min((percent / maxVisualScale) * 100, 100);
 
       return (
-        <div className="bg-white border-b border-[#E5E5EA] px-4 py-3 flex flex-col gap-3">
+        <div className="bg-white border-b border-[#E5E5EA] px-5 py-4 flex flex-col gap-4">
 
           {/* ===== Fila 1: KPIs ===== */}
-          <div className="flex flex-wrap items-center gap-x-6 gap-y-3 justify-between">
-            <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+          <div className="flex flex-wrap items-center gap-x-7 gap-y-4 justify-between">
+            <div className="flex flex-wrap items-center gap-x-7 gap-y-4">
 
               <div>
-                 <p className="text-[10px] font-medium text-[#8E8E93] uppercase tracking-wide">Real Dispersado</p>
-                 <p className="text-2xl font-black text-[#1C1C1E] leading-none tracking-tight">{money(sold)}</p>
-                 {usd && <p className="text-[10px] text-[#34C759] font-semibold mt-1 tracking-wide">≈ {moneyUSD(sold * usd)} USD</p>}
+                 <p className="text-[11px] font-medium text-[#8E8E93] uppercase tracking-wide">Real Dispersado</p>
+                 <p className="text-3xl font-black text-[#1C1C1E] leading-none tracking-tight">{money(sold)}</p>
+                 {usd && <p className="text-[11px] text-[#34C759] font-semibold mt-1.5 tracking-wide">≈ {moneyUSD(sold * usd)} USD</p>}
               </div>
-              <div className="hidden sm:block w-px h-9 bg-[#E5E5EA]"></div>
+              <div className="hidden sm:block w-px h-12 bg-[#E5E5EA]"></div>
 
               <div>
-                 <p className="text-[10px] font-medium text-[#8E8E93] uppercase tracking-wide flex items-center gap-1.5">
+                 <p className="text-[11px] font-medium text-[#8E8E93] uppercase tracking-wide flex items-center gap-1.5">
                    Meta (100%)
-                   {meta > 0 && metaData.origen === 'categoria' && <span className="text-[8px] font-bold text-[#5856D6] bg-[#5856D6]/10 px-1.5 py-0.5 rounded-full normal-case">por categoría</span>}
-                   {meta > 0 && metaData.origen === 'global' && <span className="text-[8px] font-bold text-[#007AFF] bg-[#007AFF]/10 px-1.5 py-0.5 rounded-full normal-case">global</span>}
+                   {meta > 0 && metaData.origen === 'categoria' && <span className="text-[9px] font-bold text-[#5856D6] bg-[#5856D6]/10 px-1.5 py-0.5 rounded-full normal-case">por categoría</span>}
+                   {meta > 0 && metaData.origen === 'global' && <span className="text-[9px] font-bold text-[#007AFF] bg-[#007AFF]/10 px-1.5 py-0.5 rounded-full normal-case">global</span>}
                  </p>
-                 <p className="text-2xl font-black text-[#3A3A3C] leading-none tracking-tight">{money(meta)}</p>
-                 {usd && <p className="text-[10px] text-[#AEAEB2] font-medium mt-1 tracking-wide">≈ {moneyUSD(meta * usd)} USD</p>}
+                 <p className="text-3xl font-black text-[#3A3A3C] leading-none tracking-tight">{money(meta)}</p>
+                 {usd && <p className="text-[11px] text-[#AEAEB2] font-medium mt-1.5 tracking-wide">≈ {moneyUSD(meta * usd)} USD</p>}
               </div>
-              <div className="hidden sm:block w-px h-9 bg-[#E5E5EA]"></div>
+              <div className="hidden sm:block w-px h-12 bg-[#E5E5EA]"></div>
 
               {/* Comisión liberada */}
-              <div className="bg-[#34C759]/10 rounded-2xl px-3 py-1.5 flex items-center gap-2">
-                 <div className="bg-[#34C759]/15 w-8 h-8 rounded-full flex items-center justify-center"><i className="fas fa-sack-dollar text-[#34C759] text-sm"></i></div>
+              <div className="bg-[#34C759]/10 rounded-2xl px-4 py-2.5 flex items-center gap-3">
+                 <div className="bg-[#34C759]/15 w-12 h-12 rounded-full flex items-center justify-center"><i className="fas fa-sack-dollar text-[#34C759] text-xl"></i></div>
                  <div>
-                     <p className="text-[9px] font-medium text-[#2E9E4F] uppercase tracking-wide">Comisión</p>
-                     <p className="text-lg font-bold text-[#34C759] leading-none tracking-tight">{moneyUSD(currentBonus)}</p>
+                     <p className="text-[11px] font-medium text-[#2E9E4F] uppercase tracking-wide">Comisión</p>
+                     <p className="text-3xl font-bold text-[#34C759] leading-none tracking-tight">{moneyUSD(currentBonus)}</p>
                  </div>
                  {nextPercent > 0 ? (
-                   <div className="ml-1 hidden md:flex flex-col border-l border-[#34C759]/20 pl-2 min-w-[92px]">
-                       <p className="text-[9px] font-semibold text-[#34C759]/90 leading-none">Sig: {moneyUSD(nextBonus)} <span className="text-[#2E9E4F]">({nextBonusLvl})</span></p>
-                       <div className="mt-1.5 w-full bg-[#34C759]/15 rounded-full h-1"><div className="h-full rounded-full bg-[#34C759] transition-all duration-700" style={{ width: `${nextBonusProgress}%` }}></div></div>
+                   <div className="ml-1.5 hidden md:flex flex-col border-l border-[#34C759]/20 pl-3 min-w-[120px]">
+                       <p className="text-[11px] font-semibold text-[#34C759]/90 leading-tight">Sig: {moneyUSD(nextBonus)} <span className="text-[#2E9E4F]">({nextBonusLvl})</span></p>
+                       <div className="mt-2 w-full bg-[#34C759]/15 rounded-full h-1.5"><div className="h-full rounded-full bg-[#34C759] transition-all duration-700" style={{ width: `${nextBonusProgress}%` }}></div></div>
                    </div>
                  ) : (
-                   <div className="text-[9px] font-semibold text-[#AF52DE] ml-1 hidden md:block border-l border-[#34C759]/20 pl-2">MÁX 🚀</div>
+                   <div className="text-[11px] font-semibold text-[#AF52DE] ml-1.5 hidden md:block border-l border-[#34C759]/20 pl-3">MÁX 🚀</div>
                  )}
               </div>
 
               {/* Metas diaria / semanal (según 100% quincenal) */}
               {meta > 0 && (<>
-              <div className="hidden lg:block w-px h-9 bg-[#E5E5EA]"></div>
-              <div className="hidden lg:flex flex-col gap-2 min-w-[150px]">
+              <div className="hidden lg:block w-px h-12 bg-[#E5E5EA]"></div>
+              <div className="hidden lg:flex flex-col gap-3 min-w-[200px]">
                  <div>
-                    <div className="flex justify-between items-baseline gap-2"><span className="text-[9px] font-medium text-[#8E8E93] uppercase tracking-wide">Meta diaria</span><span className="text-[12px] font-bold text-[#3A3A3C] leading-none">{money(metaDiaria)}</span></div>
-                    <div className="w-full bg-[#E5E5EA] rounded-full h-1 mt-1"><div className={`h-1 rounded-full transition-all duration-700 ${pctHoy >= 100 ? 'bg-[#34C759]' : 'bg-[#007AFF]'}`} style={{ width: `${pctHoy}%` }}></div></div>
-                    <span className="text-[8px] text-[#AEAEB2] font-medium">hoy {money(soldHoy)} · {pctHoy.toFixed(0)}%</span>
+                    <div className="flex justify-between items-baseline gap-2"><span className="text-[11px] font-medium text-[#8E8E93] uppercase tracking-wide">Meta diaria</span><span className="text-base font-bold text-[#3A3A3C] leading-none">{money(metaDiaria)}</span></div>
+                    <div className="w-full bg-[#E5E5EA] rounded-full h-1.5 mt-1.5"><div className={`h-1.5 rounded-full transition-all duration-700 ${pctHoy >= 100 ? 'bg-[#34C759]' : 'bg-[#007AFF]'}`} style={{ width: `${pctHoy}%` }}></div></div>
+                    <span className="text-[10px] text-[#AEAEB2] font-medium">hoy {money(soldHoy)} · {pctHoy.toFixed(0)}%</span>
                  </div>
                  <div>
-                    <div className="flex justify-between items-baseline gap-2"><span className="text-[9px] font-medium text-[#8E8E93] uppercase tracking-wide">Meta semanal</span><span className="text-[12px] font-bold text-[#3A3A3C] leading-none">{money(metaSemanal)}</span></div>
-                    <div className="w-full bg-[#E5E5EA] rounded-full h-1 mt-1"><div className={`h-1 rounded-full transition-all duration-700 ${pctSemana >= 100 ? 'bg-[#34C759]' : 'bg-[#007AFF]'}`} style={{ width: `${pctSemana}%` }}></div></div>
-                    <span className="text-[8px] text-[#AEAEB2] font-medium">semana {money(soldSemana)} · {pctSemana.toFixed(0)}%</span>
+                    <div className="flex justify-between items-baseline gap-2"><span className="text-[11px] font-medium text-[#8E8E93] uppercase tracking-wide">Meta semanal</span><span className="text-base font-bold text-[#3A3A3C] leading-none">{money(metaSemanal)}</span></div>
+                    <div className="w-full bg-[#E5E5EA] rounded-full h-1.5 mt-1.5"><div className={`h-1.5 rounded-full transition-all duration-700 ${pctSemana >= 100 ? 'bg-[#34C759]' : 'bg-[#007AFF]'}`} style={{ width: `${pctSemana}%` }}></div></div>
+                    <span className="text-[10px] text-[#AEAEB2] font-medium">semana {money(soldSemana)} · {pctSemana.toFixed(0)}%</span>
                  </div>
               </div>
               </>)}
 
               {/* Caliente */}
-              <div className="hidden xl:block w-px h-9 bg-[#E5E5EA]"></div>
+              <div className="hidden xl:block w-px h-12 bg-[#E5E5EA]"></div>
               <div className="hidden xl:block">
-                 <p className="text-[10px] font-medium text-[#FF9500] uppercase tracking-wide flex items-center gap-1"><i className="fas fa-fire"></i> Caliente</p>
-                 <p className="text-lg font-bold text-[#1C1C1E] leading-none tracking-tight">{money(hotMoney)}</p>
+                 <p className="text-[11px] font-medium text-[#FF9500] uppercase tracking-wide flex items-center gap-1"><i className="fas fa-fire"></i> Caliente</p>
+                 <p className="text-2xl font-black text-[#1C1C1E] leading-none tracking-tight">{money(hotMoney)}</p>
               </div>
 
               {/* Restante */}
-              <div className="hidden xl:block w-px h-9 bg-[#E5E5EA]"></div>
+              <div className="hidden xl:block w-px h-12 bg-[#E5E5EA]"></div>
               <div className="hidden xl:block">
-                 <p className="text-[10px] font-medium text-[#8E8E93] uppercase tracking-wide"><i className="far fa-clock mr-1"></i>Restante</p>
-                 <p className="text-lg font-bold text-[#3A3A3C] leading-none tracking-tight">{businessData.remainingDays} días</p>
+                 <p className="text-[11px] font-medium text-[#8E8E93] uppercase tracking-wide"><i className="far fa-clock mr-1"></i>Restante</p>
+                 <p className="text-2xl font-black text-[#3A3A3C] leading-none tracking-tight">{businessData.remainingDays} días</p>
               </div>
             </div>
 
             {/* Derecha: tipo de cambio + Ajustar Plan */}
-            <div className="flex flex-col items-end gap-1">
+            <div className="flex flex-col items-end gap-2">
               {usd && (
-                <span className="text-[9px] text-[#AEAEB2] font-medium whitespace-nowrap" title={`Tipo de cambio oficial. Actualizado ${new Date(usdRate.ts).toLocaleString('es-MX')}`}>
-                  <i className="fas fa-arrow-right-arrow-left mr-1 text-[#34C759]"></i>1 USD ≈ {money(1 / usd)}
+                <span className="text-[11px] text-[#8E8E93] font-medium whitespace-nowrap bg-[#F2F2F7] px-2.5 py-1 rounded-full" title={`Tipo de cambio oficial. Actualizado ${new Date(usdRate.ts).toLocaleString('es-MX')}`}>
+                  <i className="fas fa-arrow-right-arrow-left mr-1.5 text-[#34C759]"></i>1 USD ≈ <b className="text-[#3A3A3C]">{money(1 / usd)}</b>
                 </span>
               )}
-              <button onClick={onOpenPlanning} className="bg-[#F2F2F7] text-[#1C1C1E] border border-[#E5E5EA] px-4 py-2 rounded-full text-xs font-semibold hover:bg-[#E5E5EA] active:scale-[0.98] transition-all whitespace-nowrap">
+              <button onClick={onOpenPlanning} className="bg-[#F2F2F7] text-[#1C1C1E] border border-[#E5E5EA] px-5 py-2.5 rounded-full text-sm font-semibold hover:bg-[#E5E5EA] active:scale-[0.98] transition-all whitespace-nowrap">
                 <i className="fas fa-sliders-h mr-2 text-[#8E8E93]"></i>Ajustar Plan
               </button>
             </div>
