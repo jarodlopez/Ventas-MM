@@ -291,6 +291,19 @@
                       <div>
                           <label className="text-[11px] font-medium text-[#8E8E93] mb-1 block">Meta al 100% (MXN)</label>
                           <input type="number" name="monto" value={localMeta.monto} onChange={handleChange} className="w-full bg-[#F2F2F7] border border-transparent rounded-xl px-3 py-2.5 font-semibold focus:outline-none focus:bg-white focus:border-[#007AFF] transition-colors" />
+                          {Number(localMeta.monto) > 0 && (
+                            <div className="flex gap-2 mt-2">
+                              <div className="flex-1 bg-[#007AFF]/5 rounded-lg px-2.5 py-1.5">
+                                <p className="text-[9px] font-semibold text-[#8E8E93] uppercase tracking-wide">Semanal</p>
+                                <p className="text-sm font-bold text-[#007AFF]">{money(dailyGoal * 5)}</p>
+                              </div>
+                              <div className="flex-1 bg-[#34C759]/5 rounded-lg px-2.5 py-1.5">
+                                <p className="text-[9px] font-semibold text-[#8E8E93] uppercase tracking-wide">Diaria</p>
+                                <p className="text-sm font-bold text-[#34C759]">{money(dailyGoal)}</p>
+                              </div>
+                            </div>
+                          )}
+                          <p className="text-[10px] text-[#AEAEB2] mt-1.5 leading-snug">Derivadas del 100%: diaria = meta ÷ {businessData.totalBusinessDays} días hábiles · semanal = diaria × 5.</p>
                       </div>
                   </div>
 
@@ -351,6 +364,17 @@
       const originalDailyGoal = businessData.totalBusinessDays > 0 ? meta / businessData.totalBusinessDays : 0;
       const requiredDaily = businessData.remainingDays > 0 ? remainingToMeta / businessData.remainingDays : 0;
 
+      // Metas derivadas del 100% quincenal: diaria (÷ días hábiles) y semanal (× 5 días hábiles).
+      const metaDiaria = originalDailyGoal;
+      const metaSemanal = originalDailyGoal * 5;
+      const dispersados = sales.filter(s => s.estatus === 'Dispersado');
+      const hoyKey = new Date().toDateString();
+      const iniSemana = (() => { const n = new Date(); const off = (n.getDay() + 6) % 7; const d = new Date(n); d.setDate(n.getDate() - off); d.setHours(0, 0, 0, 0); return d; })();
+      const soldHoy = dispersados.filter(s => parseDate(s.fecha_dispersion || s.fecha).toDateString() === hoyKey).reduce((a, s) => a + (Number(s.monto_dispersado) || 0), 0);
+      const soldSemana = dispersados.filter(s => parseDate(s.fecha_dispersion || s.fecha) >= iniSemana).reduce((a, s) => a + (Number(s.monto_dispersado) || 0), 0);
+      const pctHoy = metaDiaria > 0 ? Math.min(100, (soldHoy / metaDiaria) * 100) : 0;
+      const pctSemana = metaSemanal > 0 ? Math.min(100, (soldSemana / metaSemanal) * 100) : 0;
+
       let currentBonus = 0;
       let nextBonusLvl = "";
       let nextPercent = 0;
@@ -394,6 +418,29 @@
                 {usd && <p className="text-[10px] text-[#AEAEB2] font-medium mt-1 tracking-wide">≈ {moneyUSD(meta * usd)} USD</p>}
              </div>
              <div className="hidden md:block w-px h-10 bg-[#E5E5EA]"></div>
+
+             {/* Metas derivadas: diaria y semanal (según 100% quincenal) */}
+             {meta > 0 && (
+             <div className="hidden xl:flex flex-col gap-2 min-w-[140px]">
+                <div>
+                   <div className="flex justify-between items-baseline gap-2">
+                      <span className="text-[9px] font-medium text-[#8E8E93] uppercase tracking-wide">Meta diaria</span>
+                      <span className="text-[12px] font-bold text-[#3A3A3C] leading-none">{money(metaDiaria)}</span>
+                   </div>
+                   <div className="w-full bg-[#E5E5EA] rounded-full h-1 mt-1"><div className={`h-1 rounded-full transition-all duration-700 ${pctHoy >= 100 ? 'bg-[#34C759]' : 'bg-[#007AFF]'}`} style={{ width: `${pctHoy}%` }}></div></div>
+                   <span className="text-[8px] text-[#AEAEB2] font-medium">hoy {money(soldHoy)} · {pctHoy.toFixed(0)}%</span>
+                </div>
+                <div>
+                   <div className="flex justify-between items-baseline gap-2">
+                      <span className="text-[9px] font-medium text-[#8E8E93] uppercase tracking-wide">Meta semanal</span>
+                      <span className="text-[12px] font-bold text-[#3A3A3C] leading-none">{money(metaSemanal)}</span>
+                   </div>
+                   <div className="w-full bg-[#E5E5EA] rounded-full h-1 mt-1"><div className={`h-1 rounded-full transition-all duration-700 ${pctSemana >= 100 ? 'bg-[#34C759]' : 'bg-[#007AFF]'}`} style={{ width: `${pctSemana}%` }}></div></div>
+                   <span className="text-[8px] text-[#AEAEB2] font-medium">semana {money(soldSemana)} · {pctSemana.toFixed(0)}%</span>
+                </div>
+             </div>
+             )}
+             <div className="hidden xl:block w-px h-10 bg-[#E5E5EA]"></div>
 
              <div className="flex-1 min-w-[280px] max-w-2xl mt-2 mb-1">
                  <div className="flex justify-between items-end mb-2">
