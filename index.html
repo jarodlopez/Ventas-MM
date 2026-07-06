@@ -362,7 +362,6 @@
 
       const remainingToMeta = Math.max(0, meta - sold);
       const originalDailyGoal = businessData.totalBusinessDays > 0 ? meta / businessData.totalBusinessDays : 0;
-      const requiredDaily = businessData.remainingDays > 0 ? remainingToMeta / businessData.remainingDays : 0;
 
       // Metas derivadas del 100% quincenal: diaria (÷ días hábiles) y semanal (× 5 días hábiles).
       const metaDiaria = originalDailyGoal;
@@ -398,199 +397,160 @@
       const fillVisualWidth = Math.min((percent / maxVisualScale) * 100, 100);
 
       return (
-        <div className="bg-white border-b border-[#E5E5EA] p-3 flex flex-wrap gap-4 md:gap-6 items-center justify-between">
-          <div className="flex flex-wrap gap-4 md:gap-6 items-center flex-1 w-full lg:w-auto">
+        <div className="bg-white border-b border-[#E5E5EA] px-4 py-3 flex flex-col gap-3">
 
-             <div>
-                <p className="text-[10px] font-medium text-[#8E8E93] uppercase tracking-wide">Real Dispersado</p>
-                <p className="text-2xl font-semibold text-[#1C1C1E] leading-none tracking-tight">{money(sold)}</p>
-                {usd && <p className="text-[10px] text-[#34C759] font-semibold mt-1 tracking-wide">≈ {moneyUSD(sold * usd)} USD</p>}
-             </div>
-             <div className="hidden sm:block w-px h-10 bg-[#E5E5EA]"></div>
+          {/* ===== Fila 1: KPIs ===== */}
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-3 justify-between">
+            <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
 
-             <div>
-                <p className="text-[10px] font-medium text-[#8E8E93] uppercase tracking-wide flex items-center gap-1.5">
-                  Meta (100%)
-                  {meta > 0 && metaData.origen === 'categoria' && <span className="text-[8px] font-bold text-[#5856D6] bg-[#5856D6]/10 px-1.5 py-0.5 rounded-full normal-case">por categoría</span>}
-                  {meta > 0 && metaData.origen === 'global' && <span className="text-[8px] font-bold text-[#007AFF] bg-[#007AFF]/10 px-1.5 py-0.5 rounded-full normal-case">global</span>}
-                </p>
-                <p className="text-xl font-semibold text-[#3A3A3C] leading-none tracking-tight">{money(meta)}</p>
-                {usd && <p className="text-[10px] text-[#AEAEB2] font-medium mt-1 tracking-wide">≈ {moneyUSD(meta * usd)} USD</p>}
-             </div>
-             <div className="hidden md:block w-px h-10 bg-[#E5E5EA]"></div>
+              <div>
+                 <p className="text-[10px] font-medium text-[#8E8E93] uppercase tracking-wide">Real Dispersado</p>
+                 <p className="text-2xl font-black text-[#1C1C1E] leading-none tracking-tight">{money(sold)}</p>
+                 {usd && <p className="text-[10px] text-[#34C759] font-semibold mt-1 tracking-wide">≈ {moneyUSD(sold * usd)} USD</p>}
+              </div>
+              <div className="hidden sm:block w-px h-9 bg-[#E5E5EA]"></div>
 
-             {/* Metas derivadas: diaria y semanal (según 100% quincenal) */}
-             {meta > 0 && (
-             <div className="hidden xl:flex flex-col gap-2 min-w-[140px]">
-                <div>
-                   <div className="flex justify-between items-baseline gap-2">
-                      <span className="text-[9px] font-medium text-[#8E8E93] uppercase tracking-wide">Meta diaria</span>
-                      <span className="text-[12px] font-bold text-[#3A3A3C] leading-none">{money(metaDiaria)}</span>
-                   </div>
-                   <div className="w-full bg-[#E5E5EA] rounded-full h-1 mt-1"><div className={`h-1 rounded-full transition-all duration-700 ${pctHoy >= 100 ? 'bg-[#34C759]' : 'bg-[#007AFF]'}`} style={{ width: `${pctHoy}%` }}></div></div>
-                   <span className="text-[8px] text-[#AEAEB2] font-medium">hoy {money(soldHoy)} · {pctHoy.toFixed(0)}%</span>
-                </div>
-                <div>
-                   <div className="flex justify-between items-baseline gap-2">
-                      <span className="text-[9px] font-medium text-[#8E8E93] uppercase tracking-wide">Meta semanal</span>
-                      <span className="text-[12px] font-bold text-[#3A3A3C] leading-none">{money(metaSemanal)}</span>
-                   </div>
-                   <div className="w-full bg-[#E5E5EA] rounded-full h-1 mt-1"><div className={`h-1 rounded-full transition-all duration-700 ${pctSemana >= 100 ? 'bg-[#34C759]' : 'bg-[#007AFF]'}`} style={{ width: `${pctSemana}%` }}></div></div>
-                   <span className="text-[8px] text-[#AEAEB2] font-medium">semana {money(soldSemana)} · {pctSemana.toFixed(0)}%</span>
-                </div>
-             </div>
-             )}
-             <div className="hidden xl:block w-px h-10 bg-[#E5E5EA]"></div>
+              <div>
+                 <p className="text-[10px] font-medium text-[#8E8E93] uppercase tracking-wide flex items-center gap-1.5">
+                   Meta (100%)
+                   {meta > 0 && metaData.origen === 'categoria' && <span className="text-[8px] font-bold text-[#5856D6] bg-[#5856D6]/10 px-1.5 py-0.5 rounded-full normal-case">por categoría</span>}
+                   {meta > 0 && metaData.origen === 'global' && <span className="text-[8px] font-bold text-[#007AFF] bg-[#007AFF]/10 px-1.5 py-0.5 rounded-full normal-case">global</span>}
+                 </p>
+                 <p className="text-2xl font-black text-[#3A3A3C] leading-none tracking-tight">{money(meta)}</p>
+                 {usd && <p className="text-[10px] text-[#AEAEB2] font-medium mt-1 tracking-wide">≈ {moneyUSD(meta * usd)} USD</p>}
+              </div>
+              <div className="hidden sm:block w-px h-9 bg-[#E5E5EA]"></div>
 
-             <div className="flex-1 min-w-[280px] max-w-2xl mt-2 mb-1">
-                 <div className="flex justify-between items-end mb-2">
-                     <p className="text-[11px] font-semibold text-[#8E8E93] uppercase tracking-wide flex items-center gap-1.5">
-                         Progreso Total
-                         {/* ===== MUNDIAL 2026: grito de gol al llegar a la meta (eliminar al terminar) ===== */}
-                         {MUNDIAL.enabled && percent >= 100 && (
-                           <span className="mundial-gol text-[9px] font-bold text-[#ce1126] bg-[#ce1126]/10 px-1.5 py-0.5 rounded-full normal-case tracking-normal">{MUNDIAL.gol}</span>
-                         )}
-                         {/* ===== FIN MUNDIAL 2026 ===== */}
-                     </p>
-                     <p className={`text-3xl font-black leading-none tracking-tight transition-colors duration-500 ${percent >= 140 ? 'text-[#AF52DE]' : percent >= 120 ? 'text-[#5856D6]' : percent >= 100 ? 'text-[#34C759]' : percent >= 80 ? 'text-[#007AFF]' : 'text-[#FF9500]'}`}>{percent.toFixed(1)}%</p>
-                 </div>
-
-                 <div className="relative w-full bg-[#E5E5EA] rounded-full h-5 mb-12 mt-1 shadow-inner">
-                    <div
-                      className={`absolute top-0 left-0 h-full rounded-full overflow-hidden transition-all duration-1000 track-glow bg-gradient-to-r ${percent >= 140 ? 'from-[#9B3FD1] to-[#C77DFF]' : percent >= 120 ? 'from-[#4B49C9] to-[#7B79E8]' : percent >= 100 ? 'from-[#2DB14E] to-[#6EE7A0]' : percent >= 80 ? 'from-[#007AFF] to-[#4DA3FF]' : 'from-[#F08000] to-[#FFB84D]'}`}
-                      style={{ width: `${fillVisualWidth}%`, boxShadow: '0 2px 12px rgba(0,0,0,0.14)' }}
-                    >
-                      <div className="absolute inset-0 track-stripes"></div>
-                      <div className="absolute inset-0 track-shine"></div>
-                    </div>
-
-                    {[80, 100, 120, 140].map(mark => {
-                        const montoDeEstaMarca = meta * (mark / 100);
-                        const faltaParaEstaMarca = montoDeEstaMarca - sold;
-                        const bonoDeEstaMarca = COMISIONES['bono' + mark] || 0;
-                        const alcanzada = percent >= mark;
-                        const tooltipText = faltaParaEstaMarca > 0
-                            ? `Te faltan ${money(faltaParaEstaMarca)} para el ${mark}% → comisión ${moneyUSD(bonoDeEstaMarca)}`
-                            : `¡${mark}% alcanzado! Comisión ${moneyUSD(bonoDeEstaMarca)} liberada`;
-
-                        return (
-                            <div key={mark} className="absolute top-0 bottom-0 border-l-2 border-white/80 z-10 group cursor-help" style={{ left: `${(mark / maxVisualScale) * 100}%` }} title={tooltipText}>
-                                <span className={`absolute top-[27px] -translate-x-1/2 text-[10px] font-bold whitespace-nowrap transition-colors ${alcanzada ? 'text-[#3A3A3C]' : 'text-[#AEAEB2] group-hover:text-[#007AFF]'}`}>
-                                    {mark}%
-                                </span>
-                                <span className={`absolute top-[40px] -translate-x-1/2 text-[9px] font-bold whitespace-nowrap transition-colors ${alcanzada ? 'text-[#34C759] track-pop' : 'text-[#C7C7CC] group-hover:text-[#34C759]'}`}>
-                                    {moneyUSD(bonoDeEstaMarca)}
-                                </span>
-                            </div>
-                        )
-                    })}
-
-                    {/* ===== MUNDIAL 2026: pelota que avanza + portería (eliminar al terminar) ===== */}
-                    {MUNDIAL.enabled && (
-                      <>
-                        <div
-                          className="mundial-ball absolute top-1/2 z-20 pointer-events-none text-base leading-none"
-                          style={{ left: `${fillVisualWidth}%`, transition: 'left 1s ease' }}
-                          title={`Vas al ${percent.toFixed(1)}% — ¡mete gol de venta!`}
-                        >{MUNDIAL.ball}</div>
-                        <div className="absolute top-1/2 -translate-y-1/2 right-[-14px] z-20 pointer-events-none text-base leading-none" title="Meta máxima">
-                          <span className="mundial-bounce">{percent >= 140 ? MUNDIAL.trophy : MUNDIAL.goal}</span>
-                        </div>
-                        {percent >= 100 && (
-                          <div className="mundial-confetti absolute inset-0 overflow-visible pointer-events-none z-10">
-                            <span style={{ left: '20%', animationDelay: '0s' }}>🔴</span>
-                            <span style={{ left: '45%', animationDelay: '.3s' }}>⚪</span>
-                            <span style={{ left: '65%', animationDelay: '.6s' }}>🟢</span>
-                            <span style={{ left: '85%', animationDelay: '.9s' }}>🟡</span>
-                          </div>
-                        )}
-                      </>
-                    )}
-                    {/* ===== FIN MUNDIAL 2026 ===== */}
-                 </div>
-
-                 <div className="-mt-1">
-                     {nextPercent > 0 ? (
-                         <p className="text-[10px] text-[#8E8E93] font-medium">
-                             🎯 Faltan <span className="font-semibold text-[#3A3A3C]">{money(missingForNext)}</span> para el {nextPercent}% y liberar <span className="font-semibold text-[#34C759]">{moneyUSD(nextBonus)}</span>
-                         </p>
-                     ) : (
-                         <p className="text-[10px] text-[#AF52DE] font-semibold">
-                             🚀 ¡Tope máximo (140%) alcanzado! Comisión {moneyUSD(currentBonus)}
-                         </p>
-                     )}
-                 </div>
-             </div>
-             <div className="hidden lg:block w-px h-10 bg-[#E5E5EA]"></div>
-
-             <div className="hidden sm:block">
-                <p className="text-[10px] font-medium text-[#FF9500] uppercase tracking-wide flex items-center gap-1"><i className="fas fa-fire"></i> Caliente</p>
-                <p className="text-xl font-semibold text-[#1C1C1E] leading-none tracking-tight">{money(hotMoney)}</p>
-                {usd && <p className="text-[10px] text-[#FF9500] font-semibold mt-1 tracking-wide">≈ {moneyUSD(hotMoney * usd)} USD</p>}
-             </div>
-             <div className="hidden xl:block w-px h-10 bg-[#E5E5EA]"></div>
-
-             <div className="bg-[#34C759]/10 rounded-2xl px-3 py-1.5 flex items-center gap-2">
+              {/* Comisión liberada */}
+              <div className="bg-[#34C759]/10 rounded-2xl px-3 py-1.5 flex items-center gap-2">
                  <div className="bg-[#34C759]/15 w-8 h-8 rounded-full flex items-center justify-center"><i className="fas fa-sack-dollar text-[#34C759] text-sm"></i></div>
                  <div>
-                     <p className="text-[9px] font-medium text-[#2E9E4F] uppercase tracking-wide">Comisión Liberada</p>
-                     <p className="text-lg font-semibold text-[#34C759] leading-none tracking-tight">{moneyUSD(currentBonus)}</p>
+                     <p className="text-[9px] font-medium text-[#2E9E4F] uppercase tracking-wide">Comisión</p>
+                     <p className="text-lg font-bold text-[#34C759] leading-none tracking-tight">{moneyUSD(currentBonus)}</p>
                  </div>
                  {nextPercent > 0 ? (
-                   <div className="ml-1 hidden xl:flex flex-col border-l border-[#34C759]/20 pl-2 min-w-[96px]">
+                   <div className="ml-1 hidden md:flex flex-col border-l border-[#34C759]/20 pl-2 min-w-[92px]">
                        <p className="text-[9px] font-semibold text-[#34C759]/90 leading-none">Sig: {moneyUSD(nextBonus)} <span className="text-[#2E9E4F]">({nextBonusLvl})</span></p>
-                       <div className="mt-1.5 w-full bg-[#34C759]/15 rounded-full h-1">
-                           <div className="h-full rounded-full bg-[#34C759] transition-all duration-700" style={{ width: `${nextBonusProgress}%` }}></div>
-                       </div>
+                       <div className="mt-1.5 w-full bg-[#34C759]/15 rounded-full h-1"><div className="h-full rounded-full bg-[#34C759] transition-all duration-700" style={{ width: `${nextBonusProgress}%` }}></div></div>
                    </div>
                  ) : (
-                   <div className="text-[9px] font-semibold text-[#AF52DE] ml-1 hidden xl:block border-l border-[#34C759]/20 pl-2">MÁX 🚀</div>
+                   <div className="text-[9px] font-semibold text-[#AF52DE] ml-1 hidden md:block border-l border-[#34C759]/20 pl-2">MÁX 🚀</div>
                  )}
-             </div>
+              </div>
 
-             <div className="hidden xl:block w-px h-10 bg-[#E5E5EA]"></div>
+              {/* Metas diaria / semanal (según 100% quincenal) */}
+              {meta > 0 && (<>
+              <div className="hidden lg:block w-px h-9 bg-[#E5E5EA]"></div>
+              <div className="hidden lg:flex flex-col gap-2 min-w-[150px]">
+                 <div>
+                    <div className="flex justify-between items-baseline gap-2"><span className="text-[9px] font-medium text-[#8E8E93] uppercase tracking-wide">Meta diaria</span><span className="text-[12px] font-bold text-[#3A3A3C] leading-none">{money(metaDiaria)}</span></div>
+                    <div className="w-full bg-[#E5E5EA] rounded-full h-1 mt-1"><div className={`h-1 rounded-full transition-all duration-700 ${pctHoy >= 100 ? 'bg-[#34C759]' : 'bg-[#007AFF]'}`} style={{ width: `${pctHoy}%` }}></div></div>
+                    <span className="text-[8px] text-[#AEAEB2] font-medium">hoy {money(soldHoy)} · {pctHoy.toFixed(0)}%</span>
+                 </div>
+                 <div>
+                    <div className="flex justify-between items-baseline gap-2"><span className="text-[9px] font-medium text-[#8E8E93] uppercase tracking-wide">Meta semanal</span><span className="text-[12px] font-bold text-[#3A3A3C] leading-none">{money(metaSemanal)}</span></div>
+                    <div className="w-full bg-[#E5E5EA] rounded-full h-1 mt-1"><div className={`h-1 rounded-full transition-all duration-700 ${pctSemana >= 100 ? 'bg-[#34C759]' : 'bg-[#007AFF]'}`} style={{ width: `${pctSemana}%` }}></div></div>
+                    <span className="text-[8px] text-[#AEAEB2] font-medium">semana {money(soldSemana)} · {pctSemana.toFixed(0)}%</span>
+                 </div>
+              </div>
+              </>)}
 
-             <div className="hidden lg:block">
-                <p className="text-[10px] font-medium text-[#8E8E93] uppercase tracking-wide"><i className="far fa-clock mr-1"></i>Restante</p>
-                <p className="text-lg font-semibold text-[#3A3A3C] leading-none tracking-tight">{businessData.remainingDays} días</p>
-             </div>
+              {/* Caliente */}
+              <div className="hidden xl:block w-px h-9 bg-[#E5E5EA]"></div>
+              <div className="hidden xl:block">
+                 <p className="text-[10px] font-medium text-[#FF9500] uppercase tracking-wide flex items-center gap-1"><i className="fas fa-fire"></i> Caliente</p>
+                 <p className="text-lg font-bold text-[#1C1C1E] leading-none tracking-tight">{money(hotMoney)}</p>
+              </div>
 
-             <div className="hidden xl:block w-px h-10 bg-[#E5E5EA]"></div>
+              {/* Restante */}
+              <div className="hidden xl:block w-px h-9 bg-[#E5E5EA]"></div>
+              <div className="hidden xl:block">
+                 <p className="text-[10px] font-medium text-[#8E8E93] uppercase tracking-wide"><i className="far fa-clock mr-1"></i>Restante</p>
+                 <p className="text-lg font-bold text-[#3A3A3C] leading-none tracking-tight">{businessData.remainingDays} días</p>
+              </div>
+            </div>
 
-             <div className="hidden lg:flex flex-col min-w-[170px]">
-                <p className="text-[10px] font-medium text-[#8E8E93] uppercase tracking-wide flex items-center gap-1"><i className="fas fa-tachometer-alt"></i> Ritmo Diario</p>
-                {businessData.remainingDays > 0 && meta > 0 ? (
-                  <>
-                    <p className={`text-xl font-semibold leading-none mt-0.5 tracking-tight ${requiredDaily > originalDailyGoal * 1.2 ? 'text-[#FF3B30]' : requiredDaily > originalDailyGoal ? 'text-[#FF9500]' : 'text-[#34C759]'}`}>
-                      {money(requiredDaily)}
-                    </p>
-                    <p className="text-[10px] text-[#AEAEB2] font-medium">/ día hábil restante</p>
-                    <div className="mt-1.5 relative w-full bg-[#E5E5EA] rounded-full h-1.5">
-                      <div
-                        className={`h-full rounded-full transition-all duration-700 ${requiredDaily > originalDailyGoal * 1.2 ? 'bg-[#FF3B30]' : requiredDaily > originalDailyGoal ? 'bg-[#FF9500]' : 'bg-[#34C759]'}`}
-                        style={{ width: `${Math.min((requiredDaily / Math.max(originalDailyGoal, 1)) * 100, 100)}%` }}
-                      ></div>
-                    </div>
-                    <p className="text-[10px] text-[#AEAEB2] mt-1">Base plan: {money(originalDailyGoal)}</p>
-                  </>
-                ) : meta === 0 ? (
-                  <p className="text-sm font-medium text-[#AEAEB2] mt-1">Sin meta definida</p>
-                ) : (
-                  <p className="text-sm font-semibold text-[#34C759] mt-1">¡Quincena completada!</p>
-                )}
-             </div>
-
+            {/* Derecha: tipo de cambio + Ajustar Plan */}
+            <div className="flex flex-col items-end gap-1">
+              {usd && (
+                <span className="text-[9px] text-[#AEAEB2] font-medium whitespace-nowrap" title={`Tipo de cambio oficial. Actualizado ${new Date(usdRate.ts).toLocaleString('es-MX')}`}>
+                  <i className="fas fa-arrow-right-arrow-left mr-1 text-[#34C759]"></i>1 USD ≈ {money(1 / usd)}
+                </span>
+              )}
+              <button onClick={onOpenPlanning} className="bg-[#F2F2F7] text-[#1C1C1E] border border-[#E5E5EA] px-4 py-2 rounded-full text-xs font-semibold hover:bg-[#E5E5EA] active:scale-[0.98] transition-all whitespace-nowrap">
+                <i className="fas fa-sliders-h mr-2 text-[#8E8E93]"></i>Ajustar Plan
+              </button>
+            </div>
           </div>
 
-          <div className="flex flex-col items-end gap-1 mt-2 sm:mt-0">
-            {usd && (
-              <span className="text-[9px] text-[#AEAEB2] font-medium whitespace-nowrap" title={`Tipo de cambio oficial. Actualizado ${new Date(usdRate.ts).toLocaleString('es-MX')}`}>
-                <i className="fas fa-arrow-right-arrow-left mr-1 text-[#34C759]"></i>1 USD ≈ {money(1 / usd)}
-              </span>
-            )}
-            <button onClick={onOpenPlanning} className="bg-[#F2F2F7] text-[#1C1C1E] border border-[#E5E5EA] px-4 py-2 rounded-full text-xs font-semibold hover:bg-[#E5E5EA] active:scale-[0.98] transition-all whitespace-nowrap">
-              <i className="fas fa-sliders-h mr-2 text-[#8E8E93]"></i>Ajustar Plan
-            </button>
+          {/* ===== Fila 2: barra de progreso a todo el ancho ===== */}
+          <div className="w-full">
+             <div className="flex justify-between items-end mb-2">
+                 <p className="text-[11px] font-semibold text-[#8E8E93] uppercase tracking-wide flex items-center gap-1.5">
+                     Progreso Total
+                     {/* ===== MUNDIAL 2026: grito de gol al llegar a la meta (eliminar al terminar) ===== */}
+                     {MUNDIAL.enabled && percent >= 100 && (
+                       <span className="mundial-gol text-[9px] font-bold text-[#ce1126] bg-[#ce1126]/10 px-1.5 py-0.5 rounded-full normal-case tracking-normal">{MUNDIAL.gol}</span>
+                     )}
+                     {/* ===== FIN MUNDIAL 2026 ===== */}
+                 </p>
+                 <p className={`text-3xl font-black leading-none tracking-tight transition-colors duration-500 ${percent >= 140 ? 'text-[#AF52DE]' : percent >= 120 ? 'text-[#5856D6]' : percent >= 100 ? 'text-[#34C759]' : percent >= 80 ? 'text-[#007AFF]' : 'text-[#FF9500]'}`}>{percent.toFixed(1)}%</p>
+             </div>
+
+             <div className="relative w-full bg-[#E5E5EA] rounded-full h-5 mb-12 mt-1 shadow-inner">
+                <div
+                  className={`absolute top-0 left-0 h-full rounded-full overflow-hidden transition-all duration-1000 track-glow bg-gradient-to-r ${percent >= 140 ? 'from-[#9B3FD1] to-[#C77DFF]' : percent >= 120 ? 'from-[#4B49C9] to-[#7B79E8]' : percent >= 100 ? 'from-[#2DB14E] to-[#6EE7A0]' : percent >= 80 ? 'from-[#007AFF] to-[#4DA3FF]' : 'from-[#F08000] to-[#FFB84D]'}`}
+                  style={{ width: `${fillVisualWidth}%`, boxShadow: '0 2px 12px rgba(0,0,0,0.14)' }}
+                >
+                  <div className="absolute inset-0 track-stripes"></div>
+                  <div className="absolute inset-0 track-shine"></div>
+                </div>
+
+                {[80, 100, 120, 140].map(mark => {
+                    const montoDeEstaMarca = meta * (mark / 100);
+                    const faltaParaEstaMarca = montoDeEstaMarca - sold;
+                    const bonoDeEstaMarca = COMISIONES['bono' + mark] || 0;
+                    const alcanzada = percent >= mark;
+                    const tooltipText = faltaParaEstaMarca > 0
+                        ? `Te faltan ${money(faltaParaEstaMarca)} para el ${mark}% → comisión ${moneyUSD(bonoDeEstaMarca)}`
+                        : `¡${mark}% alcanzado! Comisión ${moneyUSD(bonoDeEstaMarca)} liberada`;
+                    return (
+                        <div key={mark} className="absolute top-0 bottom-0 border-l-2 border-white/80 z-10 group cursor-help" style={{ left: `${(mark / maxVisualScale) * 100}%` }} title={tooltipText}>
+                            <span className={`absolute top-[27px] -translate-x-1/2 text-[10px] font-bold whitespace-nowrap transition-colors ${alcanzada ? 'text-[#3A3A3C]' : 'text-[#AEAEB2] group-hover:text-[#007AFF]'}`}>{mark}%</span>
+                            <span className={`absolute top-[40px] -translate-x-1/2 text-[9px] font-bold whitespace-nowrap transition-colors ${alcanzada ? 'text-[#34C759] track-pop' : 'text-[#C7C7CC] group-hover:text-[#34C759]'}`}>{moneyUSD(bonoDeEstaMarca)}</span>
+                        </div>
+                    )
+                })}
+
+                {/* ===== MUNDIAL 2026: pelota que avanza + portería (eliminar al terminar) ===== */}
+                {MUNDIAL.enabled && (
+                  <>
+                    <div className="mundial-ball absolute top-1/2 z-20 pointer-events-none text-lg leading-none" style={{ left: `${fillVisualWidth}%`, transition: 'left 1s ease' }} title={`Vas al ${percent.toFixed(1)}% — ¡mete gol de venta!`}>{MUNDIAL.ball}</div>
+                    <div className="absolute top-1/2 -translate-y-1/2 right-[-16px] z-20 pointer-events-none text-lg leading-none" title="Meta máxima"><span className="mundial-bounce">{percent >= 140 ? MUNDIAL.trophy : MUNDIAL.goal}</span></div>
+                    {percent >= 100 && (
+                      <div className="mundial-confetti absolute inset-0 overflow-visible pointer-events-none z-10">
+                        <span style={{ left: '20%', animationDelay: '0s' }}>🔴</span>
+                        <span style={{ left: '45%', animationDelay: '.3s' }}>⚪</span>
+                        <span style={{ left: '65%', animationDelay: '.6s' }}>🟢</span>
+                        <span style={{ left: '85%', animationDelay: '.9s' }}>🟡</span>
+                      </div>
+                    )}
+                  </>
+                )}
+                {/* ===== FIN MUNDIAL 2026 ===== */}
+             </div>
+
+             <div className="-mt-1">
+                 {nextPercent > 0 ? (
+                     <p className="text-[11px] text-[#8E8E93] font-medium">
+                         🎯 Faltan <span className="font-semibold text-[#3A3A3C]">{money(missingForNext)}</span> para el {nextPercent}% y liberar <span className="font-semibold text-[#34C759]">{moneyUSD(nextBonus)}</span>
+                     </p>
+                 ) : (
+                     <p className="text-[11px] text-[#AF52DE] font-semibold">
+                         🚀 ¡Tope máximo (140%) alcanzado! Comisión {moneyUSD(currentBonus)}
+                     </p>
+                 )}
+             </div>
           </div>
         </div>
       );
