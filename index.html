@@ -63,6 +63,24 @@
     @keyframes mundialConfetti { 0% { transform: translateY(-8px) rotate(0deg); opacity: 0; } 15% { opacity: 1; } 100% { transform: translateY(18px) rotate(220deg); opacity: 0; } }
     .mundial-confetti span { position: absolute; top: 0; font-size: 10px; animation: mundialConfetti 1.5s ease-in infinite; }
     /* =================== FIN MUNDIAL 2026 =================== */
+
+    /* ===================== CELEBRACIÓN DISPERSADO — confeti a pantalla completa ===================== */
+    .celebra-overlay { position: fixed; inset: 0; z-index: 9999; pointer-events: none; overflow: hidden; }
+    .celebra-piece { position: absolute; top: -28px; will-change: transform, opacity; animation-name: celebraFall; animation-timing-function: cubic-bezier(.28,.62,.5,1); animation-fill-mode: forwards; }
+    @keyframes celebraFall {
+      0%   { transform: translate(0, -20px) rotate(0deg); opacity: 1; }
+      88%  { opacity: 1; }
+      100% { transform: translate(var(--drift), 104vh) rotate(var(--rot)); opacity: .9; }
+    }
+    .celebra-banner { position: absolute; top: 34%; left: 50%; transform: translate(-50%,-50%); text-align: center; animation: celebraPop .55s cubic-bezier(.2,1.5,.5,1) forwards, celebraFade .5s ease 2.7s forwards; }
+    @keyframes celebraPop { 0% { transform: translate(-50%,-50%) scale(.3); opacity: 0; } 60% { transform: translate(-50%,-50%) scale(1.1); opacity: 1; } 100% { transform: translate(-50%,-50%) scale(1); opacity: 1; } }
+    @keyframes celebraFade { to { opacity: 0; transform: translate(-50%,-58%) scale(.96); } }
+    .celebra-banner .emojis { font-size: 52px; line-height: 1; filter: drop-shadow(0 3px 6px rgba(0,0,0,.25)); animation: mundialBounce 1s ease-in-out infinite; }
+    .celebra-banner .titulo { font-size: 40px; font-weight: 900; letter-spacing: -.02em; color: #34C759; text-shadow: 0 2px 12px rgba(52,199,89,.35); margin-top: 6px; }
+    .celebra-banner .monto { font-size: 26px; font-weight: 800; color: #1C1C1E; margin-top: 2px; }
+    .celebra-banner .sub { font-size: 14px; font-weight: 700; color: #ce1126; text-transform: uppercase; letter-spacing: .06em; margin-top: 8px; }
+    .celebra-banner .box { background: rgba(255,255,255,.82); backdrop-filter: blur(4px); border-radius: 26px; padding: 20px 40px; box-shadow: 0 12px 40px rgba(0,0,0,.16); border: 2px solid rgba(52,199,89,.3); }
+    /* =================== FIN CELEBRACIÓN DISPERSADO =================== */
   </style>
 </head>
 <body class="bg-[#F2F2F7] text-[#1C1C1E] h-screen flex flex-col overflow-hidden">
@@ -167,6 +185,70 @@
       trophy: "🏆",
       goal: "🥅",
       gol: "¡GOOOL! 🎉",
+    };
+
+    /* =====================================================================
+       🎉 CELEBRACIÓN AL DISPERSAR — confeti a pantalla completa.
+       Se dispara cuando una venta pasa a "Dispersado".
+       Para apagarla: cambia CELEBRA_DISPERSADO a false.
+       ===================================================================== */
+    const CELEBRA_DISPERSADO = true;
+    const CELEBRA_DURACION_MS = 3400;
+
+    // Overlay de confeti a pantalla completa + banner de "¡DISPERSADO!".
+    const ConfettiDispersado = ({ monto }) => {
+      const piezas = React.useMemo(() => {
+        const colores = ['#34C759', '#007AFF', '#FF9500', '#FF3B30', '#5856D6', '#AF52DE', '#FFCC00', '#00C7BE', '#ce1126', '#006847'];
+        const emojis = ['🎉', '⚽', '🥅', '💵', '💰', '🔥', '⭐', '🏆'];
+        const arr = [];
+        for (let i = 0; i < 150; i++) {
+          const esEmoji = Math.random() < 0.16;
+          const size = 8 + Math.random() * 9;
+          arr.push({
+            left: Math.random() * 100,
+            delay: Math.random() * 0.7,
+            dur: 2.6 + Math.random() * 2.0,
+            drift: (Math.random() * 2 - 1) * 180,
+            rot: Math.random() * 900 - 450,
+            size,
+            color: colores[Math.floor(Math.random() * colores.length)],
+            emoji: esEmoji ? emojis[Math.floor(Math.random() * emojis.length)] : null,
+            redondo: Math.random() < 0.5,
+          });
+        }
+        return arr;
+      }, []);
+
+      return (
+        <div className="celebra-overlay">
+          <div className="celebra-banner">
+            <div className="box">
+              <div className="emojis">⚽ 🎉 🥅</div>
+              <p className="titulo">¡DISPERSADO!</p>
+              {monto > 0 && <p className="monto">{money(monto)}</p>}
+              <p className="sub">¡GOOOL de venta! 🔥</p>
+            </div>
+          </div>
+          {piezas.map((p, i) => (
+            <span
+              key={i}
+              className="celebra-piece"
+              style={{
+                left: `${p.left}%`,
+                width: p.emoji ? undefined : `${p.size}px`,
+                height: p.emoji ? undefined : `${p.size * 1.5}px`,
+                background: p.emoji ? undefined : p.color,
+                borderRadius: p.redondo ? '50%' : '2px',
+                fontSize: p.emoji ? `${p.size + 12}px` : undefined,
+                animationDuration: `${p.dur}s`,
+                animationDelay: `${p.delay}s`,
+                '--drift': `${p.drift}px`,
+                '--rot': `${p.rot}deg`,
+              }}
+            >{p.emoji || ''}</span>
+          ))}
+        </div>
+      );
     };
 
     const formatDate = (input) => new Intl.DateTimeFormat('es-MX', { day: '2-digit', month: 'short', hour:'2-digit', minute:'2-digit' }).format(parseDate(input));
@@ -773,9 +855,26 @@
       
       const [editSaleData, setEditSaleData] = useState(null);
 
+      // Celebración de confeti al pasar una venta a "Dispersado".
+      const [celebracion, setCelebracion] = useState(null); // { id, monto } | null
+      const prevEstatusRef = useRef(null);                  // { [saleId]: estatus } del snapshot anterior
+      const celebraTimerRef = useRef(null);
+      const celebraSeqRef = useRef(0);
+
       const usdRate = useTipoCambioUSD();
       const periodOnly = `${currentDate.getFullYear()}-${currentDate.getMonth()}-${currentQuincena}`;
       const periodKey = `${user.uid}_${periodOnly}`;
+
+      const dispararCelebracion = (monto) => {
+        if (!CELEBRA_DISPERSADO) return;
+        const id = ++celebraSeqRef.current;
+        setCelebracion({ id, monto: Number(monto) || 0 });
+        if (celebraTimerRef.current) clearTimeout(celebraTimerRef.current);
+        celebraTimerRef.current = setTimeout(() => {
+          setCelebracion(prev => (prev && prev.id === id ? null : prev));
+        }, CELEBRA_DURACION_MS);
+      };
+      useEffect(() => () => { if (celebraTimerRef.current) clearTimeout(celebraTimerRef.current); }, []);
 
       useEffect(() => {
         const unsub = db.collection('sales')
@@ -783,6 +882,15 @@
           .onSnapshot(snap => {
              const docs = snap.docs.map(d => ({id: d.id, ...d.data()}));
              docs.sort((a, b) => parseDate(b.fecha).getTime() - parseDate(a.fecha).getTime());
+
+             // Detecta transiciones a "Dispersado" (no en la carga inicial) para el confeti.
+             const prev = prevEstatusRef.current;
+             if (prev) {
+               const recienDispersada = docs.find(d => d.estatus === 'Dispersado' && prev[d.id] && prev[d.id] !== 'Dispersado');
+               if (recienDispersada) dispararCelebracion(recienDispersada.monto_dispersado);
+             }
+             prevEstatusRef.current = Object.fromEntries(docs.map(d => [d.id, d.estatus]));
+
              setAllSales(docs);
           });
         return () => unsub();
@@ -1088,6 +1196,9 @@
 
       return (
         <div className="flex flex-col h-full bg-[#F2F2F7] relative">
+          {/* ===== CELEBRACIÓN: confeti a pantalla completa al dispersar ===== */}
+          {celebracion && <ConfettiDispersado key={celebracion.id} monto={celebracion.monto} />}
+          {/* ===== FIN CELEBRACIÓN ===== */}
           {/* ===== MUNDIAL 2026: franja tricolor animada (eliminar al terminar) ===== */}
           {MUNDIAL.enabled && <div className="mundial-banner h-1 w-full shrink-0"></div>}
           {/* ===== FIN MUNDIAL 2026 ===== */}
