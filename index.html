@@ -108,7 +108,7 @@
     const db = firebase.firestore();
     const auth = firebase.auth();
 
-    const PIPELINE_STATUSES = ["Con oferta", "Acepta oferta", "Long track", "Dispersado", "Rechazado", "Cancelado", "Expirado"];
+    const PIPELINE_STATUSES = ["Con oferta", "Acepta oferta", "Long track", "Firma de documentos", "Dispersado", "Rechazado", "Cancelado", "Expirado"];
     
     const LOST_REASONS = [
       "No contesta / Inlocalizable",
@@ -739,6 +739,7 @@
       const getBorderColor = () => {
         if(sale.estatus === 'Dispersado') return 'bg-[#34C759]';
         if(sale.estatus === 'Rechazado' || sale.estatus === 'Cancelado' || sale.estatus === 'Expirado') return 'bg-[#FF3B30]';
+        if(sale.estatus === 'Firma de documentos') return 'bg-[#5856D6]';
         return 'bg-[#007AFF]';
       }
 
@@ -928,6 +929,10 @@
       const [lostReason, setLostReason] = useState(LOST_REASONS[0]);
       
       const [editSaleData, setEditSaleData] = useState(null);
+
+      // Columna "Firma de documentos": colapsable (se recuerda en localStorage).
+      const [firmaColapsada, setFirmaColapsada] = useState(() => { try { return localStorage.getItem('pipe_firma_colapsada') === '1'; } catch (e) { return false; } });
+      const toggleFirma = () => setFirmaColapsada(v => { const nv = !v; try { localStorage.setItem('pipe_firma_colapsada', nv ? '1' : '0'); } catch (e) {} return nv; });
 
       // Celebración de confeti al pasar una venta a "Dispersado".
       const [celebracion, setCelebracion] = useState(null); // { id, monto } | null
@@ -1365,20 +1370,47 @@
              {PIPELINE_STATUSES.map(status => {
                const statusSales = filteredSales.filter(s => s.estatus === status);
                const statusTotal = statusSales.reduce((acc, s) => acc + (Number(status === 'Dispersado' ? s.monto_dispersado : s.monto_preaprobado) || 0), 0);
+               const esFirma = status === 'Firma de documentos';
+
+               // Etapa "Firma de documentos" colapsada: tira vertical angosta (se sigue pudiendo soltar tarjetas encima).
+               if (esFirma && firmaColapsada) {
+                 return (
+                   <div
+                     key={status}
+                     onDragOver={handleDragOver}
+                     onDragLeave={handleDragLeave}
+                     onDrop={(e) => handleDrop(e, status)}
+                     onClick={toggleFirma}
+                     title="Expandir “Firma de documentos”"
+                     className="min-w-[54px] w-[54px] flex flex-col items-center h-full bg-[#5856D6]/[0.06] hover:bg-[#5856D6]/[0.12] rounded-2xl pipeline-col transition-colors duration-200 cursor-pointer py-3 gap-3"
+                   >
+                     <button className="w-8 h-8 rounded-full bg-white text-[#5856D6] shadow-[0_1px_2px_rgba(0,0,0,0.08)] flex items-center justify-center shrink-0" title="Expandir"><i className="fas fa-chevron-right text-xs"></i></button>
+                     <span className="bg-white text-[#5856D6] w-7 h-7 flex items-center justify-center rounded-full text-xs font-bold shadow-[0_1px_2px_rgba(0,0,0,0.06)] shrink-0">{statusSales.length}</span>
+                     <span className="font-semibold text-[#5856D6] text-sm tracking-tight [writing-mode:vertical-rl] rotate-180 mt-1">Firma de documentos</span>
+                     <i className="fas fa-file-signature text-[#5856D6]/70 mt-auto"></i>
+                   </div>
+                 );
+               }
+
                return (
                <div
                  key={status}
                  onDragOver={handleDragOver}
                  onDragLeave={handleDragLeave}
                  onDrop={(e) => handleDrop(e, status)}
-                 className="min-w-[290px] w-[290px] flex flex-col h-full bg-black/[0.03] rounded-2xl pipeline-col transition-colors duration-200"
+                 className={`min-w-[290px] w-[290px] flex flex-col h-full rounded-2xl pipeline-col transition-colors duration-200 ${esFirma ? 'bg-[#5856D6]/[0.06]' : 'bg-black/[0.03]'}`}
                >
                  <div className="px-4 py-3 flex justify-between items-start gap-2">
                    <div className="flex flex-col min-w-0">
-                     <span className="font-semibold text-[#3A3A3C] text-sm leading-tight truncate">{status}</span>
+                     <span className="font-semibold text-[#3A3A3C] text-sm leading-tight truncate flex items-center gap-1.5">{esFirma && <i className="fas fa-file-signature text-[#5856D6] text-xs"></i>}{status}</span>
                      <span className="text-[11px] text-[#8E8E93] font-medium mt-0.5">{money(statusTotal)}</span>
                    </div>
-                   <span className="bg-white text-[#8E8E93] px-2 py-0.5 rounded-full text-xs font-medium shadow-[0_1px_2px_rgba(0,0,0,0.06)] shrink-0">{statusSales.length}</span>
+                   <div className="flex items-center gap-1.5 shrink-0">
+                     <span className="bg-white text-[#8E8E93] px-2 py-0.5 rounded-full text-xs font-medium shadow-[0_1px_2px_rgba(0,0,0,0.06)]">{statusSales.length}</span>
+                     {esFirma && (
+                       <button onClick={toggleFirma} title="Colapsar “Firma de documentos”" className="w-6 h-6 flex items-center justify-center rounded-full text-[#5856D6] hover:bg-[#5856D6]/10 transition-colors"><i className="fas fa-chevron-left text-xs"></i></button>
+                     )}
+                   </div>
                  </div>
                  <div className="flex-1 overflow-y-auto px-2 pb-20">
                    {statusSales.map(sale => (
