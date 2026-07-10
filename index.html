@@ -86,6 +86,16 @@
     .celebra-banner .sub { font-size: 14px; font-weight: 700; color: #ce1126; text-transform: uppercase; letter-spacing: .06em; margin-top: 8px; }
     .celebra-banner .box { background: rgba(255,255,255,.82); backdrop-filter: blur(4px); border-radius: 26px; padding: 20px 40px; box-shadow: 0 12px 40px rgba(0,0,0,.16); border: 2px solid rgba(52,199,89,.3); }
     /* =================== FIN CELEBRACIÓN DISPERSADO =================== */
+
+    /* Palpito (latido) para tarjetas pendientes/urgentes */
+    @keyframes latidoScale { 0%,100% { transform: scale(1); } 8% { transform: scale(1.03); } 16% { transform: scale(1); } 24% { transform: scale(1.02); } 32% { transform: scale(1); } }
+    @keyframes latidoGlow {
+      0%   { box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 0 0 0 var(--latido, rgba(255,149,0,0.5)); }
+      70%  { box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 0 0 9px transparent; }
+      100% { box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 0 0 0 transparent; }
+    }
+    .card-latido { animation: latidoScale 1.6s ease-in-out infinite, latidoGlow 1.6s ease-out infinite; }
+    @media (prefers-reduced-motion: reduce) { .card-latido { animation: latidoGlow 1.6s ease-out infinite; } }
   </style>
 </head>
 <body class="bg-[#F2F2F7] text-[#1C1C1E] h-screen flex flex-col overflow-hidden">
@@ -753,12 +763,27 @@
       
       const isStale = ['Con oferta', 'Acepta oferta'].includes(sale.estatus) && daysStale >= 3;
 
+      // Palpito (latido) para leads pendientes: Long track con ≥2 h en la etapa, y todos los de Firma de documentos.
+      const entradaEstatusMs = (() => {
+        if (sale.history && sale.history.length) {
+          for (let i = sale.history.length - 1; i >= 0; i--) {
+            const h = sale.history[i];
+            if (h && typeof h.action === 'string' && h.action.includes(sale.estatus)) return new Date(h.date).getTime();
+          }
+        }
+        return parseDate(sale.fecha).getTime();
+      })();
+      const horasEnEstatus = (Date.now() - entradaEstatusMs) / 3600000;
+      const palpita = sale.estatus === 'Firma de documentos' || (sale.estatus === 'Long track' && horasEnEstatus >= 2);
+      const latidoColor = sale.estatus === 'Firma de documentos' ? 'rgba(88,86,214,0.5)' : 'rgba(255,149,0,0.55)';
+
       return (
         <div
           draggable={isDraggable}
           onDragStart={handleDragStart}
           onDragEnd={handleDragEnd}
-          className={`ios-card bg-white p-3 rounded-2xl shadow-[0_1px_3px_rgba(0,0,0,0.06)] border border-[#ECECEE] mb-2.5 relative group hover:shadow-[0_6px_20px_rgba(0,0,0,0.08)] ${isDraggable ? 'cursor-grab' : ''}`}
+          style={palpita ? { '--latido': latidoColor } : undefined}
+          className={`ios-card bg-white p-3 rounded-2xl shadow-[0_1px_3px_rgba(0,0,0,0.06)] border border-[#ECECEE] mb-2.5 relative group hover:shadow-[0_6px_20px_rgba(0,0,0,0.08)] ${isDraggable ? 'cursor-grab' : ''} ${palpita ? 'card-latido' : ''}`}
         >
           <div className={`absolute left-0 top-2 bottom-2 w-1 rounded-full ${getBorderColor()}`}></div>
           <div className="pl-2.5">
@@ -933,6 +958,10 @@
       // Columna "Firma de documentos": colapsable (se recuerda en localStorage).
       const [firmaColapsada, setFirmaColapsada] = useState(() => { try { return localStorage.getItem('pipe_firma_colapsada') === '1'; } catch (e) { return false; } });
       const toggleFirma = () => setFirmaColapsada(v => { const nv = !v; try { localStorage.setItem('pipe_firma_colapsada', nv ? '1' : '0'); } catch (e) {} return nv; });
+
+      // Tick de 60 s para refrescar efectos que dependen del tiempo (p. ej. el palpito de leads pendientes).
+      const [, setNowTick] = useState(0);
+      useEffect(() => { const id = setInterval(() => setNowTick(t => t + 1), 60000); return () => clearInterval(id); }, []);
 
       // Celebración de confeti al pasar una venta a "Dispersado".
       const [celebracion, setCelebracion] = useState(null); // { id, monto } | null
