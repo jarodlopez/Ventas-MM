@@ -477,14 +477,14 @@
                                 <tr>
                                     <th style="width:34%;">Plazo</th>
                                     <th style="width:33%; text-align:right;">Mensualidad</th>
-                                    <th style="width:33%; text-align:right;">Total a pagar</th>
+                                    <th style="width:33%; text-align:right;">Ahorro</th>
                                 </tr>
                             </thead>
                             <tbody id="tabla-mens-body"></tbody>
                         </table>
 
                         <div class="footer-pdf">
-                            <p><strong>IMPORTANTE:</strong> Las mensualidades son una <strong>proyección informativa</strong> calculada con la tasa indicada (incluye IVA sobre intereses); pueden variar según la fecha de desembolso y el redondeo del sistema. El monto a financiar incluye la comisión por apertura más IVA cuando aplica.</p>
+                            <p><strong>IMPORTANTE:</strong> Las mensualidades son una <strong>proyección informativa</strong> calculada con la tasa indicada (incluye IVA sobre intereses); pueden variar según la fecha de desembolso y el redondeo del sistema. El monto a financiar incluye la comisión por apertura más IVA cuando aplica. El <strong>ahorro</strong> indica cuánto menos pagas en total al elegir un plazo más corto, comparado con el plazo más largo mostrado.</p>
                             <p style="margin-top: 10px; color: #00B100; font-weight: bold;">MultiMoney México - 55 92 25 57 65</p>
                         </div>
                     </div>
@@ -789,12 +789,21 @@
             if (!plazos.length) {
                 html = `<tr><td colspan="3" style="text-align:center; color:#9ca3af; padding:24px;">Selecciona al menos un plazo</td></tr>`;
             } else {
-                plazos.forEach(n => {
+                // El ahorro se mide contra el plazo más largo mostrado (el de mayor costo total).
+                const totales = plazos.map(n => cuota(n) * n);
+                const totalMax = Math.max(...totales);
+                plazos.forEach((n, idx) => {
                     const c = cuota(n);
+                    const total = totales[idx];
+                    const esBase = total >= totalMax; // el plazo más largo = referencia
+                    const ahorroPct = totalMax > 0 ? (totalMax - total) / totalMax * 100 : 0;
+                    const celdaAhorro = esBase
+                        ? `<td style="text-align:right; color:#9ca3af; font-weight:600;">Referencia</td>`
+                        : `<td style="text-align:right;"><span style="color:#00B100; font-weight:800; font-size:15px;">${ahorroPct.toFixed(1)}%</span><br><span style="font-size:10px; color:#6b7280;">menos que a ${plazos[plazos.length - 1]} meses</span></td>`;
                     html += `<tr>
                         <td class="plazo">${n} meses</td>
                         <td class="cuota">${fmt.format(c)}</td>
-                        <td style="text-align:right;">${fmt.format(c * n)}</td>
+                        ${celdaAhorro}
                     </tr>`;
                 });
             }
