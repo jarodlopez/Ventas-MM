@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Generador de Oferta</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCI+PHJlY3Qgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0IiByeD0iMTQiIGZpbGw9IiMwMEIxMDAiLz48ZyBmaWxsPSIjZmZmZmZmIj48cGF0aCBkPSJNMzIgMTAgTDU1IDIzIEg5IFoiLz48cmVjdCB4PSI5IiB5PSIyNSIgd2lkdGg9IjQ2IiBoZWlnaHQ9IjQiLz48cmVjdCB4PSIxNCIgeT0iMzEiIHdpZHRoPSI1IiBoZWlnaHQ9IjE3Ii8+PHJlY3QgeD0iMjQuNSIgeT0iMzEiIHdpZHRoPSI1IiBoZWlnaHQ9IjE3Ii8+PHJlY3QgeD0iMzQuNSIgeT0iMzEiIHdpZHRoPSI1IiBoZWlnaHQ9IjE3Ii8+PHJlY3QgeD0iNDUiIHk9IjMxIiB3aWR0aD0iNSIgaGVpZ2h0PSIxNyIvPjxyZWN0IHg9IjkiIHk9IjUwIiB3aWR0aD0iNDYiIGhlaWdodD0iNSIgcng9IjEuNSIvPjwvZz48L3N2Zz4K">
+    <link rel="apple-touch-icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCI+PHJlY3Qgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0IiByeD0iMTQiIGZpbGw9IiMwMEIxMDAiLz48ZyBmaWxsPSIjZmZmZmZmIj48cGF0aCBkPSJNMzIgMTAgTDU1IDIzIEg5IFoiLz48cmVjdCB4PSI5IiB5PSIyNSIgd2lkdGg9IjQ2IiBoZWlnaHQ9IjQiLz48cmVjdCB4PSIxNCIgeT0iMzEiIHdpZHRoPSI1IiBoZWlnaHQ9IjE3Ii8+PHJlY3QgeD0iMjQuNSIgeT0iMzEiIHdpZHRoPSI1IiBoZWlnaHQ9IjE3Ii8+PHJlY3QgeD0iMzQuNSIgeT0iMzEiIHdpZHRoPSI1IiBoZWlnaHQ9IjE3Ii8+PHJlY3QgeD0iNDUiIHk9IjMxIiB3aWR0aD0iNSIgaGVpZ2h0PSIxNyIvPjxyZWN0IHg9IjkiIHk9IjUwIiB3aWR0aD0iNDYiIGhlaWdodD0iNSIgcng9IjEuNSIvPjwvZz48L3N2Zz4K">
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -56,7 +58,7 @@
             overflow: hidden;
         }
 
-        /* --- ESTILOS PDF TABLA (Pestaña 2) --- */
+        /* --- ESTILOS DEL DOCUMENTO / PREVIEW --- */
         .preview-container {
             background-color: #1e293b;
             padding: 40px;
@@ -65,7 +67,7 @@
         }
         /* Preview con fondo blanco (para capturar directamente desde pantalla) */
         .preview-container.preview-blanca { background-color: #ffffff; }
-        #pdf-content-pagos, #pdf-content-mensualidades {
+        #pdf-content-mensualidades {
             box-sizing: border-box;
             width: 210mm;
             padding: 15mm;
@@ -121,11 +123,8 @@
         <button onclick="switchTab('oferta')" id="btn-oferta" class="tab-btn active flex-1 py-4 text-sm font-bold uppercase tracking-wider text-slate-400 hover:text-white transition-all">
             1. Generador de Oferta
         </button>
-        <button onclick="switchTab('pagos')" id="btn-pagos" class="tab-btn flex-1 py-4 text-sm font-bold uppercase tracking-wider text-slate-400 hover:text-white transition-all">
-            2. Proyección de Pagos
-        </button>
         <button onclick="switchTab('mensualidades')" id="btn-mensualidades" class="tab-btn flex-1 py-4 text-sm font-bold uppercase tracking-wider text-slate-400 hover:text-white transition-all">
-            3. Pagos a Mensualidades
+            2. Pagos a Mensualidades
         </button>
     </div>
 
@@ -316,125 +315,6 @@
                                 </div>
                                 <p class="text-[8px] text-slate-300 leading-relaxed text-center">Comisión por desembolso <span id="out-comision">N/D</span>% · Ciclo de pago <span id="out-ciclo">N/D</span> · Primer pago <span id="out-fecha">N/D</span> · CAT informativo, sujeto a aprobación final · MultiMoney México</p>
                             </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div id="tab-pagos" class="tab-content max-w-[1400px] mx-auto">
-        <div class="grid grid-cols-1 xl:grid-cols-12 gap-8">
-            <div class="xl:col-span-4 bg-slate-900 p-8 rounded-2xl border border-slate-800 h-fit sticky top-8 text-slate-200">
-                <h3 class="text-xl font-bold text-white mb-6 flex items-center gap-2">
-                    <span class="w-2 h-6 bg-mmgreen rounded-full"></span> Parámetros del Crédito
-                </h3>
-                <div class="space-y-4">
-                    <div>
-                        <label class="block text-xs font-bold text-slate-400 uppercase mb-1">Cliente</label>
-                        <input type="text" id="in-cliente-pagos" value="ADRIAN LOPEZ FLORES" class="w-full p-3 bg-slate-950 border border-slate-700 text-white rounded-lg outline-none focus:border-mmgreen">
-                    </div>
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-xs font-bold text-slate-400 uppercase mb-1">Monto Solicitado ($)</label>
-                            <input type="number" id="in-monto-pagos" value="300000" class="w-full p-3 bg-slate-950 border border-slate-700 text-white rounded-lg outline-none">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-bold text-mmgreen uppercase mb-1">Cuota Contrato ($)</label>
-                            <input type="number" id="in-mensualidad-pagos" value="13033" class="w-full p-3 bg-slate-950 border border-mmgreen text-white rounded-lg outline-none">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-bold text-slate-400 uppercase mb-1">Plazo (Meses)</label>
-                            <input type="number" id="in-plazo-pagos" value="60" class="w-full p-3 bg-slate-950 border border-slate-700 text-white rounded-lg outline-none">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-bold text-slate-400 uppercase mb-1">Tasa Mensual %</label>
-                            <input type="number" id="in-tasa-pagos" value="3.25" step="0.01" class="w-full p-3 bg-slate-950 border border-slate-700 text-white rounded-lg outline-none">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-bold text-slate-400 uppercase mb-1">Comisión %</label>
-                            <input type="number" id="in-comision-perc-pagos" value="1.0" step="0.1" class="w-full p-3 bg-slate-950 border border-slate-700 text-white rounded-lg outline-none focus:border-mmgreen">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-bold text-mmgreen uppercase mb-1">Ciclo de Pago</label>
-                            <select id="in-ciclo-pagos" class="w-full p-3 bg-slate-950 border border-mmgreen text-white rounded-lg outline-none">
-                                <option value="01">01</option>
-                                <option value="07">07</option>
-                                <option value="15">15</option>
-                                <option value="23">23</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-xs font-bold text-slate-400 uppercase mb-1">Fecha Desembolso</label>
-                            <input type="date" id="in-fecha-desembolso" value="2026-03-27" class="w-full p-3 bg-slate-950 border border-slate-700 text-white rounded-lg outline-none">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-bold text-slate-400 uppercase mb-1">Primer Pago</label>
-                            <input type="date" id="in-fecha-pagos" value="2026-05-01" class="w-full p-3 bg-slate-950 border border-slate-700 text-white rounded-lg outline-none">
-                        </div>
-                    </div>
-                    <button onclick="generarTablaPagos()" class="w-full bg-mmgreen hover:bg-green-600 text-white font-black py-4 rounded-xl mt-4 shadow-lg transition-transform active:scale-95">RECALCULAR TABLA</button>
-                    <button onclick="descargarPDFPagos()" class="w-full bg-white hover:bg-slate-200 text-slate-900 font-bold py-3 rounded-xl flex items-center justify-center gap-2"><span>Descargar PDF</span></button>
-                </div>
-            </div>
-
-            <div class="xl:col-span-8">
-                <div class="preview-container shadow-2xl">
-                    <div id="pdf-content-pagos">
-                        <div class="pdf-header">
-                            <table>
-                                <tr>
-                                    <td><img src="https://raw.githubusercontent.com/jarodlopez/Ventas-MM/refs/heads/main/MM-Logo-N.png" style="height: 40px;" crossorigin="anonymous"></td>
-                                    <td style="text-align: right;">
-                                        <h1 style="margin: 0; font-size: 20px; color: #111827;">Proyección de Pagos</h1>
-                                        <p style="margin: 0; font-size: 10px; color: #6b7280;">Documento Informativo de Crédito</p>
-                                    </td>
-                                </tr>
-                            </table>
-                        </div>
-                        <div class="info-grid">
-                            <table>
-                                <tr>
-                                    <td class="label-pdf">Cliente:</td>
-                                    <td class="value-pdf" id="out-cliente-pagos">---</td>
-                                    <td style="width: 10%;"></td>
-                                    <td class="label-pdf">Ciclo / Desembolso:</td>
-                                    <td class="value-pdf"><span id="out-ciclo-info">---</span> / <span id="out-f-desembolso">---</span></td>
-                                </tr>
-                                <tr>
-                                    <td class="label-pdf">Monto Total Financiado:</td>
-                                    <td class="value-pdf" id="out-monto-tot" style="color: #00B100; font-size: 14px;">---</td>
-                                    <td></td>
-                                    <td class="label-pdf">Mensualidad Fija:</td>
-                                    <td class="value-pdf" id="out-mensualidad-pagos" style="font-size: 14px;">---</td>
-                                </tr>
-                                <tr>
-                                    <td class="label-pdf">Plazo del Crédito:</td>
-                                    <td class="value-pdf"><span id="out-plazo-pagos">---</span> Meses</td>
-                                    <td></td>
-                                    <td class="label-pdf">Primer Pago:</td>
-                                    <td class="value-pdf" id="out-fecha-prox">---</td>
-                                </tr>
-                            </table>
-                        </div>
-                        <table class="tabla-amortizacion">
-                            <thead>
-                                <tr>
-                                    <th style="width: 8%; text-align: center;">No.</th>
-                                    <th style="width: 12%; text-align: center;">Fecha</th>
-                                    <th style="width: 15%; text-align: right;">Mensualidad</th>
-                                    <th style="width: 16%; text-align: right;">S. Inicial</th>
-                                    <th style="width: 13%; text-align: right;">Interés</th>
-                                    <th style="width: 10%; text-align: right;">IVA</th>
-                                    <th style="width: 13%; text-align: right;">Capital</th>
-                                    <th style="width: 13%; text-align: right;">S. Final</th>
-                                </tr>
-                            </thead>
-                            <tbody id="tabla-body"></tbody>
-                        </table>
-                        <div class="footer-pdf">
-                            <p><strong>IMPORTANTE:</strong> Esta tabla es una proyección basada en días reales para el primer periodo y meses comerciales para el resto. Los montos incluyen la capitalización de comisión por apertura + IVA.</p>
-                            <p style="margin-top: 10px; color: #00B100; font-weight: bold;">MultiMoney México - 55 92 25 57 65</p>
                         </div>
                     </div>
                 </div>
@@ -728,91 +608,10 @@
             });
         }
 
-        // --- SCRIPTS PESTAÑA 2 (LÓGICA DE DÍAS REALES) ---
+        // Formato de moneda MXN.
         const fmt = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' });
 
-        function generarTablaPagos() {
-            const cliente = document.getElementById('in-cliente-pagos').value;
-            const montoPrincipal = parseFloat(document.getElementById('in-monto-pagos').value);
-            const plazo = parseInt(document.getElementById('in-plazo-pagos').value);
-            const tasaMensualNominal = parseFloat(document.getElementById('in-tasa-pagos').value) / 100;
-            const cuotaContrato = parseFloat(document.getElementById('in-mensualidad-pagos').value);
-            const percComision = parseFloat(document.getElementById('in-comision-perc-pagos').value) / 100;
-            
-            // Fechas
-            const fechaDesembolso = new Date(document.getElementById('in-fecha-desembolso').value + 'T12:00:00');
-            const fechaPrimerPago = new Date(document.getElementById('in-fecha-pagos').value + 'T12:00:00');
-            const ciclo = document.getElementById('in-ciclo-pagos').value;
-
-            // Saldo Inicial Real
-            const comision = montoPrincipal * percComision;
-            const ivaComision = comision * 0.16;
-            const saldoInicialReal = montoPrincipal + comision + ivaComision;
-
-            // Tasa Ajustada (Anual / 365 para cálculos diarios)
-            const tasaAnualAjustada = (tasaMensualNominal * 12) * (365/360);
-            const tasaMensualAjustada = tasaAnualAjustada / 12;
-
-            document.getElementById('out-cliente-pagos').innerText = cliente;
-            document.getElementById('out-ciclo-info').innerText = ciclo;
-            document.getElementById('out-f-desembolso').innerText = fechaDesembolso.toLocaleDateString('es-MX');
-            document.getElementById('out-monto-tot').innerText = fmt.format(saldoInicialReal);
-            document.getElementById('out-mensualidad-pagos').innerText = fmt.format(cuotaContrato);
-            document.getElementById('out-plazo-pagos').innerText = plazo;
-            document.getElementById('out-fecha-prox').innerText = fechaPrimerPago.toLocaleDateString('es-MX');
-
-            let html = '', saldo = saldoInicialReal;
-
-            for (let i = 1; i <= plazo; i++) {
-                let interes, iva, sInicial = saldo;
-                
-                // --- LÓGICA DE DÍAS REALES SOLO PARA EL MES 1 ---
-                if (i === 1) {
-                    const diffTime = Math.abs(fechaPrimerPago - fechaDesembolso);
-                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                    // Interés = Saldo * (Tasa Anual Ajustada / 365) * Días
-                    interes = saldo * (tasaAnualAjustada / 365) * diffDays;
-                } else {
-                    // Meses 2 al 60 usan interés mensual estándar
-                    interes = saldo * tasaMensualAjustada;
-                }
-
-                iva = interes * 0.16;
-                let capital = cuotaContrato - interes - iva;
-                let cuotaAMostrar = cuotaContrato;
-
-                // Ajuste de última cuota
-                if (i === plazo || (saldo - capital) < 1) {
-                    capital = saldo;
-                    saldo = 0;
-                    cuotaAMostrar = capital + interes + iva;
-                } else {
-                    saldo -= capital;
-                }
-
-                const fFila = new Date(fechaPrimerPago);
-                fFila.setMonth(fechaPrimerPago.getMonth() + (i - 1));
-
-                html += `<tr>
-                    <td style="text-align:center;">${i}</td>
-                    <td style="text-align:center;">${fFila.toLocaleDateString('es-MX',{month:'2-digit',year:'numeric',day:'2-digit'})}</td>
-                    <td style="text-align:right; font-weight:bold;">${fmt.format(cuotaAMostrar)}</td>
-                    <td style="text-align:right;">${fmt.format(sInicial)}</td>
-                    <td style="text-align:right;">${fmt.format(interes)}</td>
-                    <td style="text-align:right;">${fmt.format(iva)}</td>
-                    <td style="text-align:right;">${fmt.format(capital)}</td>
-                    <td style="text-align:right; font-weight:bold;">${fmt.format(saldo)}</td>
-                </tr>`;
-            }
-            document.getElementById('tabla-body').innerHTML = html;
-        }
-
-        function descargarPDFPagos() {
-            generarTablaPagos();
-            html2pdf().from(document.getElementById('pdf-content-pagos')).set({ margin: 0, filename: 'Tabla_MultiMoney.pdf', image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 3, useCORS: true, scrollX: 0, scrollY: 0 }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }}).save();
-        }
-
-        // --- SCRIPTS PESTAÑA 3 (MENSUALIDADES CAPTURADAS MANUALMENTE) ---
+        // --- SCRIPTS PESTAÑA 2 (MENSUALIDADES CAPTURADAS MANUALMENTE) ---
         // El usuario captura cada fila: plazo (meses, desplegable) + mensualidad ($).
         const MESES_OPCIONES = [3, 6, 9, 12, 15, 18, 24, 30, 36, 42, 48, 54, 60, 72];
         let filasMens = [
@@ -918,7 +717,7 @@
             });
         }
 
-        window.onload = () => { actualizarPreview(); generarTablaPagos(); renderFilasInputs(); generarTablaMensualidades(); };
+        window.onload = () => { actualizarPreview(); renderFilasInputs(); generarTablaMensualidades(); };
     </script>
 </body>
 </html>
