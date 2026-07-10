@@ -139,22 +139,59 @@
                     </div>
                 </div>
 
-                <div class="space-y-4 flex-grow flex flex-col">
+                <div class="space-y-4">
                     <div>
                         <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Nombre Completo del Cliente</label>
-                        <input type="text" id="input-cliente" placeholder="Ej. Liliana Evangelista Andrade" class="w-full p-3 bg-slate-950 border border-slate-700 text-white rounded-xl focus:ring-2 focus:ring-mmgreen outline-none">
+                        <input type="text" id="input-cliente" oninput="actualizarPreview()" placeholder="Ej. Liliana Evangelista Andrade" class="w-full p-3 bg-slate-950 border border-slate-700 text-white rounded-xl focus:ring-2 focus:ring-mmgreen outline-none">
                     </div>
 
-                    <div class="flex-grow flex flex-col">
-                        <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Datos Brutos del Sistema</label>
-                        <textarea id="input-raw" rows="12" placeholder="Pega los datos aquí..." class="w-full p-4 bg-slate-950 border border-slate-700 text-white rounded-xl focus:ring-2 focus:ring-mmgreen outline-none flex-grow font-mono text-xs resize-none"></textarea>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Datos del Sistema <span class="text-slate-600 normal-case font-medium tracking-normal">— pega y se rellenan los campos</span></label>
+                        <textarea id="input-raw" rows="4" oninput="rellenarDesdeRaw()" placeholder="Pega aquí los datos brutos del sistema…" class="w-full p-3 bg-slate-950 border border-slate-700 text-white rounded-xl focus:ring-2 focus:ring-mmgreen outline-none font-mono text-xs resize-none"></textarea>
+                    </div>
+
+                    <div class="pt-1">
+                        <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Datos de la Oferta <span class="text-slate-600 normal-case font-medium tracking-normal">— editables</span></label>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-[10px] font-bold text-mmgreen uppercase mb-1">Monto de la línea ($)</label>
+                                <input type="number" id="of-monto" oninput="actualizarPreview()" class="w-full p-2.5 bg-slate-950 border border-mmgreen text-white rounded-lg outline-none focus:border-mmgreen text-sm">
+                            </div>
+                            <div>
+                                <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Monto a desembolsar ($)</label>
+                                <input type="number" id="of-desembolso" oninput="actualizarPreview()" class="w-full p-2.5 bg-slate-950 border border-slate-700 text-white rounded-lg outline-none focus:border-mmgreen text-sm">
+                            </div>
+                            <div>
+                                <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Pago mensual ($)</label>
+                                <input type="number" id="of-pago" oninput="actualizarPreview()" class="w-full p-2.5 bg-slate-950 border border-slate-700 text-white rounded-lg outline-none focus:border-mmgreen text-sm">
+                            </div>
+                            <div>
+                                <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Plazo (meses)</label>
+                                <input type="number" id="of-plazo" oninput="actualizarPreview()" class="w-full p-2.5 bg-slate-950 border border-slate-700 text-white rounded-lg outline-none focus:border-mmgreen text-sm">
+                            </div>
+                            <div>
+                                <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Tasa mensual (%)</label>
+                                <input type="number" id="of-tasa" step="0.01" oninput="actualizarPreview()" class="w-full p-2.5 bg-slate-950 border border-slate-700 text-white rounded-lg outline-none focus:border-mmgreen text-sm">
+                            </div>
+                            <div>
+                                <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Comisión (%)</label>
+                                <input type="number" id="of-comision" step="0.1" oninput="actualizarPreview()" class="w-full p-2.5 bg-slate-950 border border-slate-700 text-white rounded-lg outline-none focus:border-mmgreen text-sm">
+                            </div>
+                            <div>
+                                <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Ciclo de pago</label>
+                                <input type="text" id="of-ciclo" oninput="actualizarPreview()" class="w-full p-2.5 bg-slate-950 border border-slate-700 text-white rounded-lg outline-none focus:border-mmgreen text-sm">
+                            </div>
+                            <div>
+                                <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Primer pago</label>
+                                <input type="text" id="of-fecha" placeholder="AAAA-MM-DD" oninput="actualizarPreview()" class="w-full p-2.5 bg-slate-950 border border-slate-700 text-white rounded-lg outline-none focus:border-mmgreen text-sm">
+                            </div>
+                        </div>
                     </div>
                 </div>
 
                 <div class="grid grid-cols-2 gap-3 pt-4 border-t border-slate-800">
-                    <button onclick="generarOferta()" class="col-span-2 bg-mmgreen hover:bg-green-600 text-white font-bold text-lg py-4 rounded-xl shadow-[0_0_20px_rgba(0,177,0,0.3)]">Generar Oferta</button>
-                    <button onclick="limpiarCampos()" class="bg-slate-800 hover:bg-slate-700 text-white font-medium py-3 rounded-xl">Limpiar</button>
-                    <button onclick="copiarOferta()" class="bg-slate-800 hover:bg-slate-700 text-white font-medium py-3 rounded-xl flex items-center justify-center gap-2">
+                    <button onclick="limpiarCampos()" class="bg-slate-800 hover:bg-slate-700 text-white font-medium py-3 rounded-xl">Nueva oferta</button>
+                    <button onclick="copiarOferta()" class="bg-mmgreen hover:bg-green-600 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
                         Copiar Texto
                     </button>
@@ -571,29 +608,47 @@
         }
         
         // --- SCRIPTS PESTAÑA 1 (UI Y EXPORTACIÓN) ---
-        function generarOferta() {
-            const rawText = document.getElementById('input-raw').value;
-            const data = extraerDatos(rawText);
-            
-            let cliente = document.getElementById('input-cliente').value.trim() || "Cliente Preferente";
-            document.getElementById('out-cliente').innerText = cliente;
+        // Lee el valor (texto) de un campo por id.
+        function ofVal(id) { const el = document.getElementById(id); return el ? el.value.trim() : ''; }
 
-            const formatoMoneda = (val, agregarMXN = true) => {
-                if (!val || val === 'N/D') return "N/D";
-                let num = parseFloat(val.replace(/[^\d\.]/g, ''));
-                if (isNaN(num)) return "N/D";
-                let formatter = new Intl.NumberFormat('en-US');
-                return agregarMXN ? `$${formatter.format(num)} MXN` : `$${formatter.format(num)}`;
-            };
-
-            document.getElementById('out-monto').innerText = formatoMoneda(data.monto_linea, true);
-            document.getElementById('out-pago').innerText = formatoMoneda(data.pago_mensual, false);
-            document.getElementById('out-plazo').innerText = data.plazo;
-            document.getElementById('out-tasa').innerText = data.tasa_mensual;
-            document.getElementById('out-comision').innerText = data.comision;
-            document.getElementById('out-fecha').innerText = data.fecha_primer_pago;
-            document.getElementById('out-ciclo').innerText = data.ciclo;
+        function formatoMoneda(val, agregarMXN = true) {
+            if (val === '' || val === null || val === undefined || val === 'N/D') return "N/D";
+            let num = parseFloat(String(val).replace(/[^\d.\-]/g, ''));
+            if (isNaN(num)) return "N/D";
+            let f = new Intl.NumberFormat('en-US').format(num);
+            return agregarMXN ? `$${f} MXN` : `$${f}`;
         }
+
+        // Pinta la vista previa a partir de los CAMPOS EDITABLES (no del texto crudo).
+        function actualizarPreview() {
+            document.getElementById('out-cliente').innerText = ofVal('input-cliente') || "Nombre del Cliente";
+            document.getElementById('out-monto').innerText = formatoMoneda(ofVal('of-monto'), true);
+            document.getElementById('out-pago').innerText = formatoMoneda(ofVal('of-pago'), false);
+            document.getElementById('out-plazo').innerText = ofVal('of-plazo') || 'N/D';
+            document.getElementById('out-tasa').innerText = ofVal('of-tasa') || 'N/D';
+            document.getElementById('out-comision').innerText = ofVal('of-comision') || 'N/D';
+            document.getElementById('out-fecha').innerText = ofVal('of-fecha') || 'N/D';
+            document.getElementById('out-ciclo').innerText = ofVal('of-ciclo') || 'N/D';
+        }
+
+        // Con cada pega, parsea el texto crudo y rellena los campos editables.
+        function rellenarDesdeRaw() {
+            const raw = document.getElementById('input-raw').value;
+            if (!raw.trim()) { actualizarPreview(); return; }
+            const d = extraerDatos(raw);
+            const setV = (id, val) => { if (val && val !== 'N/D') document.getElementById(id).value = String(val).replace(/,/g, '').trim(); };
+            setV('of-monto', d.monto_linea);
+            setV('of-desembolso', d.monto_desembolsar);
+            setV('of-pago', d.pago_mensual);
+            setV('of-plazo', d.plazo);
+            setV('of-tasa', d.tasa_mensual);
+            setV('of-comision', d.comision);
+            setV('of-ciclo', d.ciclo);
+            setV('of-fecha', d.fecha_primer_pago);
+            actualizarPreview();
+        }
+
+        function generarOferta() { actualizarPreview(); } // compat con los botones de descarga
         
         function descargarPDFOferta() {
             generarOferta();
@@ -607,36 +662,45 @@
             });
         }
         
-        function limpiarCampos() { document.getElementById('input-raw').value = ''; }
-        
-        // --- COPIA DE TEXTO EUFÓRICA PARA WHATSAPP ---
+        // Limpia todo para empezar una nueva oferta.
+        function limpiarCampos() {
+            ['input-raw', 'input-cliente', 'of-monto', 'of-desembolso', 'of-pago', 'of-plazo', 'of-tasa', 'of-comision', 'of-ciclo', 'of-fecha']
+                .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+            actualizarPreview();
+            document.getElementById('input-cliente').focus();
+        }
+
+        // --- COPIA DE TEXTO EUFÓRICA PARA WHATSAPP (usa los campos editables) ---
         function copiarOferta() {
-            const rawText = document.getElementById('input-raw').value;
-            if (!rawText.trim()) {
-                alert("Por favor ingresa los datos brutos del sistema primero.");
+            const cliente = ofVal('input-cliente');
+            const saludoCliente = cliente ? ` ${cliente}` : "";
+            const montoLinea = ofVal('of-monto');
+            const desembolso = ofVal('of-desembolso') || montoLinea;
+            const pago = ofVal('of-pago');
+            const plazo = ofVal('of-plazo');
+            const tasa = ofVal('of-tasa');
+            const comision = ofVal('of-comision');
+            const fecha = ofVal('of-fecha');
+
+            if (!montoLinea && !pago && !plazo) {
+                alert("Pega los datos del sistema o llena los campos de la oferta primero.");
                 return;
             }
-            
-            const data = extraerDatos(rawText);
-            
-            let cliente = document.getElementById('input-cliente').value.trim();
-            let saludoCliente = cliente ? ` ${cliente}` : "";
 
             const formatoMonedaNum = (val) => {
-                if (!val || val === 'N/D') return "N/D";
-                let num = parseFloat(val.replace(/[^\d\.]/g, ''));
+                if (val === '') return "N/D";
+                let num = parseFloat(String(val).replace(/[^\d.\-]/g, ''));
                 return !isNaN(num) ? new Intl.NumberFormat('en-US').format(num) : "N/D";
             };
 
             let comisionStr = "N/D";
-            if (data.comision !== "N/D") {
-                comisionStr = parseFloat(data.comision) === 0 ? "Sin comisión por desembolso" : `${data.comision} %`;
+            if (comision !== '') {
+                comisionStr = parseFloat(comision) === 0 ? "Sin comisión por desembolso" : `${comision} %`;
             }
 
             let fechaStr = "N/D";
-            if (data.fecha_primer_pago !== "N/D") {
-                let fp = data.fecha_primer_pago;
-                let parts;
+            if (fecha) {
+                let fp = fecha, parts;
                 if (fp.includes('-')) {
                     parts = fp.split('-');
                     if (parts[0].length === 4) { // YYYY-MM-DD
@@ -654,7 +718,7 @@
                 }
             }
 
-            const mensaje = `🎉🎉 ¡Felicidades${saludoCliente}! Tenemos excelentes noticias para ti 🎉🎉\n\nTu línea de crédito ya está PREAPROBADA y lista para activarse 🚀\n\n💰 Monto de la línea: ${formatoMonedaNum(data.monto_linea)} MXN\n📆 Plazo: ${data.plazo} meses\n📉 Tasa mensual: ${data.tasa_mensual !== 'N/D' ? data.tasa_mensual + ' %' : 'N/D %'}\n💸 Comisión por desembolso: ${comisionStr}\n🔓 Monto disponible inmediato: ${formatoMonedaNum(data.monto_desembolsar)} MXN\n📅 Primer pago: ${fechaStr}\n💳 Pago mensual: ${formatoMonedaNum(data.pago_mensual)} MXN\n\n👉 Siguiente paso: enviarte un link biométrico para que puedas cargar la siguiente información:\n\n• Cuenta CLABE (para depósito)\n• INE\n• Selfie\n• Comprobante de domicilio\n\n¿Procedemos a enviarte el link en este momento? 📲😊`;
+            const mensaje = `🎉🎉 ¡Felicidades${saludoCliente}! Tenemos excelentes noticias para ti 🎉🎉\n\nTu línea de crédito ya está PREAPROBADA y lista para activarse 🚀\n\n💰 Monto de la línea: ${formatoMonedaNum(montoLinea)} MXN\n📆 Plazo: ${plazo || 'N/D'} meses\n📉 Tasa mensual: ${tasa !== '' ? tasa + ' %' : 'N/D %'}\n💸 Comisión por desembolso: ${comisionStr}\n🔓 Monto disponible inmediato: ${formatoMonedaNum(desembolso)} MXN\n📅 Primer pago: ${fechaStr}\n💳 Pago mensual: ${formatoMonedaNum(pago)} MXN\n\n👉 Siguiente paso: enviarte un link biométrico para que puedas cargar la siguiente información:\n\n• Cuenta CLABE (para depósito)\n• INE\n• Selfie\n• Comprobante de domicilio\n\n¿Procedemos a enviarte el link en este momento? 📲😊`;
 
             navigator.clipboard.writeText(mensaje).then(() => {
                 alert("¡Oferta eufórica copiada exitosamente para enviar por WhatsApp! 🎉📲");
@@ -854,7 +918,7 @@
             });
         }
 
-        window.onload = () => { generarTablaPagos(); renderFilasInputs(); generarTablaMensualidades(); };
+        window.onload = () => { actualizarPreview(); generarTablaPagos(); renderFilasInputs(); generarTablaMensualidades(); };
     </script>
 </body>
 </html>
