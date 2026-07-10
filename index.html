@@ -509,7 +509,7 @@
     const MetricsHeader = ({ sales, metaData, businessData, onOpenPlanning, usdRate }) => {
       const usd = usdRate && usdRate.rate ? usdRate.rate : null; // USD por 1 MXN
       const sold = sales.filter(s => s.estatus === 'Dispersado').reduce((acc, curr) => acc + (Number(curr.monto_dispersado) || 0), 0);
-      const hotMoney = sales.filter(s => s.estatus === 'Acepta oferta' || s.estatus === 'Long track').reduce((acc, curr) => acc + (Number(curr.monto_preaprobado) || 0), 0);
+      const hotMoney = sales.filter(s => s.estatus === 'Acepta oferta' || s.estatus === 'Long track' || s.estatus === 'Firma de documentos').reduce((acc, curr) => acc + (Number(curr.monto_preaprobado) || 0), 0);
       
       const meta = Number(metaData.monto) || 0;
       
