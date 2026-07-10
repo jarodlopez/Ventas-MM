@@ -408,8 +408,12 @@
     <div id="tab-mensualidades" class="tab-content max-w-[1400px] mx-auto">
         <div class="grid grid-cols-1 xl:grid-cols-12 gap-8">
             <div class="xl:col-span-4 bg-slate-900 p-8 rounded-2xl border border-slate-800 h-fit sticky top-8 text-slate-200">
-                <h3 class="text-xl font-bold text-white mb-6 flex items-center gap-2">
-                    <span class="w-2 h-6 bg-mmgreen rounded-full"></span> Pagos a Mensualidades
+                <h3 class="text-xl font-bold text-white mb-6 flex items-center justify-between gap-2">
+                    <span class="flex items-center gap-2"><span class="w-2 h-6 bg-mmgreen rounded-full"></span> Pagos a Mensualidades</span>
+                    <button onclick="limpiarMensualidades()" title="Limpiar todo para una nueva tabla" class="text-xs font-semibold text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                        Nueva tabla
+                    </button>
                 </h3>
                 <div class="space-y-4">
                     <div>
@@ -436,8 +440,8 @@
                             <label class="block text-xs font-bold text-slate-400 uppercase">Mensualidades por plazo</label>
                             <span class="text-[10px] text-slate-500">Captura plazo y su mensualidad</span>
                         </div>
-                        <div class="grid grid-cols-[70px_1fr_36px] gap-2 mb-1 px-1">
-                            <span class="text-[10px] text-slate-500 uppercase font-bold">Meses</span>
+                        <div class="grid grid-cols-[110px_1fr_36px] gap-2 mb-1 px-1">
+                            <span class="text-[10px] text-slate-500 uppercase font-bold">Plazo</span>
                             <span class="text-[10px] text-slate-500 uppercase font-bold">Mensualidad $</span>
                             <span></span>
                         </div>
@@ -745,17 +749,26 @@
         }
 
         // --- SCRIPTS PESTAÑA 3 (MENSUALIDADES CAPTURADAS MANUALMENTE) ---
-        // El usuario captura cada fila: plazo (meses) + mensualidad ($).
+        // El usuario captura cada fila: plazo (meses, desplegable) + mensualidad ($).
+        const MESES_OPCIONES = [3, 6, 9, 12, 15, 18, 24, 30, 36, 42, 48, 54, 60, 72];
         let filasMens = [
             { plazo: 12, mensualidad: 10546 },
             { plazo: 24, mensualidad: 6440 },
             { plazo: 36, mensualidad: 5159 },
         ];
 
+        function opcionesMeses(sel) {
+            let opts = '<option value="">— meses —</option>';
+            opts += MESES_OPCIONES.map(m => `<option value="${m}" ${String(m) === String(sel) ? 'selected' : ''}>${m} meses</option>`).join('');
+            // Si el plazo guardado no está en la lista, lo agregamos para no perderlo.
+            if (sel && !MESES_OPCIONES.includes(parseInt(sel))) opts += `<option value="${sel}" selected>${sel} meses</option>`;
+            return opts;
+        }
+
         function renderFilasInputs() {
             document.getElementById('filas-mens').innerHTML = filasMens.map((f, i) => `
-                <div class="grid grid-cols-[70px_1fr_36px] gap-2 items-center">
-                    <input type="number" min="1" value="${f.plazo}" oninput="setFila(${i},'plazo',this.value)" placeholder="Meses" class="p-2.5 bg-slate-950 border border-slate-700 text-white rounded-lg outline-none focus:border-mmgreen text-sm">
+                <div class="grid grid-cols-[110px_1fr_36px] gap-2 items-center">
+                    <select onchange="setFila(${i},'plazo',this.value)" class="p-2.5 bg-slate-950 border border-slate-700 text-white rounded-lg outline-none focus:border-mmgreen text-sm">${opcionesMeses(f.plazo)}</select>
                     <input type="number" min="0" step="0.01" value="${f.mensualidad}" oninput="setFila(${i},'mensualidad',this.value)" placeholder="Mensualidad" class="p-2.5 bg-slate-950 border border-slate-700 text-white rounded-lg outline-none focus:border-mmgreen text-sm">
                     <button onclick="quitarFila(${i})" title="Quitar" class="h-9 rounded-lg bg-slate-800 hover:bg-red-600 text-slate-300 hover:text-white font-bold">✕</button>
                 </div>`).join('');
@@ -764,6 +777,18 @@
         function setFila(i, campo, val) { if (filasMens[i]) { filasMens[i][campo] = val; generarTablaMensualidades(); } }
         function agregarFila() { filasMens.push({ plazo: '', mensualidad: '' }); renderFilasInputs(); }
         function quitarFila(i) { filasMens.splice(i, 1); renderFilasInputs(); generarTablaMensualidades(); }
+
+        // Limpiador: deja todo listo para una NUEVA tabla.
+        function limpiarMensualidades() {
+            document.getElementById('in-cliente-mens').value = '';
+            document.getElementById('in-monto-mens').value = '';
+            document.getElementById('in-tasa-mens').value = '';
+            document.getElementById('in-comision-mens').value = '0';
+            filasMens = [{ plazo: '', mensualidad: '' }];
+            renderFilasInputs();
+            generarTablaMensualidades();
+            document.getElementById('in-cliente-mens').focus();
+        }
 
         function generarTablaMensualidades() {
             const cliente = document.getElementById('in-cliente-mens').value.trim() || 'Cliente Preferente';
