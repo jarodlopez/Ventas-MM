@@ -97,6 +97,20 @@
             color: #374151;
         }
         .footer-pdf { margin-top: 30px; font-size: 10px; color: #6b7280; border-top: 1px solid #e5e7eb; padding-top: 10px; text-align: justify; }
+
+        /* --- TABLA COMPARATIVA DE PLAZOS (Pestaña 3) --- */
+        .tabla-mens { width: 100%; border-collapse: collapse; margin-top: 12px; }
+        .tabla-mens th {
+            background-color: #0f172a; color: #ffffff; font-size: 11px; font-weight: bold;
+            padding: 12px 12px; text-transform: uppercase; letter-spacing: 0.05em;
+        }
+        .tabla-mens th:first-child { border-top-left-radius: 8px; text-align: left; }
+        .tabla-mens th:last-child { border-top-right-radius: 8px; }
+        .tabla-mens td { font-size: 13px; padding: 12px 12px; border-bottom: 1px solid #e5e7eb; color: #374151; }
+        .tabla-mens tr:nth-child(even) td { background-color: #f9fafb; }
+        .tabla-mens .plazo { font-weight: bold; color: #111827; }
+        .tabla-mens .cuota { font-weight: 800; color: #00B100; font-size: 15px; text-align: right; }
+        .destacado-monto { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 12px; padding: 14px 18px; margin-bottom: 18px; display: flex; justify-content: space-between; align-items: center; }
     </style>
 </head>
 <body class="text-slate-200 min-h-screen p-4 md:p-8">
@@ -107,6 +121,9 @@
         </button>
         <button onclick="switchTab('pagos')" id="btn-pagos" class="tab-btn flex-1 py-4 text-sm font-bold uppercase tracking-wider text-slate-400 hover:text-white transition-all">
             2. Proyección de Pagos
+        </button>
+        <button onclick="switchTab('mensualidades')" id="btn-mensualidades" class="tab-btn flex-1 py-4 text-sm font-bold uppercase tracking-wider text-slate-400 hover:text-white transition-all">
+            3. Pagos a Mensualidades
         </button>
     </div>
 
@@ -386,6 +403,96 @@
         </div>
     </div>
 
+    <div id="tab-mensualidades" class="tab-content max-w-[1400px] mx-auto">
+        <div class="grid grid-cols-1 xl:grid-cols-12 gap-8">
+            <div class="xl:col-span-4 bg-slate-900 p-8 rounded-2xl border border-slate-800 h-fit sticky top-8 text-slate-200">
+                <h3 class="text-xl font-bold text-white mb-6 flex items-center gap-2">
+                    <span class="w-2 h-6 bg-mmgreen rounded-full"></span> Pagos a Mensualidades
+                </h3>
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-400 uppercase mb-1">Cliente</label>
+                        <input type="text" id="in-cliente-mens" placeholder="Ej. Liliana Evangelista" class="w-full p-3 bg-slate-950 border border-slate-700 text-white rounded-lg outline-none focus:border-mmgreen">
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-bold text-mmgreen uppercase mb-1">Monto a desembolsar ($)</label>
+                            <input type="number" id="in-monto-mens" value="100000" class="w-full p-3 bg-slate-950 border border-mmgreen text-white rounded-lg outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-400 uppercase mb-1">Tasa Mensual %</label>
+                            <input type="number" id="in-tasa-mens" value="3.25" step="0.01" class="w-full p-3 bg-slate-950 border border-slate-700 text-white rounded-lg outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-400 uppercase mb-1">Comisión %</label>
+                            <input type="number" id="in-comision-mens" value="0" step="0.1" class="w-full p-3 bg-slate-950 border border-slate-700 text-white rounded-lg outline-none">
+                        </div>
+                    </div>
+
+                    <div class="pt-2">
+                        <label class="block text-xs font-bold text-slate-400 uppercase mb-2">Plazos a incluir (meses)</label>
+                        <div id="chips-plazos" class="flex flex-wrap gap-2"></div>
+                    </div>
+                    <div class="flex gap-2">
+                        <input type="number" id="in-plazo-custom" placeholder="Otro plazo…" min="1" class="flex-1 p-3 bg-slate-950 border border-slate-700 text-white rounded-lg outline-none focus:border-mmgreen">
+                        <button onclick="addPlazoCustom()" class="bg-slate-800 hover:bg-slate-700 text-white font-bold px-5 rounded-lg">Añadir</button>
+                    </div>
+
+                    <button onclick="generarTablaMensualidades()" class="w-full bg-mmgreen hover:bg-green-600 text-white font-black py-4 rounded-xl mt-2 shadow-lg transition-transform active:scale-95">GENERAR TABLA</button>
+                    <div class="grid grid-cols-2 gap-3">
+                        <button onclick="descargarPDFMensualidades()" class="bg-white hover:bg-slate-200 text-slate-900 font-bold py-3 rounded-xl">Descargar PDF</button>
+                        <button onclick="descargarImagenMensualidades()" class="bg-slate-800 hover:bg-slate-700 text-white font-medium py-3 rounded-xl">Descargar JPG</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="xl:col-span-8">
+                <div class="preview-container shadow-2xl">
+                    <div id="pdf-content-mensualidades">
+                        <div class="pdf-header">
+                            <table>
+                                <tr>
+                                    <td><img src="https://raw.githubusercontent.com/jarodlopez/Ventas-MM/refs/heads/main/MM-Logo-N.png" style="height: 40px;" crossorigin="anonymous"></td>
+                                    <td style="text-align: right;">
+                                        <h1 style="margin: 0; font-size: 20px; color: #111827;">Proyección de Pagos a Mensualidades</h1>
+                                        <p style="margin: 0; font-size: 10px; color: #6b7280;">Documento Informativo de Crédito</p>
+                                    </td>
+                                </tr>
+                            </table>
+                        </div>
+
+                        <div class="destacado-monto">
+                            <div>
+                                <p style="margin:0; font-size:11px; color:#4b5563; font-weight:bold; text-transform:uppercase; letter-spacing:.04em;">Monto a desembolsar</p>
+                                <p id="out-monto-mens" style="margin:0; font-size:26px; font-weight:800; color:#00B100;">---</p>
+                            </div>
+                            <div style="text-align:right; font-size:11px; color:#4b5563;">
+                                <p style="margin:0;">Cliente: <strong id="out-cliente-mens" style="color:#111827;">---</strong></p>
+                                <p style="margin:3px 0 0;">Tasa: <strong id="out-tasa-mens" style="color:#111827;">---</strong> · Comisión: <strong id="out-comision-mens" style="color:#111827;">---</strong></p>
+                            </div>
+                        </div>
+
+                        <table class="tabla-mens">
+                            <thead>
+                                <tr>
+                                    <th style="width:34%;">Plazo</th>
+                                    <th style="width:33%; text-align:right;">Mensualidad</th>
+                                    <th style="width:33%; text-align:right;">Total a pagar</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tabla-mens-body"></tbody>
+                        </table>
+
+                        <div class="footer-pdf">
+                            <p><strong>IMPORTANTE:</strong> Las mensualidades son una <strong>proyección informativa</strong> calculada con la tasa indicada (incluye IVA sobre intereses); pueden variar según la fecha de desembolso y el redondeo del sistema. El monto a financiar incluye la comisión por apertura más IVA cuando aplica.</p>
+                            <p style="margin-top: 10px; color: #00B100; font-weight: bold;">MultiMoney México - 55 92 25 57 65</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script>
         function switchTab(tabId) {
             document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
@@ -630,7 +737,83 @@
             html2pdf().from(document.getElementById('pdf-content-pagos')).set({ margin: 0, filename: 'Tabla_MultiMoney.pdf', image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 3, useCORS: true, scrollX: 0, scrollY: 0 }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }}).save();
         }
 
-        window.onload = generarTablaPagos;
+        // --- SCRIPTS PESTAÑA 3 (COMPARATIVA DE PLAZOS Y MENSUALIDADES) ---
+        let plazosMens = [6, 12, 24, 36, 48, 60];
+        const PLAZOS_COMUNES = [3, 6, 9, 12, 18, 24, 36, 48, 60];
+
+        function renderChipsPlazos() {
+            const extras = plazosMens.filter(p => !PLAZOS_COMUNES.includes(p));
+            const lista = [...PLAZOS_COMUNES, ...extras].sort((a, b) => a - b);
+            document.getElementById('chips-plazos').innerHTML = lista.map(p => {
+                const activo = plazosMens.includes(p);
+                return `<button type="button" onclick="togglePlazo(${p})" class="px-3 py-1.5 rounded-lg text-sm font-bold transition-colors ${activo ? 'bg-mmgreen text-white shadow-[0_0_12px_rgba(0,177,0,0.35)]' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}">${p}m</button>`;
+            }).join('');
+        }
+
+        function togglePlazo(p) {
+            plazosMens = plazosMens.includes(p) ? plazosMens.filter(x => x !== p) : [...plazosMens, p];
+            renderChipsPlazos();
+            generarTablaMensualidades();
+        }
+
+        function addPlazoCustom() {
+            const inp = document.getElementById('in-plazo-custom');
+            const v = parseInt(inp.value);
+            if (v && v > 0 && !plazosMens.includes(v)) plazosMens.push(v);
+            inp.value = '';
+            renderChipsPlazos();
+            generarTablaMensualidades();
+        }
+
+        function generarTablaMensualidades() {
+            const cliente = document.getElementById('in-cliente-mens').value.trim() || 'Cliente Preferente';
+            const D = parseFloat(document.getElementById('in-monto-mens').value) || 0;
+            const tasa = parseFloat(document.getElementById('in-tasa-mens').value) || 0;
+            const comPerc = parseFloat(document.getElementById('in-comision-mens').value) || 0;
+
+            const iNom = tasa / 100;
+            const iAdj = iNom * (365 / 360);
+            const iEff = iAdj * 1.16; // incluye IVA sobre intereses
+            const comision = D * (comPerc / 100);
+            const ivaCom = comision * 0.16;
+            const P = D + comision + ivaCom; // monto financiado
+            const cuota = n => (iEff <= 0 ? P / n : P * iEff / (1 - Math.pow(1 + iEff, -n)));
+
+            document.getElementById('out-cliente-mens').innerText = cliente;
+            document.getElementById('out-monto-mens').innerText = fmt.format(D);
+            document.getElementById('out-tasa-mens').innerText = tasa.toFixed(2) + '% mensual';
+            document.getElementById('out-comision-mens').innerText = comPerc > 0 ? comPerc + '%' : 'Sin comisión';
+
+            const plazos = [...plazosMens].sort((a, b) => a - b);
+            let html = '';
+            if (!plazos.length) {
+                html = `<tr><td colspan="3" style="text-align:center; color:#9ca3af; padding:24px;">Selecciona al menos un plazo</td></tr>`;
+            } else {
+                plazos.forEach(n => {
+                    const c = cuota(n);
+                    html += `<tr>
+                        <td class="plazo">${n} meses</td>
+                        <td class="cuota">${fmt.format(c)}</td>
+                        <td style="text-align:right;">${fmt.format(c * n)}</td>
+                    </tr>`;
+                });
+            }
+            document.getElementById('tabla-mens-body').innerHTML = html;
+        }
+
+        function descargarPDFMensualidades() {
+            generarTablaMensualidades();
+            html2pdf().from(document.getElementById('pdf-content-mensualidades')).set({ margin: 0, filename: 'Proyeccion_Mensualidades_MM.pdf', image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 3, useCORS: true, scrollX: 0, scrollY: 0 }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }}).save();
+        }
+
+        function descargarImagenMensualidades() {
+            generarTablaMensualidades();
+            html2canvas(document.getElementById('pdf-content-mensualidades'), { scale: 3, useCORS: true }).then(canvas => {
+                const link = document.createElement('a'); link.download = 'Proyeccion_Mensualidades_MM.jpg'; link.href = canvas.toDataURL('image/jpeg', 0.95); link.click();
+            });
+        }
+
+        window.onload = () => { generarTablaPagos(); renderChipsPlazos(); generarTablaMensualidades(); };
     </script>
 </body>
 </html>
