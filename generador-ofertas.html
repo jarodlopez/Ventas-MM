@@ -63,12 +63,14 @@
             border-radius: 16px;
             overflow-x: auto;
         }
-        #pdf-content-pagos {
+        /* Preview con fondo blanco (para capturar directamente desde pantalla) */
+        .preview-container.preview-blanca { background-color: #ffffff; }
+        #pdf-content-pagos, #pdf-content-mensualidades {
             box-sizing: border-box;
             width: 210mm;
             padding: 15mm;
             margin: 0 auto;
-            background-color: white; 
+            background-color: white;
             color: #1f2937;
             font-family: Arial, sans-serif;
         }
@@ -452,7 +454,7 @@
             </div>
 
             <div class="xl:col-span-8">
-                <div class="preview-container shadow-2xl">
+                <div class="preview-container preview-blanca shadow-2xl">
                     <div id="pdf-content-mensualidades">
                         <div class="pdf-header">
                             <table>
