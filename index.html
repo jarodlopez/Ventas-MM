@@ -142,6 +142,115 @@
     // Las COMISIONES se pagan en dólares (USD).
     const moneyUSD = (val) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(val || 0);
 
+    /* ===== Cálculo de CURP (18 caracteres) — Instructivo Normativo SEGOB/RENAPO ===== */
+    const CURP_VOCALES = 'AEIOU';
+    const CURP_PARTICULAS = new Set(['DA','DAS','DE','DEL','DER','DI','DIE','DD','EL','LA','LOS','LAS','LE','LES','MAC','MC','VAN','VON','Y']);
+    const CURP_COMUNES = new Set(['MARIA','MA','JOSE','J']);
+    const CURP_INCONVENIENTES = new Set(['BACA','BAKA','BUEI','BUEY','CACA','CACO','CAGA','CAGO','CAKA','CAKO','COGE','COGI','COJA','COJE','COJI','COJO','COLA','CULO','FALO','FETO','GETA','GUEI','GUEY','JETA','JOTO','KACA','KACO','KAGA','KAGO','KAKA','KAKO','KOGE','KOGI','KOJA','KOJE','KOJI','KOJO','KOLA','KULO','LILO','LOCA','LOCO','LOKA','LOKO','MAME','MAMO','MEAR','MEAS','MEON','MIAR','MION','MOCO','MOKO','MULA','MULO','NACA','NACO','PEDA','PEDO','PENE','PIPI','PITO','POPO','PUTA','PUTO','QULO','RATA','ROBA','ROBE','ROBO','RUIN','SENO','TETA','VACA','VAGA','VAGO','VAKA','VUEI','VUEY','WUEI','WUEY']);
+    const ESTADOS_CURP = [
+      { c:'AS', n:'Aguascalientes' }, { c:'BC', n:'Baja California' }, { c:'BS', n:'Baja California Sur' },
+      { c:'CC', n:'Campeche' }, { c:'CS', n:'Chiapas' }, { c:'CH', n:'Chihuahua' },
+      { c:'CL', n:'Coahuila' }, { c:'CM', n:'Colima' }, { c:'DF', n:'Ciudad de México' },
+      { c:'DG', n:'Durango' }, { c:'GT', n:'Guanajuato' }, { c:'GR', n:'Guerrero' },
+      { c:'HG', n:'Hidalgo' }, { c:'JC', n:'Jalisco' }, { c:'MC', n:'México (Estado de)' },
+      { c:'MN', n:'Michoacán' }, { c:'MS', n:'Morelos' }, { c:'NT', n:'Nayarit' },
+      { c:'NL', n:'Nuevo León' }, { c:'OC', n:'Oaxaca' }, { c:'PL', n:'Puebla' },
+      { c:'QT', n:'Querétaro' }, { c:'QR', n:'Quintana Roo' }, { c:'SP', n:'San Luis Potosí' },
+      { c:'SL', n:'Sinaloa' }, { c:'SR', n:'Sonora' }, { c:'TC', n:'Tabasco' },
+      { c:'TS', n:'Tamaulipas' }, { c:'TL', n:'Tlaxcala' }, { c:'VZ', n:'Veracruz' },
+      { c:'YN', n:'Yucatán' }, { c:'ZS', n:'Zacatecas' }, { c:'NE', n:'Nacido en el Extranjero' },
+    ];
+    const curpLimpiar = (s) => {
+      if (!s) return '';
+      s = s.toUpperCase().replace(/Ñ/g, 'X');
+      s = s.normalize('NFD').replace(/[̀-ͯ]/g, '');
+      return s.replace(/[^A-Z ]/g, ' ').replace(/\s+/g, ' ').trim();
+    };
+    const curpSinParticulas = (s) => {
+      const parts = s.split(' ').filter(Boolean);
+      const f = parts.filter(p => !CURP_PARTICULAS.has(p));
+      return (f.length ? f : parts).join('');
+    };
+    const curpEligeNombre = (s) => {
+      const parts = s.split(' ').filter(Boolean).filter(p => !CURP_PARTICULAS.has(p));
+      if (parts.length >= 2 && CURP_COMUNES.has(parts[0])) return parts[1];
+      return parts[0] || '';
+    };
+    const curpVocalInterna = (s) => { for (let i=1;i<s.length;i++) if (CURP_VOCALES.includes(s[i])) return s[i]; return 'X'; };
+    const curpConsonInterna = (s) => { for (let i=1;i<s.length;i++){ const c=s[i]; if (!CURP_VOCALES.includes(c) && /[A-Z]/.test(c)) return c; } return 'X'; };
+    const curpDigito = (c17) => {
+      const dicc = '0123456789ABCDEFGHIJKLMNÑOPQRSTUVWXYZ';
+      let suma = 0;
+      for (let i=0;i<17;i++) { const v = dicc.indexOf(c17[i]); suma += (v<0?0:v) * (18 - i); }
+      const d = 10 - (suma % 10);
+      return d === 10 ? '0' : String(d);
+    };
+    const calcularCurp = ({ ap1, ap2, nombre, fecha, sexo, estado }) => {
+      if (!ap1 || !nombre || !fecha || !sexo || !estado) return null;
+      const p1 = curpSinParticulas(curpLimpiar(ap1));
+      const p2 = curpSinParticulas(curpLimpiar(ap2));
+      const nom = curpEligeNombre(curpLimpiar(nombre));
+      if (!p1 || !nom) return null;
+      let ini = (p1.charAt(0) || 'X') + curpVocalInterna(p1) + (p2 ? (p2.charAt(0) || 'X') : 'X') + (nom.charAt(0) || 'X');
+      let altisonante = false;
+      if (CURP_INCONVENIENTES.has(ini)) { ini = ini[0] + 'X' + ini.slice(2); altisonante = true; }
+      const [yyyy, mm, dd] = fecha.split('-');
+      const cons = curpConsonInterna(p1) + (p2 ? curpConsonInterna(p2) : 'X') + curpConsonInterna(nom);
+      const homoclave = Number(yyyy) < 2000 ? '0' : 'A';
+      const c17 = ini + yyyy.slice(2) + mm + dd + sexo + estado + cons + homoclave;
+      return { curp: c17 + curpDigito(c17), altisonante };
+    };
+
+    // Mini-calculadora de CURP en modal; rellena el campo del formulario al confirmar.
+    function CurpCalcModal({ onUse, onClose }) {
+      const [f, setF] = useState({ ap1:'', ap2:'', nombre:'', fecha:'', sexo:'', estado:'' });
+      const set = (k, v) => setF(p => ({ ...p, [k]: v }));
+      const res = useMemo(() => calcularCurp(f), [f]);
+      const inp = "w-full bg-[#F2F2F7] border border-transparent px-3 py-2 rounded-xl text-sm focus:outline-none focus:bg-white focus:border-[#007AFF] transition-colors";
+      return (
+        <div className="fixed inset-0 glass-modal z-[60] flex items-center justify-center p-4" onClick={onClose}>
+          <div className="bg-white rounded-3xl shadow-[0_20px_60px_rgba(0,0,0,0.25)] w-full max-w-sm p-5 space-y-3 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold text-lg tracking-tight text-[#1C1C1E]"><i className="fas fa-calculator text-[#AF52DE] mr-2"></i>Calcular CURP</h3>
+              <button type="button" onClick={onClose} className="w-8 h-8 rounded-full text-[#8E8E93] hover:bg-[#F2F2F7] transition-colors"><i className="fas fa-times"></i></button>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <input className={inp} placeholder="Primer apellido" value={f.ap1} onChange={e => set('ap1', e.target.value)} />
+              <input className={inp} placeholder="Segundo apellido" value={f.ap2} onChange={e => set('ap2', e.target.value)} />
+            </div>
+            <input className={inp} placeholder="Nombre(s)" value={f.nombre} onChange={e => set('nombre', e.target.value)} />
+            <div className="grid grid-cols-2 gap-2">
+              <input type="date" className={inp} value={f.fecha} onChange={e => set('fecha', e.target.value)} max="2099-12-31" />
+              <div className="flex gap-1.5">
+                {[{v:'H',l:'Hombre'},{v:'M',l:'Mujer'}].map(o => (
+                  <button key={o.v} type="button" onClick={() => set('sexo', o.v)}
+                    className={"flex-1 rounded-xl text-sm font-semibold transition-all " + (f.sexo===o.v ? "bg-[#007AFF] text-white" : "bg-[#F2F2F7] text-[#3C3C43] hover:bg-[#E9E9EE]")}>{o.l}</button>
+                ))}
+              </div>
+            </div>
+            <select className={inp + " appearance-none"} value={f.estado} onChange={e => set('estado', e.target.value)}>
+              <option value="">Entidad de nacimiento…</option>
+              {ESTADOS_CURP.map(e => <option key={e.c} value={e.c}>{e.n}</option>)}
+            </select>
+            {res ? (
+              <div className="bg-[#F2F2F7] rounded-2xl p-3 text-center">
+                <div className="text-[9px] text-[#8E8E93] uppercase tracking-wide mb-1">CURP estimada</div>
+                <div className="font-mono font-bold text-[#1C1C1E] tracking-wider text-base break-all select-all">{res.curp}</div>
+                {res.altisonante && <div className="text-[10px] text-[#FF9500] mt-1">2ª letra sustituida por “X”.</div>}
+              </div>
+            ) : (
+              <p className="text-[11px] text-[#8E8E93] text-center py-2">Completa apellido, nombre, fecha, sexo y entidad.</p>
+            )}
+            <button type="button" disabled={!res} onClick={() => onUse(res.curp)}
+              className={"w-full py-2.5 rounded-xl font-semibold text-white transition-all " + (res ? "bg-[#34C759] hover:bg-[#2DB14E] active:scale-[0.98]" : "bg-[#C7C7CC] cursor-not-allowed")}>
+              Usar esta CURP
+            </button>
+            <p className="text-[10px] text-[#8E8E93] text-center leading-snug">La homoclave la asigna RENAPO; verifica en gob.mx/curp.</p>
+          </div>
+        </div>
+      );
+    }
+
     // === Tipo de cambio USD oficial (API gratis, sin llave). Caché 12h => ~2 veces al día. ===
     const FX_TTL_MS = 12 * 60 * 60 * 1000;
     const FX_URLS = [
@@ -944,7 +1053,8 @@
       const [miCategoria, setMiCategoria] = useState('');     // agentes/{uid}.categoria
 
       const [showForm, setShowForm] = useState(false);
-      const [formError, setFormError] = useState(''); 
+      const [formError, setFormError] = useState('');
+      const [curpCalc, setCurpCalc] = useState(null); // { onUse: (curp)=>void }
       const [searchTerm, setSearchTerm] = useState('');
 
       const [acceptOfferData, setAcceptOfferData] = useState(null); 
@@ -1503,6 +1613,13 @@
             </div>
           )}
 
+          {curpCalc && (
+            <CurpCalcModal
+              onUse={(v) => { curpCalc.onUse(v); setCurpCalc(null); }}
+              onClose={() => setCurpCalc(null)}
+            />
+          )}
+
           {showForm && (
             <div className="fixed inset-0 glass-modal z-50 flex items-center justify-center p-4">
               <form onSubmit={handleAddSale} className="bg-white rounded-3xl shadow-[0_20px_60px_rgba(0,0,0,0.25)] w-full max-w-sm p-6 space-y-3 max-h-[90vh] overflow-y-auto">
@@ -1529,7 +1646,12 @@
                  <input name="folio" required placeholder="Número de Folio" className="w-full bg-[#F2F2F7] border border-transparent px-4 py-2.5 rounded-xl focus:outline-none focus:bg-white focus:border-[#007AFF] font-mono transition-colors" />
                  <input name="client" required placeholder="Nombre Cliente" className="w-full bg-[#F2F2F7] border border-transparent px-4 py-2.5 rounded-xl focus:outline-none focus:bg-white focus:border-[#007AFF] transition-colors" />
                  <div className="grid grid-cols-2 gap-2">
-                    <input name="curp" placeholder="CURP" className="w-full bg-[#F2F2F7] border border-transparent px-4 py-2.5 rounded-xl focus:outline-none focus:bg-white focus:border-[#007AFF] font-mono text-xs uppercase transition-colors" />
+                    <div className="relative">
+                       <input name="curp" placeholder="CURP" className="w-full bg-[#F2F2F7] border border-transparent pl-4 pr-9 py-2.5 rounded-xl focus:outline-none focus:bg-white focus:border-[#007AFF] font-mono text-xs uppercase transition-colors" />
+                       <button type="button" title="Calcular CURP" onClick={(e) => { const input = e.currentTarget.closest('form').elements.curp; setCurpCalc({ onUse: (v) => { input.value = v; } }); }} className="absolute right-2 top-1/2 -translate-y-1/2 text-[#AEAEB2] hover:text-[#AF52DE] transition-colors" aria-label="Calcular CURP">
+                          <i className="fas fa-calculator text-xs"></i>
+                       </button>
+                    </div>
                     <input name="rfc" placeholder="RFC" className="w-full bg-[#F2F2F7] border border-transparent px-4 py-2.5 rounded-xl focus:outline-none focus:bg-white focus:border-[#007AFF] font-mono text-xs uppercase transition-colors" />
                  </div>
                  <input name="phone" placeholder="Teléfono" className="w-full bg-[#F2F2F7] border border-transparent px-4 py-2.5 rounded-xl focus:outline-none focus:bg-white focus:border-[#007AFF] transition-colors" />
@@ -1581,7 +1703,12 @@
 
                  <div className="grid grid-cols-2 gap-2">
                    <div><label className="text-[10px] font-medium text-[#8E8E93] uppercase tracking-wide">CURP</label>
-                   <input name="curp" defaultValue={editSaleData.curp || ''} className="w-full bg-[#F2F2F7] border border-transparent px-4 py-2.5 rounded-xl mt-1 focus:outline-none focus:bg-white focus:border-[#007AFF] font-mono text-xs uppercase transition-colors" /></div>
+                   <div className="relative mt-1">
+                      <input name="curp" defaultValue={editSaleData.curp || ''} className="w-full bg-[#F2F2F7] border border-transparent pl-4 pr-9 py-2.5 rounded-xl focus:outline-none focus:bg-white focus:border-[#007AFF] font-mono text-xs uppercase transition-colors" />
+                      <button type="button" title="Calcular CURP" onClick={(e) => { const input = e.currentTarget.closest('form').elements.curp; setCurpCalc({ onUse: (v) => { input.value = v; } }); }} className="absolute right-2 top-1/2 -translate-y-1/2 text-[#AEAEB2] hover:text-[#AF52DE] transition-colors" aria-label="Calcular CURP">
+                         <i className="fas fa-calculator text-xs"></i>
+                      </button>
+                   </div></div>
                    <div><label className="text-[10px] font-medium text-[#8E8E93] uppercase tracking-wide">RFC</label>
                    <input name="rfc" defaultValue={editSaleData.rfc || ''} className="w-full bg-[#F2F2F7] border border-transparent px-4 py-2.5 rounded-xl mt-1 focus:outline-none focus:bg-white focus:border-[#007AFF] font-mono text-xs uppercase transition-colors" /></div>
                  </div>
