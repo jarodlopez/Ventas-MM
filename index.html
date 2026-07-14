@@ -201,11 +201,100 @@
       return { curp: c17 + curpDigito(c17), altisonante };
     };
 
+    /* ===== Detección de datos pegados (formato "etiqueta : valor" de RENAPO/lead) ===== */
+    const curpNorm = (s) => (s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+    const CURP_DICT = {
+      apellidos:'apellidos', apellido:'apellidos', apellido_paterno:'ap1', primer_apellido:'ap1', paterno:'ap1',
+      apellido_materno:'ap2', segundo_apellido:'ap2', materno:'ap2',
+      nombre:'nombre', nombres:'nombre', nombre_s:'nombre', primer_nombre:'nombre',
+      ano_nacimiento:'anio', anio_nacimiento:'anio', ano:'anio', mes_nacimiento:'mes', dia_nacimiento:'dia',
+      fecha_nacimiento:'fecha', fecha_de_nacimiento:'fecha', nacimiento:'fecha',
+      estado:'estado', entidad:'estado', entidad_nacimiento:'estado', estado_nacimiento:'estado', entidad_de_nacimiento:'estado',
+      sexo:'sexo', genero:'sexo',
+    };
+    const CURP_PART_AP = new Set(['DE','DEL','LA','LAS','LOS','Y','MC','MAC','VON','VAN','DI','DA']);
+    const curpSplitApellidos = (s) => {
+      const toks = (s || '').trim().split(/\s+/).filter(Boolean);
+      if (toks.length <= 1) return [toks[0] || '', ''];
+      let i = 0; const a1 = [];
+      while (i < toks.length - 1 && CURP_PART_AP.has(toks[i].toUpperCase())) { a1.push(toks[i]); i++; }
+      a1.push(toks[i]); i++;
+      return [a1.join(' '), toks.slice(i).join(' ')];
+    };
+    const curpMatchEstado = (input) => {
+      const n = curpNorm(input);
+      const alias = { cdmx:'DF', ciudad_de_mexico:'DF', distrito_federal:'DF', df:'DF', estado_de_mexico:'MC', edomex:'MC', mexico:'MC', coahuila_de_zaragoza:'CL', michoacan_de_ocampo:'MN', veracruz_de_ignacio_de_la_llave:'VZ', baja_california_norte:'BC', extranjero:'NE', nacido_en_el_extranjero:'NE' };
+      if (alias[n]) return alias[n];
+      const byCode = ESTADOS_CURP.find(e => e.c.toLowerCase() === n);
+      if (byCode) return byCode.c;
+      let f = ESTADOS_CURP.find(e => curpNorm(e.n) === n);
+      if (f) return f.c;
+      f = ESTADOS_CURP.find(e => { const en = curpNorm(e.n); return en.startsWith(n) || n.startsWith(en); });
+      return f ? f.c : '';
+    };
+    const curpMatchSexo = (input) => {
+      const n = curpNorm(input);
+      if (['h','hombre','masculino','masc','varon'].includes(n) || n.startsWith('masc') || n.startsWith('hombre') || n.startsWith('varon')) return 'H';
+      if (['m','f','mujer','femenino','fem'].includes(n) || n.startsWith('muj') || n.startsWith('fem')) return 'M';
+      return '';
+    };
+    const CURP_FEM = new Set(['fatima','maria','ana','sofia','beatriz','isabel','raquel','ines','carmen','luz','flor','noemi','ruth','esther','judith','lourdes','rocio','soledad','dolores','mercedes','pilar','itzel','xochitl','citlali','ximena','miriam','abril','alejandra','fernanda','valeria','regina','renata','camila','ivonne','araceli']);
+    const CURP_MASC = new Set(['jose','jesus','miguel','manuel','angel','daniel','gabriel','rafael','andres','luis','david','ivan','noe','uriel','emmanuel','israel','ismael','abel','joel','raul','saul','ruben','cesar','oscar','hector','nestor','victor','javier','jorge','felipe','enrique','vicente','matias','tobias','elias','isaias','josue','moises','nicolas','tadeo']);
+    const CURP_AMBIG = new Set(['guadalupe','trinidad','cruz','refugio','reyes','concepcion','remedios']);
+    const curpInferSexo = (nombre) => {
+      const n = curpNorm(nombre).split('_')[0];
+      if (CURP_AMBIG.has(n)) return '';
+      if (CURP_FEM.has(n)) return 'M';
+      if (CURP_MASC.has(n)) return 'H';
+      if (n.endsWith('a')) return 'M';
+      if (n.endsWith('o')) return 'H';
+      return '';
+    };
+    const curpPad2 = (v) => String(v).replace(/\D/g, '').padStart(2, '0').slice(-2);
+    const parseDatosCurp = (texto) => {
+      if (!texto) return { found: {}, count: 0 };
+      const lines = texto.split(/\r?\n/);
+      const pares = {};
+      for (let i = 0; i < lines.length; i++) {
+        const idx = lines[i].indexOf(':');
+        if (idx === -1) continue;
+        const key = curpNorm(lines[i].slice(0, idx));
+        if (!CURP_DICT[key]) continue;
+        let val = lines[i].slice(idx + 1).trim();
+        if (!val) {
+          for (let j = i + 1; j < lines.length; j++) {
+            if (lines[j].trim() === '') continue;
+            const nidx = lines[j].indexOf(':');
+            const nkey = nidx !== -1 ? curpNorm(lines[j].slice(0, nidx)) : null;
+            if (nkey && CURP_DICT[nkey]) break;
+            val = lines[j].trim(); break;
+          }
+        }
+        if (val) pares[CURP_DICT[key]] = val;
+      }
+      const out = {};
+      if (pares.ap1) out.ap1 = pares.ap1;
+      if (pares.ap2) out.ap2 = pares.ap2;
+      if (pares.apellidos && !out.ap1) { const [a, b] = curpSplitApellidos(pares.apellidos); if (a) out.ap1 = a; if (b) out.ap2 = b; }
+      if (pares.nombre) out.nombre = pares.nombre;
+      if (pares.fecha) { const m = pares.fecha.match(/(\d{1,4})\D+(\d{1,2})\D+(\d{1,4})/); if (m) { out.fecha = m[1].length === 4 ? m[1] + '-' + curpPad2(m[2]) + '-' + curpPad2(m[3]) : m[3].padStart(4, '20') + '-' + curpPad2(m[2]) + '-' + curpPad2(m[1]); } }
+      else if (pares.anio && pares.mes && pares.dia) { out.fecha = pares.anio.replace(/\D/g, '') + '-' + curpPad2(pares.mes) + '-' + curpPad2(pares.dia); }
+      if (pares.estado) { const c = curpMatchEstado(pares.estado); if (c) out.estado = c; }
+      if (pares.sexo) { const s = curpMatchSexo(pares.sexo); if (s) out.sexo = s; }
+      else if (out.nombre) { const s = curpInferSexo(out.nombre); if (s) out.sexo = s; }
+      return { found: out, count: Object.keys(out).length };
+    };
+
     // Mini-calculadora de CURP en modal; rellena el campo del formulario al confirmar.
     function CurpCalcModal({ onUse, onClose }) {
       const [f, setF] = useState({ ap1:'', ap2:'', nombre:'', fecha:'', sexo:'', estado:'' });
+      const [detectados, setDetectados] = useState(0);
       const set = (k, v) => setF(p => ({ ...p, [k]: v }));
       const res = useMemo(() => calcularCurp(f), [f]);
+      const pegar = (e) => {
+        const { found, count } = parseDatosCurp(e.target.value);
+        if (count) { setF(p => ({ ...p, ...found })); setDetectados(count); }
+      };
       const inp = "w-full bg-[#F2F2F7] border border-transparent px-3 py-2 rounded-xl text-sm focus:outline-none focus:bg-white focus:border-[#007AFF] transition-colors";
       return (
         <div className="fixed inset-0 glass-modal z-[60] flex items-center justify-center p-4" onClick={onClose}>
@@ -213,6 +302,11 @@
             <div className="flex items-center justify-between">
               <h3 className="font-semibold text-lg tracking-tight text-[#1C1C1E]"><i className="fas fa-calculator text-[#AF52DE] mr-2"></i>Calcular CURP</h3>
               <button type="button" onClick={onClose} className="w-8 h-8 rounded-full text-[#8E8E93] hover:bg-[#F2F2F7] transition-colors"><i className="fas fa-times"></i></button>
+            </div>
+            <div className="bg-[#AF52DE]/[0.08] rounded-2xl p-3">
+              <label className="text-[11px] font-semibold text-[#AF52DE] flex items-center gap-1.5 mb-1.5"><i className="fas fa-wand-magic-sparkles"></i> Pegar datos (RENAPO / lead)</label>
+              <textarea onChange={pegar} rows={2} placeholder="Pega el bloque de datos (etiqueta : valor) y se llenan solos apellidos, nombre, fecha, sexo y entidad." className="w-full bg-white border border-[#AF52DE]/20 rounded-xl p-2.5 text-xs focus:outline-none focus:border-[#AF52DE] resize-none" />
+              {detectados > 0 && <p className="text-[10px] text-[#AF52DE] mt-1"><i className="fas fa-check-circle mr-1"></i>{detectados} datos detectados y rellenados. Verifica el sexo si no venía en el texto.</p>}
             </div>
             <div className="grid grid-cols-2 gap-2">
               <input className={inp} placeholder="Primer apellido" value={f.ap1} onChange={e => set('ap1', e.target.value)} />

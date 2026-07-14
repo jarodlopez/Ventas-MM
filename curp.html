@@ -152,6 +152,90 @@
       };
     }
 
+    /* ===== Detección de datos pegados (formato "etiqueta : valor" de RENAPO/lead) ===== */
+    const norm = (s) => (s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+    const DICT = {
+      apellidos:'apellidos', apellido:'apellidos', apellido_paterno:'ap1', primer_apellido:'ap1', paterno:'ap1',
+      apellido_materno:'ap2', segundo_apellido:'ap2', materno:'ap2',
+      nombre:'nombre', nombres:'nombre', nombre_s:'nombre', primer_nombre:'nombre',
+      ano_nacimiento:'anio', anio_nacimiento:'anio', ano:'anio', mes_nacimiento:'mes', dia_nacimiento:'dia',
+      fecha_nacimiento:'fecha', fecha_de_nacimiento:'fecha', nacimiento:'fecha',
+      estado:'estado', entidad:'estado', entidad_nacimiento:'estado', estado_nacimiento:'estado', entidad_de_nacimiento:'estado',
+      sexo:'sexo', genero:'sexo',
+    };
+    const PART_AP = new Set(['DE','DEL','LA','LAS','LOS','Y','MC','MAC','VON','VAN','DI','DA']);
+    const splitApellidos = (s) => {
+      const toks = (s || '').trim().split(/\s+/).filter(Boolean);
+      if (toks.length <= 1) return [toks[0] || '', ''];
+      let i = 0; const a1 = [];
+      while (i < toks.length - 1 && PART_AP.has(toks[i].toUpperCase())) { a1.push(toks[i]); i++; }
+      a1.push(toks[i]); i++;
+      return [a1.join(' '), toks.slice(i).join(' ')];
+    };
+    const matchEstado = (input) => {
+      const n = norm(input);
+      const alias = { cdmx:'DF', ciudad_de_mexico:'DF', distrito_federal:'DF', df:'DF', estado_de_mexico:'MC', edomex:'MC', mexico:'MC', coahuila_de_zaragoza:'CL', michoacan_de_ocampo:'MN', veracruz_de_ignacio_de_la_llave:'VZ', baja_california_norte:'BC', extranjero:'NE', nacido_en_el_extranjero:'NE' };
+      if (alias[n]) return alias[n];
+      const byCode = ESTADOS.find(e => e.c.toLowerCase() === n);
+      if (byCode) return byCode.c;
+      let f = ESTADOS.find(e => norm(e.n) === n);
+      if (f) return f.c;
+      f = ESTADOS.find(e => { const en = norm(e.n); return en.startsWith(n) || n.startsWith(en); });
+      return f ? f.c : '';
+    };
+    const matchSexo = (input) => {
+      const n = norm(input);
+      if (['h','hombre','masculino','masc','varon'].includes(n) || n.startsWith('masc') || n.startsWith('hombre') || n.startsWith('varon')) return 'H';
+      if (['m','f','mujer','femenino','fem'].includes(n) || n.startsWith('muj') || n.startsWith('fem')) return 'M';
+      return '';
+    };
+    const NOM_FEM = new Set(['fatima','maria','ana','sofia','beatriz','isabel','raquel','ines','carmen','luz','flor','noemi','ruth','esther','judith','lourdes','rocio','soledad','dolores','mercedes','pilar','itzel','xochitl','citlali','ximena','miriam','abril','alejandra','fernanda','valeria','regina','renata','camila','ivonne','araceli']);
+    const NOM_MASC = new Set(['jose','jesus','miguel','manuel','angel','daniel','gabriel','rafael','andres','luis','david','ivan','noe','uriel','emmanuel','israel','ismael','abel','joel','raul','saul','ruben','cesar','oscar','hector','nestor','victor','javier','jorge','felipe','enrique','vicente','matias','tobias','elias','isaias','josue','moises','nicolas','tadeo']);
+    const NOM_AMBIG = new Set(['guadalupe','trinidad','cruz','refugio','reyes','concepcion','remedios']);
+    const inferSexo = (nombre) => {
+      const n = norm(nombre).split('_')[0];
+      if (NOM_AMBIG.has(n)) return '';
+      if (NOM_FEM.has(n)) return 'M';
+      if (NOM_MASC.has(n)) return 'H';
+      if (n.endsWith('a')) return 'M';
+      if (n.endsWith('o')) return 'H';
+      return '';
+    };
+    const pad2 = (v) => String(v).replace(/\D/g, '').padStart(2, '0').slice(-2);
+    function parseDatosCurp(texto) {
+      if (!texto) return { found: {}, count: 0 };
+      const lines = texto.split(/\r?\n/);
+      const pares = {};
+      for (let i = 0; i < lines.length; i++) {
+        const idx = lines[i].indexOf(':');
+        if (idx === -1) continue;
+        const key = norm(lines[i].slice(0, idx));
+        if (!DICT[key]) continue;
+        let val = lines[i].slice(idx + 1).trim();
+        if (!val) {
+          for (let j = i + 1; j < lines.length; j++) {
+            if (lines[j].trim() === '') continue;
+            const nidx = lines[j].indexOf(':');
+            const nkey = nidx !== -1 ? norm(lines[j].slice(0, nidx)) : null;
+            if (nkey && DICT[nkey]) break;
+            val = lines[j].trim(); break;
+          }
+        }
+        if (val) pares[DICT[key]] = val;
+      }
+      const out = {};
+      if (pares.ap1) out.ap1 = pares.ap1;
+      if (pares.ap2) out.ap2 = pares.ap2;
+      if (pares.apellidos && !out.ap1) { const [a, b] = splitApellidos(pares.apellidos); if (a) out.ap1 = a; if (b) out.ap2 = b; }
+      if (pares.nombre) out.nombre = pares.nombre;
+      if (pares.fecha) { const m = pares.fecha.match(/(\d{1,4})\D+(\d{1,2})\D+(\d{1,4})/); if (m) { out.fecha = m[1].length === 4 ? m[1] + '-' + pad2(m[2]) + '-' + pad2(m[3]) : m[3].padStart(4, '20') + '-' + pad2(m[2]) + '-' + pad2(m[1]); } }
+      else if (pares.anio && pares.mes && pares.dia) { out.fecha = pares.anio.replace(/\D/g, '') + '-' + pad2(pares.mes) + '-' + pad2(pares.dia); }
+      if (pares.estado) { const c = matchEstado(pares.estado); if (c) out.estado = c; }
+      if (pares.sexo) { const s = matchSexo(pares.sexo); if (s) out.sexo = s; }
+      else if (out.nombre) { const s = inferSexo(out.nombre); if (s) out.sexo = s; }
+      return { found: out, count: Object.keys(out).length };
+    }
+
     /* ============================================================
        Interfaz
        ============================================================ */
@@ -167,7 +251,12 @@
     function App() {
       const [form, setForm] = useState({ ap1:'', ap2:'', nombre:'', fecha:'', sexo:'', estado:'' });
       const [copiado, setCopiado] = useState(false);
+      const [detectados, setDetectados] = useState(0);
       const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+      const pegar = (e) => {
+        const { found, count } = parseDatosCurp(e.target.value);
+        if (count) { setForm(f => ({ ...f, ...found })); setDetectados(count); }
+      };
 
       const resultado = useMemo(() => calcularCurp(form), [form]);
 
@@ -197,6 +286,18 @@
           {/* Formulario */}
           <div className="max-w-2xl mx-auto px-4 pb-24">
             <div className="bg-white rounded-2xl p-5 shadow-sm border border-[#E5E5EA] space-y-4">
+              <div className="bg-[#AF52DE]/[0.08] rounded-2xl p-3.5">
+                <label className="text-[12px] font-semibold text-[#AF52DE] flex items-center gap-1.5 mb-2">
+                  <i className="fas fa-wand-magic-sparkles"></i> Pegar datos (RENAPO / lead) — llenado automático
+                </label>
+                <textarea onChange={pegar} rows={3}
+                  placeholder="Pega aquí el bloque de datos con formato «etiqueta : valor» (apellidos, nombre, año/mes/día de nacimiento, estado…) y los campos se llenan solos."
+                  className="w-full bg-white border border-[#AF52DE]/25 rounded-xl p-3 text-xs focus:outline-none focus:border-[#AF52DE] resize-none" />
+                {detectados > 0 && (
+                  <p className="text-[11px] text-[#AF52DE] mt-1.5"><i className="fas fa-check-circle mr-1"></i>{detectados} datos detectados y rellenados. Revisa el <b>sexo</b> si no venía en el texto.</p>
+                )}
+              </div>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Campo label="Primer apellido *">
                   <input className={inputCls} value={form.ap1} onChange={e=>set('ap1', e.target.value)} placeholder="Hernández" />
