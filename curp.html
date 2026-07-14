@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Calculadora de CURP</title>
+  <title>Calculadora de CURP y RFC</title>
 
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCI+PHJlY3Qgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0IiByeD0iMTQiIGZpbGw9IiMwMEIxMDAiLz48ZyBmaWxsPSIjZmZmZmZmIj48cGF0aCBkPSJNMzIgMTAgTDU1IDIzIEg5IFoiLz48cmVjdCB4PSI5IiB5PSIyNSIgd2lkdGg9IjQ2IiBoZWlnaHQ9IjQiLz48cmVjdCB4PSIxNCIgeT0iMzEiIHdpZHRoPSI1IiBoZWlnaHQ9IjE3Ii8+PHJlY3QgeD0iMjQuNSIgeT0iMzEiIHdpZHRoPSI1IiBoZWlnaHQ9IjE3Ii8+PHJlY3QgeD0iMzQuNSIgeT0iMzEiIHdpZHRoPSI1IiBoZWlnaHQ9IjE3Ii8+PHJlY3QgeD0iNDUiIHk9IjMxIiB3aWR0aD0iNSIgaGVpZ2h0PSIxNyIvPjxyZWN0IHg9IjkiIHk9IjUwIiB3aWR0aD0iNDYiIGhlaWdodD0iNSIgcng9IjEuNSIvPjwvZz48L3N2Zz4K" />
 
@@ -236,6 +236,39 @@
       return { found: out, count: Object.keys(out).length };
     }
 
+    /* ===== Cálculo de RFC (13 caracteres) — base + homoclave + dígito verificador (SAT) ===== */
+    const RFC_HOMO = { ' ':'00','0':'00','1':'01','2':'02','3':'03','4':'04','5':'05','6':'06','7':'07','8':'08','9':'09','&':'10','A':'11','B':'12','C':'13','D':'14','E':'15','F':'16','G':'17','H':'18','I':'19','J':'21','K':'22','L':'23','M':'24','N':'25','O':'26','P':'27','Q':'28','R':'29','S':'32','T':'33','U':'34','V':'35','W':'36','X':'37','Y':'38','Z':'39','Ñ':'40' };
+    const RFC_ALFA = '123456789ABCDEFGHIJKLMNPQRSTUVWXYZ';
+    const RFC_DIC = '0123456789ABCDEFGHIJKLMN&OPQRSTUVWXYZ';
+    const rfcNombreLimpio = (s) => (s || '').toUpperCase().replace(/Á/g,'A').replace(/É/g,'E').replace(/Í/g,'I').replace(/Ó/g,'O').replace(/Ú/g,'U').replace(/Ü/g,'U').replace(/[^A-ZÑ& ]/g,' ').replace(/\s+/g,' ').trim();
+    const rfcHomoclave = (ap1, ap2, nombre) => {
+      const full = '0' + [rfcNombreLimpio(ap1), rfcNombreLimpio(ap2), rfcNombreLimpio(nombre)].filter(Boolean).join(' ');
+      let num = ''; for (const ch of full) num += (RFC_HOMO[ch] !== undefined ? RFC_HOMO[ch] : '00');
+      let suma = 0; for (let i = 0; i < num.length - 1; i++) suma += parseInt(num.substr(i, 2), 10) * parseInt(num.charAt(i + 1), 10);
+      const y = suma % 1000; return RFC_ALFA[Math.floor(y / 34)] + RFC_ALFA[y % 34];
+    };
+    const rfcDigito = (r12) => {
+      const val = (c) => { if (c === ' ') return 37; if (c === 'Ñ') return 38; const i = RFC_DIC.indexOf(c); return i < 0 ? 0 : i; };
+      let s = 0; for (let i = 0; i < 12; i++) s += val(r12[i]) * (13 - i);
+      const r = s % 11; if (r === 0) return '0'; const d = 11 - r; return d === 10 ? 'A' : String(d);
+    };
+    function calcularRfc({ ap1, ap2, nombre, fecha }) {
+      if (!ap1 || !nombre || !fecha) return null;
+      const p1 = sinParticulas(limpiar(ap1));
+      const p2 = sinParticulas(limpiar(ap2));
+      const nom = eligeNombre(limpiar(nombre));
+      if (!p1 || !nom) return null;
+      let letras;
+      if (p1.length <= 2 && p2) letras = (p1[0] || 'X') + (p2[0] || 'X') + (nom[0] || 'X') + (nom[1] || 'X');
+      else if (!p2) letras = (p1[0] || 'X') + vocalInterna(p1) + (nom[0] || 'X') + (nom[1] || 'X');
+      else letras = (p1[0] || 'X') + vocalInterna(p1) + (p2[0] || 'X') + (nom[0] || 'X');
+      if (INCONVENIENTES.has(letras)) letras = letras[0] + 'X' + letras.slice(2);
+      const [yyyy, mm, dd] = fecha.split('-');
+      const base = letras + yyyy.slice(2) + mm + dd;
+      const homo = rfcHomoclave(ap1, ap2, nombre);
+      return base + homo + rfcDigito(base + homo);
+    }
+
     /* ============================================================
        Interfaz
        ============================================================ */
@@ -251,6 +284,7 @@
     function App() {
       const [form, setForm] = useState({ ap1:'', ap2:'', nombre:'', fecha:'', sexo:'', estado:'' });
       const [copiado, setCopiado] = useState(false);
+      const [copiadoRfc, setCopiadoRfc] = useState(false);
       const [detectados, setDetectados] = useState(0);
       const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
       const pegar = (e) => {
@@ -259,14 +293,17 @@
       };
 
       const resultado = useMemo(() => calcularCurp(form), [form]);
+      const rfc = useMemo(() => calcularRfc(form), [form]);
 
-      const copiar = () => {
-        if (!resultado) return;
-        navigator.clipboard.writeText(resultado.curp).then(() => {
-          setCopiado(true);
-          setTimeout(() => setCopiado(false), 1800);
+      const copiarTexto = (texto, setter) => {
+        if (!texto) return;
+        navigator.clipboard.writeText(texto).then(() => {
+          setter(true);
+          setTimeout(() => setter(false), 1800);
         });
       };
+      const copiar = () => copiarTexto(resultado && resultado.curp, setCopiado);
+      const copiarRfc = () => copiarTexto(rfc, setCopiadoRfc);
 
       const inputCls = "w-full ios-input px-4 py-2.5 rounded-xl text-[15px] text-[#1C1C1E]";
 
@@ -278,8 +315,8 @@
               <i className="fas fa-chevron-left text-xs"></i> Volver al Panel
             </a>
             <div className="text-right">
-              <h1 className="text-lg font-bold text-[#1C1C1E] leading-tight">Calculadora de CURP</h1>
-              <p className="text-[11px] text-[#8E8E93]">Clave Única de Registro de Población</p>
+              <h1 className="text-lg font-bold text-[#1C1C1E] leading-tight">Calculadora de CURP y RFC</h1>
+              <p className="text-[11px] text-[#8E8E93]">Clave Única de Registro de Población · Registro Federal de Contribuyentes</p>
             </div>
           </div>
 
@@ -337,54 +374,76 @@
             </div>
 
             {/* Resultado */}
-            {resultado ? (
-              <div className="mt-5 pop-in">
-                <div className="bg-white rounded-2xl p-5 shadow-sm border border-[#E5E5EA]">
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="text-[11px] font-semibold text-[#8E8E93] uppercase tracking-wide">CURP estimada</span>
-                    <button onClick={copiar}
-                      className={"text-xs font-semibold px-3 py-1.5 rounded-full transition-all active:scale-95 " +
-                        (copiado ? "bg-[#34C759] text-white" : "bg-[#007AFF]/10 text-[#007AFF] hover:bg-[#007AFF]/20")}>
-                      <i className={"fas " + (copiado ? "fa-check" : "fa-copy") + " mr-1.5"}></i>{copiado ? "Copiada" : "Copiar"}
-                    </button>
-                  </div>
-                  <div className="text-center py-2">
-                    <span className="font-mono font-bold text-[#1C1C1E] tracking-[0.12em] text-[clamp(1.15rem,5vw,1.9rem)] select-all break-all">
-                      {resultado.curp}
-                    </span>
-                  </div>
+            {(resultado || rfc) ? (
+              <div className="mt-5 pop-in space-y-3">
+                {resultado && (
+                  <div className="bg-white rounded-2xl p-5 shadow-sm border border-[#E5E5EA]">
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="text-[11px] font-semibold text-[#8E8E93] uppercase tracking-wide">CURP estimada</span>
+                      <button onClick={copiar}
+                        className={"text-xs font-semibold px-3 py-1.5 rounded-full transition-all active:scale-95 " +
+                          (copiado ? "bg-[#34C759] text-white" : "bg-[#007AFF]/10 text-[#007AFF] hover:bg-[#007AFF]/20")}>
+                        <i className={"fas " + (copiado ? "fa-check" : "fa-copy") + " mr-1.5"}></i>{copiado ? "Copiada" : "Copiar"}
+                      </button>
+                    </div>
+                    <div className="text-center py-2">
+                      <span className="font-mono font-bold text-[#1C1C1E] tracking-[0.12em] text-[clamp(1.15rem,5vw,1.9rem)] select-all break-all">
+                        {resultado.curp}
+                      </span>
+                    </div>
 
-                  {resultado.altisonante && (
-                    <p className="mt-2 text-[11px] text-[#FF9500] text-center">
-                      <i className="fas fa-info-circle mr-1"></i>
-                      Se sustituyó la 2ª letra por “X” (palabra no permitida).
-                    </p>
-                  )}
+                    {resultado.altisonante && (
+                      <p className="mt-2 text-[11px] text-[#FF9500] text-center">
+                        <i className="fas fa-info-circle mr-1"></i>
+                        Se sustituyó la 2ª letra por “X” (palabra no permitida).
+                      </p>
+                    )}
 
-                  {/* Desglose */}
-                  <div className="mt-4 pt-4 border-t border-[#E5E5EA] grid grid-cols-2 gap-x-4 gap-y-2.5">
-                    {resultado.segmentos.map((s, i) => (
-                      <div key={i} className="flex items-center justify-between gap-2">
-                        <span className="text-[11px] text-[#8E8E93] leading-tight">{s.label}</span>
-                        <span className={"font-mono font-bold text-sm " + s.color}>{s.val}</span>
-                      </div>
-                    ))}
+                    {/* Desglose */}
+                    <div className="mt-4 pt-4 border-t border-[#E5E5EA] grid grid-cols-2 gap-x-4 gap-y-2.5">
+                      {resultado.segmentos.map((s, i) => (
+                        <div key={i} className="flex items-center justify-between gap-2">
+                          <span className="text-[11px] text-[#8E8E93] leading-tight">{s.label}</span>
+                          <span className={"font-mono font-bold text-sm " + s.color}>{s.val}</span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                </div>
+                )}
 
-                <div className="mt-3 bg-[#FFF9E6] border border-[#FFE9A8] rounded-xl p-3.5 flex gap-2.5">
+                {rfc && (
+                  <div className="bg-white rounded-2xl p-5 shadow-sm border border-[#E5E5EA]">
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="text-[11px] font-semibold text-[#8E8E93] uppercase tracking-wide">RFC estimado</span>
+                      <button onClick={copiarRfc}
+                        className={"text-xs font-semibold px-3 py-1.5 rounded-full transition-all active:scale-95 " +
+                          (copiadoRfc ? "bg-[#34C759] text-white" : "bg-[#AF52DE]/10 text-[#AF52DE] hover:bg-[#AF52DE]/20")}>
+                        <i className={"fas " + (copiadoRfc ? "fa-check" : "fa-copy") + " mr-1.5"}></i>{copiadoRfc ? "Copiado" : "Copiar"}
+                      </button>
+                    </div>
+                    <div className="text-center py-2">
+                      <span className="font-mono font-bold text-[#1C1C1E] tracking-[0.12em] text-[clamp(1.15rem,5vw,1.9rem)] select-all break-all">
+                        {rfc}
+                      </span>
+                    </div>
+                    {!resultado && (
+                      <p className="mt-2 text-[11px] text-[#8E8E93] text-center">Agrega <b>sexo</b> y <b>entidad</b> para calcular también la CURP.</p>
+                    )}
+                  </div>
+                )}
+
+                <div className="bg-[#FFF9E6] border border-[#FFE9A8] rounded-xl p-3.5 flex gap-2.5">
                   <i className="fas fa-triangle-exclamation text-[#FF9500] mt-0.5"></i>
                   <p className="text-[12px] text-[#8A6D00] leading-snug">
-                    <b>Valor estimado.</b> La <b>homoclave</b> (posición 17) es asignada por RENAPO para diferenciar homónimos;
-                    aquí se usa el valor por defecto ({Number(form.fecha?.slice(0,4)) < 2000 ? '“0”' : '“A”'}).
-                    Verifica siempre la CURP oficial en <span className="font-mono">gob.mx/curp</span>.
+                    <b>Valores estimados.</b> Las homoclaves las asignan RENAPO (CURP) y el SAT (RFC) para diferenciar homónimos.
+                    Se calculan con el algoritmo oficial, pero verifica siempre en <span className="font-mono">gob.mx/curp</span> y <span className="font-mono">sat.gob.mx</span>.
                   </p>
                 </div>
               </div>
             ) : (
               <div className="mt-5 text-center text-[#8E8E93] text-sm py-10">
                 <i className="fas fa-id-card text-3xl mb-3 text-[#C7C7CC]"></i>
-                <p>Completa los campos marcados con <b>*</b> para generar la CURP.</p>
+                <p>Completa los campos marcados con <b>*</b> para generar la CURP y el RFC.</p>
               </div>
             )}
           </div>

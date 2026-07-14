@@ -285,12 +285,46 @@
       return { found: out, count: Object.keys(out).length };
     };
 
+    /* ===== Cálculo de RFC (13 caracteres) — base + homoclave + dígito verificador (SAT) ===== */
+    const RFC_HOMO = { ' ':'00','0':'00','1':'01','2':'02','3':'03','4':'04','5':'05','6':'06','7':'07','8':'08','9':'09','&':'10','A':'11','B':'12','C':'13','D':'14','E':'15','F':'16','G':'17','H':'18','I':'19','J':'21','K':'22','L':'23','M':'24','N':'25','O':'26','P':'27','Q':'28','R':'29','S':'32','T':'33','U':'34','V':'35','W':'36','X':'37','Y':'38','Z':'39','Ñ':'40' };
+    const RFC_ALFA = '123456789ABCDEFGHIJKLMNPQRSTUVWXYZ';
+    const RFC_DIC = '0123456789ABCDEFGHIJKLMN&OPQRSTUVWXYZ';
+    const rfcNombreLimpio = (s) => (s || '').toUpperCase().replace(/Á/g,'A').replace(/É/g,'E').replace(/Í/g,'I').replace(/Ó/g,'O').replace(/Ú/g,'U').replace(/Ü/g,'U').replace(/[^A-ZÑ& ]/g,' ').replace(/\s+/g,' ').trim();
+    const rfcHomoclave = (ap1, ap2, nombre) => {
+      const full = '0' + [rfcNombreLimpio(ap1), rfcNombreLimpio(ap2), rfcNombreLimpio(nombre)].filter(Boolean).join(' ');
+      let num = ''; for (const ch of full) num += (RFC_HOMO[ch] !== undefined ? RFC_HOMO[ch] : '00');
+      let suma = 0; for (let i = 0; i < num.length - 1; i++) suma += parseInt(num.substr(i, 2), 10) * parseInt(num.charAt(i + 1), 10);
+      const y = suma % 1000; return RFC_ALFA[Math.floor(y / 34)] + RFC_ALFA[y % 34];
+    };
+    const rfcDigito = (r12) => {
+      const val = (c) => { if (c === ' ') return 37; if (c === 'Ñ') return 38; const i = RFC_DIC.indexOf(c); return i < 0 ? 0 : i; };
+      let s = 0; for (let i = 0; i < 12; i++) s += val(r12[i]) * (13 - i);
+      const r = s % 11; if (r === 0) return '0'; const d = 11 - r; return d === 10 ? 'A' : String(d);
+    };
+    const calcularRfc = ({ ap1, ap2, nombre, fecha }) => {
+      if (!ap1 || !nombre || !fecha) return null;
+      const p1 = curpSinParticulas(curpLimpiar(ap1));
+      const p2 = curpSinParticulas(curpLimpiar(ap2));
+      const nom = curpEligeNombre(curpLimpiar(nombre));
+      if (!p1 || !nom) return null;
+      let letras;
+      if (p1.length <= 2 && p2) letras = (p1[0] || 'X') + (p2[0] || 'X') + (nom[0] || 'X') + (nom[1] || 'X');
+      else if (!p2) letras = (p1[0] || 'X') + curpVocalInterna(p1) + (nom[0] || 'X') + (nom[1] || 'X');
+      else letras = (p1[0] || 'X') + curpVocalInterna(p1) + (p2[0] || 'X') + (nom[0] || 'X');
+      if (CURP_INCONVENIENTES.has(letras)) letras = letras[0] + 'X' + letras.slice(2);
+      const [yyyy, mm, dd] = fecha.split('-');
+      const base = letras + yyyy.slice(2) + mm + dd;
+      const homo = rfcHomoclave(ap1, ap2, nombre);
+      return base + homo + rfcDigito(base + homo);
+    };
+
     // Mini-calculadora de CURP en modal; rellena el campo del formulario al confirmar.
     function CurpCalcModal({ onUse, onClose }) {
       const [f, setF] = useState({ ap1:'', ap2:'', nombre:'', fecha:'', sexo:'', estado:'' });
       const [detectados, setDetectados] = useState(0);
       const set = (k, v) => setF(p => ({ ...p, [k]: v }));
       const res = useMemo(() => calcularCurp(f), [f]);
+      const rfc = useMemo(() => calcularRfc(f), [f]);
       const pegar = (e) => {
         const { found, count } = parseDatosCurp(e.target.value);
         if (count) { setF(p => ({ ...p, ...found })); setDetectados(count); }
@@ -300,7 +334,7 @@
         <div className="fixed inset-0 glass-modal z-[60] flex items-center justify-center p-4" onClick={onClose}>
           <div className="bg-white rounded-3xl shadow-[0_20px_60px_rgba(0,0,0,0.25)] w-full max-w-sm p-5 space-y-3 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between">
-              <h3 className="font-semibold text-lg tracking-tight text-[#1C1C1E]"><i className="fas fa-calculator text-[#AF52DE] mr-2"></i>Calcular CURP</h3>
+              <h3 className="font-semibold text-lg tracking-tight text-[#1C1C1E]"><i className="fas fa-calculator text-[#AF52DE] mr-2"></i>Calcular CURP y RFC</h3>
               <button type="button" onClick={onClose} className="w-8 h-8 rounded-full text-[#8E8E93] hover:bg-[#F2F2F7] transition-colors"><i className="fas fa-times"></i></button>
             </div>
             <div className="bg-[#AF52DE]/[0.08] rounded-2xl p-3">
@@ -326,20 +360,31 @@
               <option value="">Entidad de nacimiento…</option>
               {ESTADOS_CURP.map(e => <option key={e.c} value={e.c}>{e.n}</option>)}
             </select>
-            {res ? (
-              <div className="bg-[#F2F2F7] rounded-2xl p-3 text-center">
-                <div className="text-[9px] text-[#8E8E93] uppercase tracking-wide mb-1">CURP estimada</div>
-                <div className="font-mono font-bold text-[#1C1C1E] tracking-wider text-base break-all select-all">{res.curp}</div>
-                {res.altisonante && <div className="text-[10px] text-[#FF9500] mt-1">2ª letra sustituida por “X”.</div>}
+            {(res || rfc) ? (
+              <div className="space-y-2">
+                {res && (
+                  <div className="bg-[#F2F2F7] rounded-2xl p-3 text-center">
+                    <div className="text-[9px] text-[#8E8E93] uppercase tracking-wide mb-1">CURP estimada</div>
+                    <div className="font-mono font-bold text-[#1C1C1E] tracking-wider text-base break-all select-all">{res.curp}</div>
+                    {res.altisonante && <div className="text-[10px] text-[#FF9500] mt-1">2ª letra sustituida por “X”.</div>}
+                  </div>
+                )}
+                {rfc && (
+                  <div className="bg-[#F2F2F7] rounded-2xl p-3 text-center">
+                    <div className="text-[9px] text-[#8E8E93] uppercase tracking-wide mb-1">RFC estimado</div>
+                    <div className="font-mono font-bold text-[#1C1C1E] tracking-wider text-base break-all select-all">{rfc}</div>
+                  </div>
+                )}
+                {!res && rfc && <p className="text-[10px] text-[#8E8E93] text-center">Agrega sexo y entidad para la CURP.</p>}
               </div>
             ) : (
-              <p className="text-[11px] text-[#8E8E93] text-center py-2">Completa apellido, nombre, fecha, sexo y entidad.</p>
+              <p className="text-[11px] text-[#8E8E93] text-center py-2">Completa apellido, nombre y fecha (sexo y entidad para la CURP).</p>
             )}
-            <button type="button" disabled={!res} onClick={() => onUse(res.curp)}
-              className={"w-full py-2.5 rounded-xl font-semibold text-white transition-all " + (res ? "bg-[#34C759] hover:bg-[#2DB14E] active:scale-[0.98]" : "bg-[#C7C7CC] cursor-not-allowed")}>
-              Usar esta CURP
+            <button type="button" disabled={!res && !rfc} onClick={() => onUse({ curp: res ? res.curp : '', rfc: rfc || '' })}
+              className={"w-full py-2.5 rounded-xl font-semibold text-white transition-all " + ((res || rfc) ? "bg-[#34C759] hover:bg-[#2DB14E] active:scale-[0.98]" : "bg-[#C7C7CC] cursor-not-allowed")}>
+              Usar CURP y RFC
             </button>
-            <p className="text-[10px] text-[#8E8E93] text-center leading-snug">La homoclave la asigna RENAPO; verifica en gob.mx/curp.</p>
+            <p className="text-[10px] text-[#8E8E93] text-center leading-snug">Homoclave CURP (RENAPO) y RFC (SAT) estimadas; verifica en gob.mx/curp y sat.gob.mx.</p>
           </div>
         </div>
       );
@@ -1592,7 +1637,7 @@
 
             <div className="flex gap-2 items-center">
               <a href="generador-ofertas.html" className="bg-[#00B100] text-white px-4 py-2 rounded-full text-sm font-semibold hover:bg-[#009a00] active:scale-[0.97] transition-all"><i className="fas fa-file-invoice-dollar md:mr-2"></i><span className="hidden md:inline">Generar Oferta</span></a>
-              <a href="curp.html" className="bg-[#AF52DE] text-white px-4 py-2 rounded-full text-sm font-semibold hover:bg-[#9A3FCB] active:scale-[0.97] transition-all"><i className="fas fa-id-card md:mr-2"></i><span className="hidden md:inline">CURP</span></a>
+              <a href="curp.html" className="bg-[#AF52DE] text-white px-4 py-2 rounded-full text-sm font-semibold hover:bg-[#9A3FCB] active:scale-[0.97] transition-all"><i className="fas fa-id-card md:mr-2"></i><span className="hidden md:inline">CURP · RFC</span></a>
               <a href="reports.html" className="bg-[#007AFF] text-white px-4 py-2 rounded-full text-sm font-semibold hover:bg-[#0070E0] active:scale-[0.97] transition-all"><i className="fas fa-table md:mr-2"></i><span className="hidden md:inline">Reportes</span></a>
               <button onClick={() => {setShowForm(true); setFormError('');}} className="bg-[#34C759] text-white px-4 py-2 rounded-full text-sm font-semibold hover:bg-[#2DB14E] active:scale-[0.97] transition-all"><i className="fas fa-plus md:mr-2"></i><span className="hidden md:inline">Lead</span></button>
               <button onClick={() => auth.signOut()} className="w-9 h-9 flex items-center justify-center rounded-full text-[#8E8E93] hover:bg-[#F2F2F7] hover:text-[#FF3B30] transition-colors" title="Cerrar sesión"><i className="fas fa-sign-out-alt"></i></button>
@@ -1742,7 +1787,7 @@
                  <div className="grid grid-cols-2 gap-2">
                     <div className="relative">
                        <input name="curp" placeholder="CURP" className="w-full bg-[#F2F2F7] border border-transparent pl-4 pr-9 py-2.5 rounded-xl focus:outline-none focus:bg-white focus:border-[#007AFF] font-mono text-xs uppercase transition-colors" />
-                       <button type="button" title="Calcular CURP" onClick={(e) => { const input = e.currentTarget.closest('form').elements.curp; setCurpCalc({ onUse: (v) => { input.value = v; } }); }} className="absolute right-2 top-1/2 -translate-y-1/2 text-[#AEAEB2] hover:text-[#AF52DE] transition-colors" aria-label="Calcular CURP">
+                       <button type="button" title="Calcular CURP y RFC" onClick={(e) => { const form = e.currentTarget.closest('form'); setCurpCalc({ onUse: ({ curp, rfc }) => { if (curp) form.elements.curp.value = curp; if (rfc && form.elements.rfc) form.elements.rfc.value = rfc; } }); }} className="absolute right-2 top-1/2 -translate-y-1/2 text-[#AEAEB2] hover:text-[#AF52DE] transition-colors" aria-label="Calcular CURP y RFC">
                           <i className="fas fa-calculator text-xs"></i>
                        </button>
                     </div>
@@ -1799,7 +1844,7 @@
                    <div><label className="text-[10px] font-medium text-[#8E8E93] uppercase tracking-wide">CURP</label>
                    <div className="relative mt-1">
                       <input name="curp" defaultValue={editSaleData.curp || ''} className="w-full bg-[#F2F2F7] border border-transparent pl-4 pr-9 py-2.5 rounded-xl focus:outline-none focus:bg-white focus:border-[#007AFF] font-mono text-xs uppercase transition-colors" />
-                      <button type="button" title="Calcular CURP" onClick={(e) => { const input = e.currentTarget.closest('form').elements.curp; setCurpCalc({ onUse: (v) => { input.value = v; } }); }} className="absolute right-2 top-1/2 -translate-y-1/2 text-[#AEAEB2] hover:text-[#AF52DE] transition-colors" aria-label="Calcular CURP">
+                      <button type="button" title="Calcular CURP y RFC" onClick={(e) => { const form = e.currentTarget.closest('form'); setCurpCalc({ onUse: ({ curp, rfc }) => { if (curp) form.elements.curp.value = curp; if (rfc && form.elements.rfc) form.elements.rfc.value = rfc; } }); }} className="absolute right-2 top-1/2 -translate-y-1/2 text-[#AEAEB2] hover:text-[#AF52DE] transition-colors" aria-label="Calcular CURP y RFC">
                          <i className="fas fa-calculator text-xs"></i>
                       </button>
                    </div></div>
