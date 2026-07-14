@@ -334,9 +334,13 @@
       const [detectados, setDetectados] = useState(0);
       const [datos, setDatos] = useState([]);
       const [textoPegado, setTextoPegado] = useState('');
+      const [copiadoId, setCopiadoId] = useState(null);
+      const [copiadoTodo, setCopiadoTodo] = useState(false);
       const set = (k, v) => setF(p => ({ ...p, [k]: v }));
       const res = useMemo(() => calcularCurp(f), [f]);
       const rfc = useMemo(() => calcularRfc(f), [f]);
+      const copiar = (texto, id) => { if (!texto) return; navigator.clipboard.writeText(texto).then(() => { setCopiadoId(id); setTimeout(() => setCopiadoId(null), 1200); }); };
+      const copiarTodos = () => { if (!datos.length) return; navigator.clipboard.writeText(datos.map(d => bonito(d.label) + ': ' + d.value).join('\n')).then(() => { setCopiadoTodo(true); setTimeout(() => setCopiadoTodo(false), 1500); }); };
       const pegar = (e) => {
         const texto = e.target.value;
         setTextoPegado(texto);
@@ -345,7 +349,7 @@
         setDetectados(count);
         if (count) setF(p => ({ ...p, ...found }));
       };
-      const limpiar = () => { setF(VACIO); setTextoPegado(''); setDatos([]); setDetectados(0); };
+      const limpiar = () => { setF(VACIO); setTextoPegado(''); setDatos([]); setDetectados(0); setCopiadoId(null); setCopiadoTodo(false); };
       const bonito = (s) => { const x = (s || '').replace(/_/g, ' ').trim(); return x.charAt(0).toUpperCase() + x.slice(1); };
       const hayContenido = textoPegado || f.ap1 || f.ap2 || f.nombre || f.fecha || f.sexo || f.estado;
       const inp = "w-full bg-[#F2F2F7] border border-transparent px-3 py-2 rounded-xl text-sm focus:outline-none focus:bg-white focus:border-[#007AFF] transition-colors";
@@ -389,17 +393,19 @@
             {(res || rfc) ? (
               <div className="space-y-2">
                 {res && (
-                  <div className="bg-[#F2F2F7] rounded-2xl p-3 text-center">
-                    <div className="text-[9px] text-[#8E8E93] uppercase tracking-wide mb-1">CURP estimada</div>
-                    <div className="font-mono font-bold text-[#1C1C1E] tracking-wider text-base break-all select-all">{res.curp}</div>
+                  <button type="button" onClick={() => copiar(res.curp, 'curp')} title="Clic para copiar"
+                    className="group w-full bg-[#F2F2F7] rounded-2xl p-3 text-center hover:bg-[#EAEAEF] transition-colors">
+                    <div className="text-[9px] text-[#8E8E93] uppercase tracking-wide mb-1">CURP estimada <i className={"fas ml-1 " + (copiadoId === 'curp' ? "fa-check text-[#34C759]" : "fa-copy text-[#C7C7CC] opacity-0 group-hover:opacity-100")}></i></div>
+                    <div className="font-mono font-bold text-[#1C1C1E] tracking-wider text-base break-all">{res.curp}</div>
                     {res.altisonante && <div className="text-[10px] text-[#FF9500] mt-1">2ª letra sustituida por “X”.</div>}
-                  </div>
+                  </button>
                 )}
                 {rfc && (
-                  <div className="bg-[#F2F2F7] rounded-2xl p-3 text-center">
-                    <div className="text-[9px] text-[#8E8E93] uppercase tracking-wide mb-1">RFC estimado</div>
-                    <div className="font-mono font-bold text-[#1C1C1E] tracking-wider text-base break-all select-all">{rfc}</div>
-                  </div>
+                  <button type="button" onClick={() => copiar(rfc, 'rfc')} title="Clic para copiar"
+                    className="group w-full bg-[#F2F2F7] rounded-2xl p-3 text-center hover:bg-[#EAEAEF] transition-colors">
+                    <div className="text-[9px] text-[#8E8E93] uppercase tracking-wide mb-1">RFC estimado <i className={"fas ml-1 " + (copiadoId === 'rfc' ? "fa-check text-[#34C759]" : "fa-copy text-[#C7C7CC] opacity-0 group-hover:opacity-100")}></i></div>
+                    <div className="font-mono font-bold text-[#1C1C1E] tracking-wider text-base break-all">{rfc}</div>
+                  </button>
                 )}
                 {!res && rfc && <p className="text-[10px] text-[#8E8E93] text-center">Agrega sexo y entidad para la CURP.</p>}
               </div>
@@ -414,13 +420,24 @@
 
             {datos.length > 0 && (
               <div className="border-t border-[#E5E5EA] pt-3">
-                <div className="text-[10px] font-semibold text-[#8E8E93] uppercase tracking-wide mb-1.5"><i className="fas fa-list-ul mr-1"></i>Todos los datos detectados ({datos.length})</div>
+                <div className="flex items-center justify-between gap-2 mb-1.5">
+                  <span className="text-[10px] font-semibold text-[#8E8E93] uppercase tracking-wide"><i className="fas fa-list-ul mr-1"></i>Todos los datos ({datos.length})</span>
+                  <button type="button" onClick={copiarTodos}
+                    className={"text-[10px] font-semibold px-2 py-0.5 rounded-full border transition-all " + (copiadoTodo ? "bg-[#34C759] text-white border-[#34C759]" : "text-[#007AFF] border-[#007AFF]/30 hover:text-white hover:bg-[#007AFF] hover:border-[#007AFF]")}>
+                    <i className={"fas " + (copiadoTodo ? "fa-check" : "fa-copy") + " mr-1"}></i>{copiadoTodo ? "Copiado" : "Copiar todo"}
+                  </button>
+                </div>
+                <p className="text-[9px] text-[#8E8E93] mb-1">Toca un dato para copiarlo.</p>
                 <div className="max-h-40 overflow-y-auto space-y-0.5 pr-1">
                   {datos.map((d, i) => (
-                    <div key={i} className="flex items-baseline justify-between gap-3 text-[11px] py-1 border-b border-[#F2F2F7]">
+                    <button type="button" key={i} onClick={() => copiar(d.value, 'd' + i)} title="Clic para copiar"
+                      className="group w-full flex items-baseline justify-between gap-3 text-[11px] py-1 px-1 -mx-1 border-b border-[#F2F2F7] text-left rounded hover:bg-[#F2F2F7]/70 transition-colors">
                       <span className="text-[#8E8E93] shrink-0">{bonito(d.label)}</span>
-                      <span className="text-[#1C1C1E] font-medium text-right break-words select-text">{d.value}</span>
-                    </div>
+                      <span className="flex items-baseline gap-1.5 text-right min-w-0">
+                        <span className="text-[#1C1C1E] font-medium break-words">{d.value}</span>
+                        <i className={"fas text-[9px] shrink-0 " + (copiadoId === 'd' + i ? "fa-check text-[#34C759]" : "fa-copy text-[#C7C7CC] opacity-0 group-hover:opacity-100")}></i>
+                      </span>
+                    </button>
                   ))}
                 </div>
               </div>

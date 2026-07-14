@@ -295,6 +295,8 @@
       const [form, setForm] = useState(FORM0);
       const [copiado, setCopiado] = useState(false);
       const [copiadoRfc, setCopiadoRfc] = useState(false);
+      const [copiadoTodo, setCopiadoTodo] = useState(false);
+      const [copiadoIdx, setCopiadoIdx] = useState(-1);
       const [detectados, setDetectados] = useState(0);
       const [datos, setDatos] = useState([]);          // todos los campos del bloque pegado
       const [textoPegado, setTextoPegado] = useState('');
@@ -309,7 +311,7 @@
       };
       const limpiarTodo = () => {
         setForm(FORM0); setTextoPegado(''); setDatos([]); setDetectados(0);
-        setCopiado(false); setCopiadoRfc(false);
+        setCopiado(false); setCopiadoRfc(false); setCopiadoTodo(false); setCopiadoIdx(-1);
       };
       const bonito = (s) => { const x = (s || '').replace(/_/g, ' ').trim(); return x.charAt(0).toUpperCase() + x.slice(1); };
       const hayContenido = textoPegado || form.ap1 || form.ap2 || form.nombre || form.fecha || form.sexo || form.estado;
@@ -326,6 +328,10 @@
       };
       const copiar = () => copiarTexto(resultado && resultado.curp, setCopiado);
       const copiarRfc = () => copiarTexto(rfc, setCopiadoRfc);
+      const copiarCampo = (valor, i) => {
+        navigator.clipboard.writeText(valor).then(() => { setCopiadoIdx(i); setTimeout(() => setCopiadoIdx(-1), 1200); });
+      };
+      const copiarTodos = () => copiarTexto(datos.map(d => bonito(d.label) + ': ' + d.value).join('\n'), setCopiadoTodo);
 
       const inputCls = "w-full ios-input px-4 py-2.5 rounded-xl text-[15px] text-[#1C1C1E]";
 
@@ -480,21 +486,32 @@
             {/* Todos los campos detectados del lead */}
             {datos.length > 0 && (
               <div className="mt-5 bg-white rounded-2xl p-5 shadow-sm border border-[#E5E5EA] pop-in">
-                <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center justify-between gap-2 mb-1">
                   <span className="text-[11px] font-semibold text-[#8E8E93] uppercase tracking-wide">
                     <i className="fas fa-list-ul mr-1.5"></i>Datos detectados del lead ({datos.length})
                   </span>
-                  <button type="button" onClick={limpiarTodo}
-                    className="text-[11px] font-semibold text-[#FF3B30] hover:text-white hover:bg-[#FF3B30] px-2.5 py-1 rounded-full border border-[#FF3B30]/30 hover:border-[#FF3B30] transition-all">
-                    <i className="fas fa-eraser mr-1"></i>Limpiar todo
-                  </button>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button type="button" onClick={copiarTodos}
+                      className={"text-[11px] font-semibold px-2.5 py-1 rounded-full border transition-all " + (copiadoTodo ? "bg-[#34C759] text-white border-[#34C759]" : "text-[#007AFF] border-[#007AFF]/30 hover:text-white hover:bg-[#007AFF] hover:border-[#007AFF]")}>
+                      <i className={"fas " + (copiadoTodo ? "fa-check" : "fa-copy") + " mr-1"}></i>{copiadoTodo ? "Copiado" : "Copiar todo"}
+                    </button>
+                    <button type="button" onClick={limpiarTodo}
+                      className="text-[11px] font-semibold text-[#FF3B30] hover:text-white hover:bg-[#FF3B30] px-2.5 py-1 rounded-full border border-[#FF3B30]/30 hover:border-[#FF3B30] transition-all">
+                      <i className="fas fa-eraser mr-1"></i>Limpiar
+                    </button>
+                  </div>
                 </div>
+                <p className="text-[10px] text-[#8E8E93] mb-2">Toca cualquier dato para copiarlo.</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-1">
                   {datos.map((d, i) => (
-                    <div key={i} className="flex items-baseline justify-between gap-3 py-1.5 border-b border-[#F2F2F7]">
+                    <button type="button" key={i} onClick={() => copiarCampo(d.value, i)} title="Clic para copiar"
+                      className="group flex items-baseline justify-between gap-3 py-1.5 px-1.5 -mx-1.5 border-b border-[#F2F2F7] text-left rounded-md hover:bg-[#F2F2F7]/70 transition-colors">
                       <span className="text-[11px] text-[#8E8E93] shrink-0">{bonito(d.label)}</span>
-                      <span className="text-[13px] text-[#1C1C1E] font-medium text-right break-words select-text">{d.value}</span>
-                    </div>
+                      <span className="flex items-baseline gap-1.5 text-right min-w-0">
+                        <span className="text-[13px] text-[#1C1C1E] font-medium break-words">{d.value}</span>
+                        <i className={"fas text-[10px] shrink-0 " + (copiadoIdx === i ? "fa-check text-[#34C759]" : "fa-copy text-[#C7C7CC] opacity-0 group-hover:opacity-100")}></i>
+                      </span>
+                    </button>
                   ))}
                 </div>
               </div>
