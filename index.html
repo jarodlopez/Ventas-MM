@@ -252,26 +252,35 @@
     };
     const curpPad2 = (v) => String(v).replace(/\D/g, '').padStart(2, '0').slice(-2);
     const parseDatosCurp = (texto) => {
-      if (!texto) return { found: {}, count: 0 };
+      if (!texto) return { found: {}, count: 0, todos: [] };
       const lines = texto.split(/\r?\n/);
-      const pares = {};
+      const todos = [];
+      const consumidas = new Set();
       for (let i = 0; i < lines.length; i++) {
-        const idx = lines[i].indexOf(':');
+        if (consumidas.has(i)) continue;
+        const raw = lines[i];
+        const t = raw.trim();
+        if (!t) continue;
+        const idx = raw.indexOf(':');
         if (idx === -1) continue;
-        const key = curpNorm(lines[i].slice(0, idx));
-        if (!CURP_DICT[key]) continue;
-        let val = lines[i].slice(idx + 1).trim();
-        if (!val) {
+        const label = raw.slice(0, idx).trim();
+        if (!label) continue;
+        const endsColon = t.endsWith(':');
+        const known = !!CURP_DICT[curpNorm(label)];
+        if (!endsColon && !known) continue; // evita falsos positivos por «:» sueltos en valores
+        let value = raw.slice(idx + 1).trim();
+        if (!value) {
           for (let j = i + 1; j < lines.length; j++) {
-            if (lines[j].trim() === '') continue;
-            const nidx = lines[j].indexOf(':');
-            const nkey = nidx !== -1 ? curpNorm(lines[j].slice(0, nidx)) : null;
-            if (nkey && CURP_DICT[nkey]) break;
-            val = lines[j].trim(); break;
+            const nt = lines[j].trim();
+            if (!nt) continue;
+            if (nt.endsWith(':')) break;
+            value = nt; consumidas.add(j); break;
           }
         }
-        if (val) pares[CURP_DICT[key]] = val;
+        if (value) todos.push({ label, value, key: curpNorm(label) });
       }
+      const pares = {};
+      todos.forEach(p => { const f = CURP_DICT[p.key]; if (f && !(f in pares)) pares[f] = p.value; });
       const out = {};
       if (pares.ap1) out.ap1 = pares.ap1;
       if (pares.ap2) out.ap2 = pares.ap2;
@@ -282,7 +291,7 @@
       if (pares.estado) { const c = curpMatchEstado(pares.estado); if (c) out.estado = c; }
       if (pares.sexo) { const s = curpMatchSexo(pares.sexo); if (s) out.sexo = s; }
       else if (out.nombre) { const s = curpInferSexo(out.nombre); if (s) out.sexo = s; }
-      return { found: out, count: Object.keys(out).length };
+      return { found: out, count: Object.keys(out).length, todos };
     };
 
     /* ===== Cálculo de RFC (13 caracteres) — base + homoclave + dígito verificador (SAT) ===== */
@@ -320,15 +329,25 @@
 
     // Mini-calculadora de CURP en modal; rellena el campo del formulario al confirmar.
     function CurpCalcModal({ onUse, onClose }) {
-      const [f, setF] = useState({ ap1:'', ap2:'', nombre:'', fecha:'', sexo:'', estado:'' });
+      const VACIO = { ap1:'', ap2:'', nombre:'', fecha:'', sexo:'', estado:'' };
+      const [f, setF] = useState(VACIO);
       const [detectados, setDetectados] = useState(0);
+      const [datos, setDatos] = useState([]);
+      const [textoPegado, setTextoPegado] = useState('');
       const set = (k, v) => setF(p => ({ ...p, [k]: v }));
       const res = useMemo(() => calcularCurp(f), [f]);
       const rfc = useMemo(() => calcularRfc(f), [f]);
       const pegar = (e) => {
-        const { found, count } = parseDatosCurp(e.target.value);
-        if (count) { setF(p => ({ ...p, ...found })); setDetectados(count); }
+        const texto = e.target.value;
+        setTextoPegado(texto);
+        const { found, count, todos } = parseDatosCurp(texto);
+        setDatos(todos);
+        setDetectados(count);
+        if (count) setF(p => ({ ...p, ...found }));
       };
+      const limpiar = () => { setF(VACIO); setTextoPegado(''); setDatos([]); setDetectados(0); };
+      const bonito = (s) => { const x = (s || '').replace(/_/g, ' ').trim(); return x.charAt(0).toUpperCase() + x.slice(1); };
+      const hayContenido = textoPegado || f.ap1 || f.ap2 || f.nombre || f.fecha || f.sexo || f.estado;
       const inp = "w-full bg-[#F2F2F7] border border-transparent px-3 py-2 rounded-xl text-sm focus:outline-none focus:bg-white focus:border-[#007AFF] transition-colors";
       return (
         <div className="fixed inset-0 glass-modal z-[60] flex items-center justify-center p-4" onClick={onClose}>
@@ -338,9 +357,16 @@
               <button type="button" onClick={onClose} className="w-8 h-8 rounded-full text-[#8E8E93] hover:bg-[#F2F2F7] transition-colors"><i className="fas fa-times"></i></button>
             </div>
             <div className="bg-[#AF52DE]/[0.08] rounded-2xl p-3">
-              <label className="text-[11px] font-semibold text-[#AF52DE] flex items-center gap-1.5 mb-1.5"><i className="fas fa-wand-magic-sparkles"></i> Pegar datos (RENAPO / lead)</label>
-              <textarea onChange={pegar} rows={2} placeholder="Pega el bloque de datos (etiqueta : valor) y se llenan solos apellidos, nombre, fecha, sexo y entidad." className="w-full bg-white border border-[#AF52DE]/20 rounded-xl p-2.5 text-xs focus:outline-none focus:border-[#AF52DE] resize-none" />
-              {detectados > 0 && <p className="text-[10px] text-[#AF52DE] mt-1"><i className="fas fa-check-circle mr-1"></i>{detectados} datos detectados y rellenados. Verifica el sexo si no venía en el texto.</p>}
+              <div className="flex items-center justify-between gap-2 mb-1.5">
+                <label className="text-[11px] font-semibold text-[#AF52DE] flex items-center gap-1.5"><i className="fas fa-wand-magic-sparkles"></i> Pegar datos (RENAPO / lead)</label>
+                {hayContenido && (
+                  <button type="button" onClick={limpiar} className="text-[10px] font-semibold text-[#FF3B30] hover:text-white hover:bg-[#FF3B30] px-2 py-0.5 rounded-full border border-[#FF3B30]/30 hover:border-[#FF3B30] transition-all whitespace-nowrap">
+                    <i className="fas fa-eraser mr-1"></i>Limpiar
+                  </button>
+                )}
+              </div>
+              <textarea value={textoPegado} onChange={pegar} rows={2} placeholder="Pega el bloque de datos (etiqueta : valor) y se llenan solos apellidos, nombre, fecha, sexo y entidad." className="w-full bg-white border border-[#AF52DE]/20 rounded-xl p-2.5 text-xs focus:outline-none focus:border-[#AF52DE] resize-none" />
+              {detectados > 0 && <p className="text-[10px] text-[#AF52DE] mt-1"><i className="fas fa-check-circle mr-1"></i>{detectados} datos para CURP/RFC rellenados. Verifica el sexo si no venía en el texto.</p>}
             </div>
             <div className="grid grid-cols-2 gap-2">
               <input className={inp} placeholder="Primer apellido" value={f.ap1} onChange={e => set('ap1', e.target.value)} />
@@ -385,6 +411,20 @@
               Usar CURP y RFC
             </button>
             <p className="text-[10px] text-[#8E8E93] text-center leading-snug">Homoclave CURP (RENAPO) y RFC (SAT) estimadas; verifica en gob.mx/curp y sat.gob.mx.</p>
+
+            {datos.length > 0 && (
+              <div className="border-t border-[#E5E5EA] pt-3">
+                <div className="text-[10px] font-semibold text-[#8E8E93] uppercase tracking-wide mb-1.5"><i className="fas fa-list-ul mr-1"></i>Todos los datos detectados ({datos.length})</div>
+                <div className="max-h-40 overflow-y-auto space-y-0.5 pr-1">
+                  {datos.map((d, i) => (
+                    <div key={i} className="flex items-baseline justify-between gap-3 text-[11px] py-1 border-b border-[#F2F2F7]">
+                      <span className="text-[#8E8E93] shrink-0">{bonito(d.label)}</span>
+                      <span className="text-[#1C1C1E] font-medium text-right break-words select-text">{d.value}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       );

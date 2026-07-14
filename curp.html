@@ -203,26 +203,35 @@
     };
     const pad2 = (v) => String(v).replace(/\D/g, '').padStart(2, '0').slice(-2);
     function parseDatosCurp(texto) {
-      if (!texto) return { found: {}, count: 0 };
+      if (!texto) return { found: {}, count: 0, todos: [] };
       const lines = texto.split(/\r?\n/);
-      const pares = {};
+      const todos = [];
+      const consumidas = new Set();
       for (let i = 0; i < lines.length; i++) {
-        const idx = lines[i].indexOf(':');
+        if (consumidas.has(i)) continue;
+        const raw = lines[i];
+        const t = raw.trim();
+        if (!t) continue;
+        const idx = raw.indexOf(':');
         if (idx === -1) continue;
-        const key = norm(lines[i].slice(0, idx));
-        if (!DICT[key]) continue;
-        let val = lines[i].slice(idx + 1).trim();
-        if (!val) {
+        const label = raw.slice(0, idx).trim();
+        if (!label) continue;
+        const endsColon = t.endsWith(':');
+        const known = !!DICT[norm(label)];
+        if (!endsColon && !known) continue; // evita falsos positivos por «:» sueltos en valores
+        let value = raw.slice(idx + 1).trim();
+        if (!value) {
           for (let j = i + 1; j < lines.length; j++) {
-            if (lines[j].trim() === '') continue;
-            const nidx = lines[j].indexOf(':');
-            const nkey = nidx !== -1 ? norm(lines[j].slice(0, nidx)) : null;
-            if (nkey && DICT[nkey]) break;
-            val = lines[j].trim(); break;
+            const nt = lines[j].trim();
+            if (!nt) continue;
+            if (nt.endsWith(':')) break;
+            value = nt; consumidas.add(j); break;
           }
         }
-        if (val) pares[DICT[key]] = val;
+        if (value) todos.push({ label, value, key: norm(label) });
       }
+      const pares = {};
+      todos.forEach(p => { const f = DICT[p.key]; if (f && !(f in pares)) pares[f] = p.value; });
       const out = {};
       if (pares.ap1) out.ap1 = pares.ap1;
       if (pares.ap2) out.ap2 = pares.ap2;
@@ -233,7 +242,7 @@
       if (pares.estado) { const c = matchEstado(pares.estado); if (c) out.estado = c; }
       if (pares.sexo) { const s = matchSexo(pares.sexo); if (s) out.sexo = s; }
       else if (out.nombre) { const s = inferSexo(out.nombre); if (s) out.sexo = s; }
-      return { found: out, count: Object.keys(out).length };
+      return { found: out, count: Object.keys(out).length, todos };
     }
 
     /* ===== Cálculo de RFC (13 caracteres) — base + homoclave + dígito verificador (SAT) ===== */
@@ -282,15 +291,28 @@
     }
 
     function App() {
-      const [form, setForm] = useState({ ap1:'', ap2:'', nombre:'', fecha:'', sexo:'', estado:'' });
+      const FORM0 = { ap1:'', ap2:'', nombre:'', fecha:'', sexo:'', estado:'' };
+      const [form, setForm] = useState(FORM0);
       const [copiado, setCopiado] = useState(false);
       const [copiadoRfc, setCopiadoRfc] = useState(false);
       const [detectados, setDetectados] = useState(0);
+      const [datos, setDatos] = useState([]);          // todos los campos del bloque pegado
+      const [textoPegado, setTextoPegado] = useState('');
       const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
       const pegar = (e) => {
-        const { found, count } = parseDatosCurp(e.target.value);
-        if (count) { setForm(f => ({ ...f, ...found })); setDetectados(count); }
+        const texto = e.target.value;
+        setTextoPegado(texto);
+        const { found, count, todos } = parseDatosCurp(texto);
+        setDatos(todos);
+        setDetectados(count);
+        if (count) setForm(f => ({ ...f, ...found }));
       };
+      const limpiarTodo = () => {
+        setForm(FORM0); setTextoPegado(''); setDatos([]); setDetectados(0);
+        setCopiado(false); setCopiadoRfc(false);
+      };
+      const bonito = (s) => { const x = (s || '').replace(/_/g, ' ').trim(); return x.charAt(0).toUpperCase() + x.slice(1); };
+      const hayContenido = textoPegado || form.ap1 || form.ap2 || form.nombre || form.fecha || form.sexo || form.estado;
 
       const resultado = useMemo(() => calcularCurp(form), [form]);
       const rfc = useMemo(() => calcularRfc(form), [form]);
@@ -324,14 +346,22 @@
           <div className="max-w-2xl mx-auto px-4 pb-24">
             <div className="bg-white rounded-2xl p-5 shadow-sm border border-[#E5E5EA] space-y-4">
               <div className="bg-[#AF52DE]/[0.08] rounded-2xl p-3.5">
-                <label className="text-[12px] font-semibold text-[#AF52DE] flex items-center gap-1.5 mb-2">
-                  <i className="fas fa-wand-magic-sparkles"></i> Pegar datos (RENAPO / lead) — llenado automático
-                </label>
-                <textarea onChange={pegar} rows={3}
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <label className="text-[12px] font-semibold text-[#AF52DE] flex items-center gap-1.5">
+                    <i className="fas fa-wand-magic-sparkles"></i> Pegar datos (RENAPO / lead) — llenado automático
+                  </label>
+                  {hayContenido && (
+                    <button type="button" onClick={limpiarTodo}
+                      className="text-[11px] font-semibold text-[#FF3B30] hover:text-white hover:bg-[#FF3B30] px-2.5 py-1 rounded-full border border-[#FF3B30]/30 hover:border-[#FF3B30] transition-all whitespace-nowrap">
+                      <i className="fas fa-eraser mr-1"></i>Limpiar todo
+                    </button>
+                  )}
+                </div>
+                <textarea value={textoPegado} onChange={pegar} rows={3}
                   placeholder="Pega aquí el bloque de datos con formato «etiqueta : valor» (apellidos, nombre, año/mes/día de nacimiento, estado…) y los campos se llenan solos."
                   className="w-full bg-white border border-[#AF52DE]/25 rounded-xl p-3 text-xs focus:outline-none focus:border-[#AF52DE] resize-none" />
                 {detectados > 0 && (
-                  <p className="text-[11px] text-[#AF52DE] mt-1.5"><i className="fas fa-check-circle mr-1"></i>{detectados} datos detectados y rellenados. Revisa el <b>sexo</b> si no venía en el texto.</p>
+                  <p className="text-[11px] text-[#AF52DE] mt-1.5"><i className="fas fa-check-circle mr-1"></i>{detectados} datos para CURP/RFC rellenados. Revisa el <b>sexo</b> si no venía en el texto.</p>
                 )}
               </div>
 
@@ -444,6 +474,29 @@
               <div className="mt-5 text-center text-[#8E8E93] text-sm py-10">
                 <i className="fas fa-id-card text-3xl mb-3 text-[#C7C7CC]"></i>
                 <p>Completa los campos marcados con <b>*</b> para generar la CURP y el RFC.</p>
+              </div>
+            )}
+
+            {/* Todos los campos detectados del lead */}
+            {datos.length > 0 && (
+              <div className="mt-5 bg-white rounded-2xl p-5 shadow-sm border border-[#E5E5EA] pop-in">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-[11px] font-semibold text-[#8E8E93] uppercase tracking-wide">
+                    <i className="fas fa-list-ul mr-1.5"></i>Datos detectados del lead ({datos.length})
+                  </span>
+                  <button type="button" onClick={limpiarTodo}
+                    className="text-[11px] font-semibold text-[#FF3B30] hover:text-white hover:bg-[#FF3B30] px-2.5 py-1 rounded-full border border-[#FF3B30]/30 hover:border-[#FF3B30] transition-all">
+                    <i className="fas fa-eraser mr-1"></i>Limpiar todo
+                  </button>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-1">
+                  {datos.map((d, i) => (
+                    <div key={i} className="flex items-baseline justify-between gap-3 py-1.5 border-b border-[#F2F2F7]">
+                      <span className="text-[11px] text-[#8E8E93] shrink-0">{bonito(d.label)}</span>
+                      <span className="text-[13px] text-[#1C1C1E] font-medium text-right break-words select-text">{d.value}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </div>
