@@ -51,24 +51,6 @@
     @keyframes trackPop { 0% { transform: scale(0.85); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
     .track-pop { animation: trackPop .4s cubic-bezier(.34,1.56,.64,1); display: inline-block; }
 
-    /* ===================== MUNDIAL 2026 — BORRAR AL FINALIZAR ===================== */
-    @keyframes mundialRoll { from { transform: translate(-50%,-50%) rotate(0deg); } to { transform: translate(-50%,-50%) rotate(360deg); } }
-    .mundial-ball { animation: mundialRoll 1.1s linear infinite; filter: drop-shadow(0 1px 1.5px rgba(0,0,0,.35)); }
-    /* Balón SVG realista de la barra: rueda lento hacia la derecha */
-    .mundial-ball-svg { display: block; filter: drop-shadow(0 2px 3px rgba(0,0,0,.35)); animation: ballRoll 2.4s linear infinite; }
-    @keyframes ballRoll { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-    /* Césped de la barra (pasto cortado en franjas) */
-    .mundial-grass { background-color: #2f9147; background-image: repeating-linear-gradient(90deg, rgba(255,255,255,.07) 0 16px, rgba(0,0,0,.07) 16px 32px); }
-    @keyframes mundialBounce { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
-    .mundial-bounce { animation: mundialBounce 1.4s ease-in-out infinite; display: inline-block; }
-    @keyframes mundialWave { 0% { background-position: 0% 50%; } 100% { background-position: 200% 50%; } }
-    .mundial-banner { background: linear-gradient(90deg,#006847,#ffffff,#ce1126,#006847); background-size: 200% 100%; animation: mundialWave 6s linear infinite; }
-    @keyframes mundialPop { 0% { transform: scale(0.6); opacity: 0; } 50% { transform: scale(1.15); } 100% { transform: scale(1); opacity: 1; } }
-    .mundial-gol { animation: mundialPop .5s ease-out; }
-    @keyframes mundialConfetti { 0% { transform: translateY(-8px) rotate(0deg); opacity: 0; } 15% { opacity: 1; } 100% { transform: translateY(18px) rotate(220deg); opacity: 0; } }
-    .mundial-confetti span { position: absolute; top: 0; font-size: 10px; animation: mundialConfetti 1.5s ease-in infinite; }
-    /* =================== FIN MUNDIAL 2026 =================== */
-
     /* ===================== CELEBRACIÓN DISPERSADO — confeti a pantalla completa ===================== */
     .celebra-overlay { position: fixed; inset: 0; z-index: 9999; pointer-events: none; overflow: hidden; }
     .celebra-piece { position: absolute; top: -28px; will-change: transform, opacity; animation-name: celebraFall; animation-timing-function: cubic-bezier(.28,.62,.5,1); animation-fill-mode: forwards; }
@@ -80,7 +62,8 @@
     .celebra-banner { position: absolute; top: 34%; left: 50%; transform: translate(-50%,-50%); text-align: center; animation: celebraPop .55s cubic-bezier(.2,1.5,.5,1) forwards, celebraFade .5s ease 2.7s forwards; }
     @keyframes celebraPop { 0% { transform: translate(-50%,-50%) scale(.3); opacity: 0; } 60% { transform: translate(-50%,-50%) scale(1.1); opacity: 1; } 100% { transform: translate(-50%,-50%) scale(1); opacity: 1; } }
     @keyframes celebraFade { to { opacity: 0; transform: translate(-50%,-58%) scale(.96); } }
-    .celebra-banner .emojis { font-size: 52px; line-height: 1; filter: drop-shadow(0 3px 6px rgba(0,0,0,.25)); animation: mundialBounce 1s ease-in-out infinite; }
+    @keyframes celebraBounce { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+    .celebra-banner .emojis { font-size: 52px; line-height: 1; filter: drop-shadow(0 3px 6px rgba(0,0,0,.25)); animation: celebraBounce 1s ease-in-out infinite; }
     .celebra-banner .titulo { font-size: 40px; font-weight: 900; letter-spacing: -.02em; color: #34C759; text-shadow: 0 2px 12px rgba(52,199,89,.35); margin-top: 6px; }
     .celebra-banner .monto { font-size: 26px; font-weight: 800; color: #1C1C1E; margin-top: 2px; }
     .celebra-banner .sub { font-size: 14px; font-weight: 700; color: #ce1126; text-transform: uppercase; letter-spacing: .06em; margin-top: 8px; }
@@ -493,89 +476,6 @@
     ];
 
     /* =====================================================================
-       🏆 MUNDIAL 2026 — Decoración TEMPORAL (fácil de quitar).
-       Para APAGAR todo al terminar el mundial: cambia enabled a false.
-       Para BORRARLO por completo: elimina este objeto, el bloque CSS
-       marcado "MUNDIAL 2026" y los bloques JSX marcados "MUNDIAL 2026".
-       ===================================================================== */
-    const MUNDIAL = {
-      enabled: true,
-      titulo: "Mundial 2026",
-      ball: "⚽",
-      trophy: "🏆",
-      goal: "🥅",
-      gol: "¡GOOOL! 🎉",
-    };
-
-    // Balón de fútbol vectorial (clásico Telstar). Nítido en cualquier navegador,
-    // sin depender de fuentes de emoji. Parte del decorado MUNDIAL 2026.
-    const BalonFutbol = ({ size = 30, className = '' }) => (
-      <svg viewBox="0 0 64 64" width={size} height={size} className={className} aria-hidden="true">
-        <defs>
-          <radialGradient id="balonShade" cx="37%" cy="30%" r="80%">
-            <stop offset="0%" stopColor="#ffffff" />
-            <stop offset="62%" stopColor="#f3f4f6" />
-            <stop offset="100%" stopColor="#c4c8ce" />
-          </radialGradient>
-          <clipPath id="balonClip"><circle cx="32" cy="32" r="30" /></clipPath>
-        </defs>
-        <circle cx="32" cy="32" r="30" fill="url(#balonShade)" stroke="#242527" strokeWidth="2.5" />
-        <g clipPath="url(#balonClip)">
-          <g stroke="#242527" strokeWidth="1.7" strokeLinecap="round">
-            <line x1="32" y1="23" x2="32" y2="4" />
-            <line x1="40.56" y1="29.22" x2="59.58" y2="23.04" />
-            <line x1="37.29" y1="39.28" x2="49.05" y2="55.46" />
-            <line x1="26.71" y1="39.28" x2="14.95" y2="55.46" />
-            <line x1="23.44" y1="29.22" x2="4.42" y2="23.04" />
-          </g>
-          <g fill="#1b1c1e" stroke="#1b1c1e" strokeWidth="0.6" strokeLinejoin="round">
-            <polygon points="32,23 40.56,29.22 37.29,39.28 26.71,39.28 23.44,29.22" />
-            <polygon points="49.04,8.54 51.95,17.48 44.34,23.01 36.73,17.48 39.64,8.54" />
-            <polygon points="59.58,40.96 51.97,46.49 44.36,40.96 47.27,32.02 56.67,32.02" />
-            <polygon points="32,61 24.39,55.47 27.3,46.53 36.7,46.53 39.61,55.47" />
-            <polygon points="4.42,40.96 7.33,32.02 16.73,32.02 19.64,40.96 12.03,46.49" />
-            <polygon points="14.96,8.54 24.36,8.54 27.27,17.48 19.66,23.01 12.05,17.48" />
-          </g>
-        </g>
-        <ellipse cx="23" cy="19" rx="9" ry="5.5" fill="#ffffff" opacity="0.35" />
-      </svg>
-    );
-
-    // Futbolista (camiseta, short, botines) pateando, al inicio de la barra. Decorado MUNDIAL 2026.
-    const Pateador = ({ h = 50 }) => {
-      const SKIN = '#e7b183', SKIN2 = '#d99f6c', JERSEY = '#16a34a', JERSEY2 = '#0f7d38', SHORT = '#f4f6f8', SOCK = '#0f7d38', BOOT = '#17181a', HAIR = '#2a1c12';
-      return (
-        <svg viewBox="0 0 100 122" width={h * 0.82} height={h} aria-hidden="true">
-          <ellipse cx="52" cy="118" rx="30" ry="3.5" fill="rgba(0,0,0,0.16)" />
-          {/* brazo trasero */}
-          <path d="M46,40 L33,30 L25,21" fill="none" stroke={SKIN2} strokeWidth="8.5" strokeLinecap="round" strokeLinejoin="round" />
-          {/* pierna de apoyo */}
-          <path d="M50,66 L44,90" fill="none" stroke={SHORT} strokeWidth="17" strokeLinecap="round" />
-          <path d="M44,90 L41,110" fill="none" stroke={SOCK} strokeWidth="11" strokeLinecap="round" />
-          <ellipse cx="47" cy="114" rx="9" ry="4" fill={BOOT} />
-          {/* torso (camiseta) */}
-          <path d="M39,39 Q48,33 56,40 L58,60 Q50,69 42,62 Z" fill={JERSEY} />
-          <path d="M39,39 Q48,33 56,40 L57,49 Q48,44 40,50 Z" fill={JERSEY2} />
-          {/* cabeza */}
-          <path d="M40,34 L46,29" stroke={SKIN} strokeWidth="7" strokeLinecap="round" />
-          <circle cx="45" cy="22" r="10.5" fill={SKIN} />
-          <path d="M35.5,20 a10.5,10.5 0 0 1 19,-4 q-6,-2 -11,1 q-5,2 -8,3 Z" fill={HAIR} />
-          {/* brazo delantero */}
-          <path d="M53,40 L62,52 L67,63" fill="none" stroke={SKIN} strokeWidth="8.5" strokeLinecap="round" strokeLinejoin="round" />
-          {/* pierna de pateo (rota alrededor de la cadera) */}
-          <g>
-            <animateTransform attributeName="transform" attributeType="XML" type="rotate"
-              values="20 50 65; -26 50 65; 20 50 65" keyTimes="0;0.4;1"
-              dur="1.1s" calcMode="spline" keySplines="0.5 0 0.2 1; 0.3 0 0.4 1" repeatCount="indefinite" />
-            <path d="M50,65 L72,62" fill="none" stroke={SHORT} strokeWidth="17" strokeLinecap="round" />
-            <path d="M72,62 L91,47" fill="none" stroke={SOCK} strokeWidth="11" strokeLinecap="round" />
-            <ellipse cx="93" cy="45" rx="8" ry="4" fill={BOOT} transform="rotate(-38 93 45)" />
-          </g>
-        </svg>
-      );
-    };
-
-    /* =====================================================================
        🎉 CELEBRACIÓN AL DISPERSAR — confeti a pantalla completa.
        Se dispara cuando una venta pasa a "Dispersado".
        Para apagarla: cambia CELEBRA_DISPERSADO a false.
@@ -587,7 +487,7 @@
     const ConfettiDispersado = ({ monto }) => {
       const piezas = React.useMemo(() => {
         const colores = ['#34C759', '#007AFF', '#FF9500', '#FF3B30', '#5856D6', '#AF52DE', '#FFCC00', '#00C7BE', '#ce1126', '#006847'];
-        const emojis = ['🎉', '⚽', '🥅', '💵', '💰', '🔥', '⭐', '🏆'];
+        const emojis = ['🎉', '💵', '💰', '🔥', '⭐', '🏆'];
         const arr = [];
         for (let i = 0; i < 150; i++) {
           const esEmoji = Math.random() < 0.16;
@@ -611,10 +511,10 @@
         <div className="celebra-overlay">
           <div className="celebra-banner">
             <div className="box">
-              <div className="emojis">⚽ 🎉 🥅</div>
+              <div className="emojis">🎉 💰 🎊</div>
               <p className="titulo">¡DISPERSADO!</p>
               {monto > 0 && <p className="monto">{money(monto)}</p>}
-              <p className="sub">¡GOOOL de venta! 🔥</p>
+              <p className="sub">¡Excelente venta! 🔥</p>
             </div>
           </div>
           {piezas.map((p, i) => (
@@ -958,16 +858,11 @@
              <div className="flex justify-between items-end mb-2">
                  <p className="text-[11px] font-semibold text-[#8E8E93] uppercase tracking-wide flex items-center gap-1.5">
                      Progreso Total
-                     {/* ===== MUNDIAL 2026: grito de gol al llegar a la meta (eliminar al terminar) ===== */}
-                     {MUNDIAL.enabled && percent >= 100 && (
-                       <span className="mundial-gol text-[9px] font-bold text-[#ce1126] bg-[#ce1126]/10 px-1.5 py-0.5 rounded-full normal-case tracking-normal">{MUNDIAL.gol}</span>
-                     )}
-                     {/* ===== FIN MUNDIAL 2026 ===== */}
                  </p>
                  <p className={`text-3xl font-black leading-none tracking-tight transition-colors duration-500 ${percent >= 140 ? 'text-[#AF52DE]' : percent >= 120 ? 'text-[#5856D6]' : percent >= 100 ? 'text-[#34C759]' : percent >= 80 ? 'text-[#007AFF]' : 'text-[#FF9500]'}`}>{percent.toFixed(1)}%</p>
              </div>
 
-             <div className={`relative w-full rounded-full h-5 mb-12 shadow-inner ${MUNDIAL.enabled ? 'mundial-grass mt-6' : 'bg-[#E5E5EA] mt-1'}`}>
+             <div className="relative w-full rounded-full h-5 mb-12 shadow-inner bg-[#E5E5EA] mt-1">
                 <div
                   className={`absolute top-0 left-0 h-full rounded-full overflow-hidden transition-all duration-1000 track-glow bg-gradient-to-r ${percent >= 140 ? 'from-[#9B3FD1] to-[#C77DFF]' : percent >= 120 ? 'from-[#4B49C9] to-[#7B79E8]' : percent >= 100 ? 'from-[#2DB14E] to-[#6EE7A0]' : percent >= 80 ? 'from-[#007AFF] to-[#4DA3FF]' : 'from-[#F08000] to-[#FFB84D]'}`}
                   style={{ width: `${fillVisualWidth}%`, boxShadow: '0 2px 12px rgba(0,0,0,0.14)' }}
@@ -991,24 +886,6 @@
                         </div>
                     )
                 })}
-
-                {/* ===== MUNDIAL 2026: pateador + pelota que avanza + portería (eliminar al terminar) ===== */}
-                {MUNDIAL.enabled && (
-                  <>
-                    <div className="absolute top-1/2 z-30 pointer-events-none" style={{ left: '-6px', transform: 'translateY(-60%)' }} title="¡A meter goles de venta!"><Pateador h={50} /></div>
-                    <div className="absolute top-1/2 z-20 pointer-events-none" style={{ left: `${fillVisualWidth}%`, transform: 'translate(-50%,-50%)', transition: 'left 1s ease' }} title={`Vas al ${percent.toFixed(1)}% — ¡mete gol de venta!`}><BalonFutbol size={30} className="mundial-ball-svg" /></div>
-                    <div className="absolute top-1/2 -translate-y-1/2 right-[-16px] z-20 pointer-events-none text-lg leading-none" title="Meta máxima"><span className="mundial-bounce">{percent >= 140 ? MUNDIAL.trophy : MUNDIAL.goal}</span></div>
-                    {percent >= 100 && (
-                      <div className="mundial-confetti absolute inset-0 overflow-visible pointer-events-none z-10">
-                        <span style={{ left: '20%', animationDelay: '0s' }}>🔴</span>
-                        <span style={{ left: '45%', animationDelay: '.3s' }}>⚪</span>
-                        <span style={{ left: '65%', animationDelay: '.6s' }}>🟢</span>
-                        <span style={{ left: '85%', animationDelay: '.9s' }}>🟡</span>
-                      </div>
-                    )}
-                  </>
-                )}
-                {/* ===== FIN MUNDIAL 2026 ===== */}
              </div>
 
              <div className="-mt-1">
@@ -1613,9 +1490,6 @@
           {/* ===== CELEBRACIÓN: confeti a pantalla completa al dispersar ===== */}
           {celebracion && <ConfettiDispersado key={celebracion.id} monto={celebracion.monto} />}
           {/* ===== FIN CELEBRACIÓN ===== */}
-          {/* ===== MUNDIAL 2026: franja tricolor animada (eliminar al terminar) ===== */}
-          {MUNDIAL.enabled && <div className="mundial-banner h-1 w-full shrink-0"></div>}
-          {/* ===== FIN MUNDIAL 2026 ===== */}
           <div className="glass-nav border-b border-[#E5E5EA] text-[#1C1C1E] p-3 flex flex-wrap justify-between items-center z-10 gap-2">
 
             <div className="flex items-center gap-2 md:gap-4">
@@ -1626,13 +1500,6 @@
                    <span className="text-[10px] text-[#8E8E93]">{user.email ? user.email.split('@')[0] : 'Usuario'}</span>
                 </div>
               </div>
-              {/* ===== MUNDIAL 2026: badge del título (eliminar al terminar) ===== */}
-              {MUNDIAL.enabled && (
-                <span className="hidden sm:inline-flex items-center gap-1 text-[10px] font-bold text-[#006847] bg-[#34C759]/10 border border-[#34C759]/20 px-2 py-1 rounded-full whitespace-nowrap">
-                  <span className="mundial-bounce">{MUNDIAL.trophy}</span>{MUNDIAL.titulo}<span className="mundial-bounce">{MUNDIAL.ball}</span>
-                </span>
-              )}
-              {/* ===== FIN MUNDIAL 2026 ===== */}
               <div className="flex items-center bg-[#F2F2F7] rounded-xl p-0.5">
                 <button onClick={() => changePeriod(-1)} className="w-8 h-8 flex items-center justify-center rounded-lg text-[#8E8E93] hover:bg-white hover:text-[#007AFF] transition-colors"><i className="fas fa-chevron-left text-xs"></i></button>
                 <div className="flex flex-col items-center w-32">
